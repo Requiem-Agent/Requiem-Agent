@@ -27,6 +27,6 @@ jobs:
           VITE_API_URL: https://rayig-dev.hf.space
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: artifacts/requiem-app/dist/public
+          path: dist/public
       - id: deployment
         uses: actions/deploy-pages@v4
