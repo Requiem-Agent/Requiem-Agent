@@ -26,7 +26,9 @@ export function TelegramInit({ children }: { children: ReactNode }) {
       attempts++;
       const wa = (window as any).Telegram?.WebApp;
 
-      if (wa && wa.version) {
+      // Real Telegram has platform like "android", "ios", "web", "tdesktop"
+      // Browser mock has platform = "unknown" and version = ""
+      if (wa && wa.platform && wa.platform !== 'unknown' && wa.version) {
         clearInterval(check);
         wa.ready();
         wa.expand();
