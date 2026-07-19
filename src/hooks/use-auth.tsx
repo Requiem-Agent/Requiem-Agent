@@ -52,9 +52,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Check if running in Telegram WebView
+      // Detect Telegram WebView (native injection, not mock from script)
       const webApp = window.Telegram?.WebApp;
-      if (!webApp) {
+      const isRealTelegram = webApp && (webApp.version || webApp.initData);
+      
+      if (!isRealTelegram) {
         setIsTelegram(false);
         setIsLoading(false);
         return;
