@@ -52,21 +52,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Require Telegram WebView
+      // Check if running in Telegram WebView
       const webApp = window.Telegram?.WebApp;
       if (!webApp) {
         setIsTelegram(false);
         setIsLoading(false);
         return;
       }
+
       // Telegram WebView detected
       setIsTelegram(true);
       webApp.ready();
       webApp.expand();
-      
-      const initData = webApp.initData || '';
-      if (!initData) {
-        setIsLoading(false);
-        return;
+
+      // Try to authenticate with initData
+      const initData = webApp.initData;
+      if (initData) {
+        try {
+          const authResult = await authMutation.mutateAsync({ data: { initData } });
+          setToken(authResult.token);
+          setUser(authResult.user);
+          localStorage.setItem('requiem_token', authResult.token);
+          localStorage.setItem('requiem_user', JSON.stringify(authResult.user));
+        } catch (error) {
+          console.error('Auth failed:', error);
+        }
       }
+      
+      setIsLoading(false);
+    };
+
+    initAuth();
+  }, []);
+
+  const logout = () => {
+    localStorage.removeItem('requiem_token');
+    localStorage.removeItem('requiem_user');
+    setToken(null);
+    setUser(null);
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, token, isLoading, isTelegram, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() { return useContext(AuthContext); }
+
+export function useRequireTelegram() {
+  const { isLoading, isTelegram, user } = useAuth();
+  return { isReady: !isLoading && isTelegram && !!user, isLoading, isTelegram };
 }
