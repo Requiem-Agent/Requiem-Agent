@@ -1,4 +1,6 @@
-# Auto-generated - allow build scripts for approved packages
+packages:
+  - 'artifacts/**'
+  - 'lib/**'
 allowBuilds:
   esbuild: true
 onlyBuiltDependencies:
