@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  base: '/Requiem-Agent/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
