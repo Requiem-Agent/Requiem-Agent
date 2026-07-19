@@ -5,7 +5,8 @@
  * على 10 Webshare IPs مختلفة → Zen API يشوف IP مختلف كل مرة
  */
 
-const API = "/api/zen/chat";
+const API_BASE = import.meta.env.VITE_API_URL || "";
+const API = `${API_BASE}/api/zen/chat`;
 
 // ─── API Key اختياري ────────────────────────────────────────────
 export function setApiKey(k: string) { try { localStorage.setItem("zen_key", k); } catch {} }
@@ -22,7 +23,7 @@ export interface UsageStats {
 }
 export async function fetchUsageStats(): Promise<UsageStats> {
   const token = localStorage.getItem("requiem_token") || "";
-  const r = await fetch("/api/usage", {
+  const r = await fetch(`${API_BASE}/api/usage`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   const d = await r.json();

@@ -4,6 +4,10 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { AuthProvider } from '@/hooks/use-auth';
 import AuthGuard from '@/components/auth-guard';
+import { setBaseUrl } from '@workspace/api-client-react';
+
+const apiUrl = import.meta.env.VITE_API_URL;
+if (apiUrl) setBaseUrl(apiUrl);
 
 // Pages
 import WorkspacePage from '@/pages/workspace';
