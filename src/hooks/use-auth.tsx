@@ -79,6 +79,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
+      // If no auth but in Telegram, create local user
+      if (!user || !token) {
+        let localId = localStorage.getItem('requiem_local_id');
+        if (!localId) {
+          localId = 'tg-' + Math.random().toString(36).substring(2, 10);
+          localStorage.setItem('requiem_local_id', localId);
+        }
+        const localUser: User = {
+          id: localId, telegramId: 0, firstName: 'Telegram User',
+          createdAt: new Date().toISOString(), quotaReadUsed: 0, quotaWriteUsed: 0,
+        };
+        setToken(localId);
+        setUser(localUser);
+        localStorage.setItem('requiem_token', localId);
+        localStorage.setItem('requiem_user', JSON.stringify(localUser));
+      }
+      
       setIsLoading(false);
     };
 
