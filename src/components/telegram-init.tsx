@@ -2,40 +2,65 @@ import { useState, useEffect, ReactNode } from 'react';
 
 interface InitResult {
   ready: boolean;
-  webApp: any | null;
   initData: string;
   error: string | null;
 }
 
 /**
- * Shows a loading screen while waiting for Telegram WebView to initialize.
- * Polls for window.Telegram.WebApp up to 5 seconds.
- * Only renders children when Telegram is confirmed present.
+ * Reliable Telegram WebView detection.
+ * 
+ * The official telegram-web-app.js script creates window.Telegram.WebApp
+ * in ALL environments (Telegram AND browser). In browsers, it creates
+ * a mock with platform="unknown" and empty version.
+ * 
+ * Real Telegram WebView detection:
+ * - window.Telegram?.WebApp?.platform !== 'unknown'
+ * - window.Telegram?.WebApp?.version !== ''
+ * - window.TelegramGameProxy !== undefined (Desktop)
+ * 
+ * Additionally, check these native Telegram bridges:
+ * - window.Telegram?.WebView?.receiveEvent (iOS/Android)
+ * - window.TelegramGameProxy?.receiveEvent (Desktop)
  */
+function isRealTelegram(): boolean {
+  const wa = (window as any).Telegram?.WebApp;
+  if (!wa) return false;
+  
+  // Real Telegram has a real platform name (not "unknown")
+  if (wa.platform && wa.platform !== 'unknown') return true;
+  
+  // Real Telegram has a Bot API version string
+  if (wa.version) return true;
+  
+  // Native bridges (Desktop)
+  if ((window as any).TelegramGameProxy) return true;
+  if ((window as any).Telegram?.WebView?.receiveEvent) return true;
+  
+  return false;
+}
+
 export function TelegramInit({ children }: { children: ReactNode }) {
   const [result, setResult] = useState<InitResult>({
-    ready: false, webApp: null, initData: '', error: null,
+    ready: false, initData: '', error: null,
   });
 
   useEffect(() => {
     let attempts = 0;
-    const maxAttempts = 10;
-    const interval = 500; // check every 500ms
+    const maxAttempts = 15; // 15 * 300ms = 4.5 seconds max
+    const interval = 300;
 
     const check = setInterval(() => {
       attempts++;
-      const wa = (window as any).Telegram?.WebApp;
 
-      // Real Telegram has platform like "android", "ios", "web", "tdesktop"
-      // Browser mock has platform = "unknown" and version = ""
-      if (wa && wa.platform && wa.platform !== 'unknown' && wa.version) {
+      if (isRealTelegram()) {
         clearInterval(check);
+        const wa = (window as any).Telegram.WebApp;
         wa.ready();
-        wa.expand();
+        try { wa.expand(); } catch {}
+        
         setResult({
           ready: true,
-          webApp: wa,
-          initData: wa.initData || '',
+          initData: wa.initData || wa.initDataUnsafe?.query_id ? wa.initData : '',
           error: null,
         });
         return;
@@ -45,7 +70,6 @@ export function TelegramInit({ children }: { children: ReactNode }) {
         clearInterval(check);
         setResult({
           ready: false,
-          webApp: null,
           initData: '',
           error: 'Telegram WebView not detected',
         });
@@ -55,7 +79,7 @@ export function TelegramInit({ children }: { children: ReactNode }) {
     return () => clearInterval(check);
   }, []);
 
-  // Loading screen
+  // Loading screen with progress bar
   if (!result.ready && !result.error) {
     return (
       <div style={{
@@ -71,21 +95,17 @@ export function TelegramInit({ children }: { children: ReactNode }) {
         <h1 style={{ fontSize: '18px', fontWeight: 600, color: '#fff', margin: 0 }}>
           Requiem Agent
         </h1>
-        {/* Progress bar */}
         <div style={{
           width: '200px', height: '3px', background: '#1a1a2e',
-          borderRadius: '2px', overflow: 'hidden', marginTop: '4px',
+          borderRadius: '2px', overflow: 'hidden',
         }}>
           <div style={{
             height: '100%', background: '#a855f7',
-            borderRadius: '2px',
             animation: 'progress 2s ease-in-out infinite',
           }} />
         </div>
         <style>{`@keyframes progress {
-          0% { width: 5%; }
-          50% { width: 70%; }
-          100% { width: 95%; }
+          0% { width: 5%; } 50% { width: 70%; } 100% { width: 95%; }
         }`}</style>
         <p style={{ color: '#888', fontSize: '13px', margin: 0 }}>
           جاري الاتصال بتلغرام...
@@ -134,6 +154,6 @@ export function TelegramInit({ children }: { children: ReactNode }) {
     );
   }
 
-  // Success - pass initData to children via context and render
+  // Success
   return <>{children}</>;
 }
