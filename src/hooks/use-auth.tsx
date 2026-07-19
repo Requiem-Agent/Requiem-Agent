@@ -52,28 +52,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Detect Telegram WebView - wait 1.5s for native injection
-      let webApp = window.Telegram?.WebApp;
-      
-      if (!webApp) {
-        // Give Telegram time to inject the WebApp object
-        await new Promise(r => setTimeout(r, 1500));
-        webApp = window.Telegram?.WebApp;
-      }
-      
-      if (!webApp) {
-        setIsTelegram(false);
-        setIsLoading(false);
-        return;
-      }
-
-      // Telegram WebView detected
+      // Telegram WebView is confirmed by TelegramInit wrapper
+      const webApp = window.Telegram?.WebApp;
       setIsTelegram(true);
-      webApp.ready();
-      webApp.expand();
-
+      webApp?.ready?.();
+      webApp?.expand?.();
+      
       // Try to authenticate with initData
-      const initData = webApp.initData;
+      const initData = webApp?.initData || '';
       if (initData) {
         try {
           const authResult = await authMutation.mutateAsync({ data: { initData } });

@@ -4,6 +4,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { AuthProvider } from '@/hooks/use-auth';
 import AuthGuard from '@/components/auth-guard';
+import { TelegramInit } from '@/components/telegram-init';
 import { setBaseUrl } from '@workspace/api-client-react';
 
 const apiUrl = import.meta.env.VITE_API_URL;
@@ -38,16 +39,18 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-            <AuthGuard>
-              <Router />
-            </AuthGuard>
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
-      </AuthProvider>
+      <TelegramInit>
+        <AuthProvider>
+          <TooltipProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+              <AuthGuard>
+                <Router />
+              </AuthGuard>
+            </WouterRouter>
+            <Toaster />
+          </TooltipProvider>
+        </AuthProvider>
+      </TelegramInit>
     </QueryClientProvider>
   );
 }
