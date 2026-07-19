@@ -52,11 +52,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Telegram WebView is confirmed by TelegramInit wrapper
-      const webApp = window.Telegram?.WebApp;
+      // Telegram WebView confirmed by TelegramInit
       setIsTelegram(true);
-      webApp?.ready?.();
-      webApp?.expand?.();
       
       // Try to authenticate with initData
       const initData = webApp?.initData || '';

@@ -26,7 +26,7 @@ export function TelegramInit({ children }: { children: ReactNode }) {
       attempts++;
       const wa = (window as any).Telegram?.WebApp;
 
-      if (wa && (wa.initData || wa.version)) {
+      if (wa && wa.version) {
         clearInterval(check);
         wa.ready();
         wa.expand();
