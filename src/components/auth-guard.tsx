@@ -32,18 +32,18 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         fontFamily: 'monospace',
       }}>
         <div style={{ fontSize: '48px', marginBottom: '8px' }}>🔒</div>
-        <h1 style={{ fontSize: '20px', margin: 0, fontWeight: 600 }}>Telegram Only</h1>
+        <h1 style={{ fontSize: '20px', margin: 0, fontWeight: 600 }}>تلغرام فقط</h1>
         <p style={{ color: '#888', maxWidth: '320px', lineHeight: '1.5', margin: 0, fontSize: '14px' }}>
-          Requiem Agent can only be accessed through Telegram WebView.
+          لا يمكن الوصول إلى Requiem Agent إلا من خلال WebView تلغرام.
         </p>
         <p style={{ color: '#666', fontSize: '13px', maxWidth: '280px', margin: '8px 0 0' }}>
-          Open <b style={{ color: '#a855f7' }}>@RequiemAgentBot</b> in Telegram and press <b>Launch</b>.
+          افتح <b style={{ color: '#a855f7' }}>@RequiemAgentBot</b> في تلغرام واضغط <b>Launch</b>.
         </p>
         <div style={{
           marginTop: '16px', padding: '10px 20px', background: '#1a1a2e',
           borderRadius: '8px', border: '1px solid #2a2a3e', fontSize: '12px', color: '#666',
         }}>
-          Telegram Mini Apps required
+          يتطلب Telegram Mini Apps
         </div>
       </div>
     );
