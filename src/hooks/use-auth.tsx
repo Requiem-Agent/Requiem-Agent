@@ -52,11 +52,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Detect Telegram WebView (native injection, not mock from script)
-      const webApp = window.Telegram?.WebApp;
-      const isRealTelegram = webApp && (webApp.version || webApp.initData);
+      // Detect Telegram WebView - wait 1.5s for native injection
+      let webApp = window.Telegram?.WebApp;
       
-      if (!isRealTelegram) {
+      if (!webApp) {
+        // Give Telegram time to inject the WebApp object
+        await new Promise(r => setTimeout(r, 1500));
+        webApp = window.Telegram?.WebApp;
+      }
+      
+      if (!webApp) {
         setIsTelegram(false);
         setIsLoading(false);
         return;
