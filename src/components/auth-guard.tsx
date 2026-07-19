@@ -8,16 +8,18 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       <div style={{
         display: 'flex', height: '100vh', width: '100%',
         alignItems: 'center', justifyContent: 'center',
-        background: '#0a0c10', color: '#fff',
-        flexDirection: 'column', gap: '12px', fontFamily: 'monospace',
+        background: '#0a0c10', color: '#e0e0e0',
+        flexDirection: 'column', gap: '16px',
+        fontFamily: "'Segoe UI', 'Cairo', sans-serif",
+        direction: 'rtl',
       }}>
         <div style={{
-          width: '32px', height: '32px', borderRadius: '50%',
+          width: '28px', height: '28px', borderRadius: '50%',
           border: '2px solid #a855f7', borderTopColor: 'transparent',
           animation: 'spin 0.8s linear infinite',
         }} />
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        <p style={{ color: '#888', fontSize: '13px' }}>INITIALIZING...</p>
+        <p style={{ color: '#888', fontSize: '14px', letterSpacing: '1px' }}>جاري التحميل...</p>
       </div>
     );
   }
@@ -27,23 +29,45 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       <div style={{
         display: 'flex', height: '100vh', width: '100%',
         alignItems: 'center', justifyContent: 'center',
-        background: '#0a0c10', color: '#fff',
-        flexDirection: 'column', gap: '16px', padding: '24px', textAlign: 'center',
-        fontFamily: 'monospace',
+        background: '#0a0c10', color: '#e0e0e0',
+        flexDirection: 'column', gap: '12px', padding: '32px',
+        textAlign: 'center',
+        fontFamily: "'Segoe UI', 'Cairo', sans-serif",
+        direction: 'rtl',
       }}>
-        <div style={{ fontSize: '48px', marginBottom: '8px' }}>🔒</div>
-        <h1 style={{ fontSize: '20px', margin: 0, fontWeight: 600 }}>تلغرام فقط</h1>
-        <p style={{ color: '#888', maxWidth: '320px', lineHeight: '1.5', margin: 0, fontSize: '14px' }}>
-          لا يمكن الوصول إلى Requiem Agent إلا من خلال WebView تلغرام.
+        {/* Shield icon using SVG */}
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#a855f7" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+        
+        <h1 style={{
+          fontSize: '20px', fontWeight: 600, margin: '8px 0 4px',
+          color: '#ffffff', letterSpacing: '0.5px',
+        }}>
+          دسترسی محدود
+        </h1>
+        <p style={{
+          color: '#999', fontSize: '14px', lineHeight: '1.7',
+          maxWidth: '340px', margin: '0',
+        }}>
+          لا يمكن الوصول إلى Requiem Agent إلا من داخل تطبيق تلغرام عبر WebView.
         </p>
-        <p style={{ color: '#666', fontSize: '13px', maxWidth: '280px', margin: '8px 0 0' }}>
-          افتح <b style={{ color: '#a855f7' }}>@RequiemAgentBot</b> في تلغرام واضغط <b>Launch</b>.
+        <p style={{
+          color: '#777', fontSize: '13px', lineHeight: '1.6',
+          maxWidth: '300px', margin: '12px 0 0',
+        }}>
+          افتح <b style={{ color: '#a855f7', fontWeight: 600 }}>@RequiemAgentBot</b> في تلغرام
+          ثم اضغط على <b style={{ color: '#a855f7', fontWeight: 600 }}>Launch</b> للبدء.
         </p>
         <div style={{
-          marginTop: '16px', padding: '10px 20px', background: '#1a1a2e',
-          borderRadius: '8px', border: '1px solid #2a2a3e', fontSize: '12px', color: '#666',
+          marginTop: '20px', padding: '10px 24px',
+          background: '#16162a', borderRadius: '10px',
+          border: '1px solid #2a2a44',
+          fontSize: '12px', color: '#666',
+          fontFamily: "'Segoe UI', 'Cairo', sans-serif",
         }}>
-          يتطلب Telegram Mini Apps
+          Telegram Mini Apps
         </div>
       </div>
     );
@@ -54,12 +78,18 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       <div style={{
         display: 'flex', height: '100vh', width: '100%',
         alignItems: 'center', justifyContent: 'center',
-        background: '#0a0c10', color: '#ff4444', fontFamily: 'monospace',
+        background: '#0a0c10', color: '#e0e0e0',
         flexDirection: 'column', gap: '12px',
+        fontFamily: "'Segoe UI', 'Cairo', sans-serif",
+        direction: 'rtl',
       }}>
-        <div style={{ fontSize: '32px' }}>✕</div>
-        <p>Authentication failed</p>
-        <p style={{ color: '#666', fontSize: '12px' }}>Please try again from Telegram</p>
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="15" y1="9" x2="9" y2="15"/>
+          <line x1="9" y1="9" x2="15" y2="15"/>
+        </svg>
+        <p style={{ color: '#ef4444', fontSize: '15px', fontWeight: 500 }}>فشل التحقق من الهوية</p>
+        <p style={{ color: '#888', fontSize: '13px', margin: 0 }}>حاول مرة أخرى من تلغرام</p>
       </div>
     );
   }
