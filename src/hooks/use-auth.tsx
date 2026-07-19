@@ -54,48 +54,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Require Telegram WebView
       const webApp = window.Telegram?.WebApp;
-      if (!webApp?.initData) {
-        setIsLoading(false);
+      if (!webApp) {
         setIsTelegram(false);
+        setIsLoading(false);
         return;
       }
-
+      // Telegram WebView detected
       setIsTelegram(true);
       webApp.ready();
       webApp.expand();
-
-      try {
-        const authResult = await authMutation.mutateAsync({ data: { initData: webApp.initData } });
-        setToken(authResult.token);
-        setUser(authResult.user);
-        localStorage.setItem('requiem_token', authResult.token);
-        localStorage.setItem('requiem_user', JSON.stringify(authResult.user));
-      } catch (error) {
-        console.error('Auth failed:', error);
-      }
       
-      setIsLoading(false);
-    };
-
-    initAuth();
-  }, []);
-
-  return (
-    <AuthContext.Provider value={{ user, token, isLoading, isTelegram, logout: () => {
-      localStorage.removeItem('requiem_token');
-      localStorage.removeItem('requiem_user');
-      setToken(null);
-      setUser(null);
-    }}}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
-
-export function useAuth() { return useContext(AuthContext); }
-
-/** Hook to check if running in Telegram WebView */
-export function useRequireTelegram() {
-  const { isLoading, isTelegram, user } = useAuth();
-  return { isReady: !isLoading && isTelegram && !!user, isLoading, isTelegram };
+      const initData = webApp.initData || '';
+      if (!initData) {
+        setIsLoading(false);
+        return;
+      }
 }
