@@ -1,7 +1,7 @@
-import { useRequireTelegram } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isReady, isLoading, isTelegram } = useRequireTelegram();
+  const { user, token, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -23,7 +23,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!isTelegram) {
+  if (!user) {
     return (
       <div dir="rtl" style={{
         display: 'flex', height: '100vh', width: '100%',
@@ -66,7 +66,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!isReady) {
+  if (token === 'tg-' && !user) {
     return (
       <div dir="rtl" style={{
         display: 'flex', height: '100vh', width: '100%',

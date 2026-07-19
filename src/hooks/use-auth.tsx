@@ -1,16 +1,17 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useTelegramAuth, User, setAuthTokenGetter } from '@workspace/api-client-react';
+import type { InitData } from '@tma.js/sdk';
+import { retrieveRawInitData } from '@tma.js/sdk-react';
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
-  isTelegram: boolean;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
-  user: null, token: null, isLoading: true, isTelegram: false,
+  user: null, token: null, isLoading: true,
   logout: () => {},
 });
 
@@ -18,7 +19,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isTelegram, setIsTelegram] = useState(false);
 
   const authMutation = useTelegramAuth();
 
@@ -26,7 +26,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthTokenGetter(() => localStorage.getItem('requiem_token'));
 
     const initAuth = async () => {
-      // Check for stored token first
+      // Check stored token first
       const storedToken = localStorage.getItem('requiem_token');
       const storedUser = localStorage.getItem('requiem_user');
       
@@ -52,14 +52,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Telegram WebView confirmed by TelegramInit
-      setIsTelegram(true);
+      // Get initData from Telegram SDK
+      const initDataRaw = retrieveRawInitData();
       
-      // Try to authenticate with initData
-      const initData = webApp?.initData || '';
-      if (initData) {
+      if (initDataRaw) {
         try {
-          const authResult = await authMutation.mutateAsync({ data: { initData } });
+          const authResult = await authMutation.mutateAsync({ data: { initData: initDataRaw } });
           setToken(authResult.token);
           setUser(authResult.user);
           localStorage.setItem('requiem_token', authResult.token);
@@ -69,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
       
-      // If no auth but in Telegram, create local user
+      // Create local user if initData is empty (keyboard launch)
       if (!user || !token) {
         let localId = localStorage.getItem('requiem_local_id');
         if (!localId) {
@@ -100,15 +98,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, isTelegram, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, logout }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() { return useContext(AuthContext); }
-
-export function useRequireTelegram() {
-  const { isLoading, isTelegram, user } = useAuth();
-  return { isReady: !isLoading && isTelegram && !!user, isLoading, isTelegram };
-}
