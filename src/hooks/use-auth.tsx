@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useTelegramAuth, User, setAuthTokenGetter } from '@workspace/api-client-react';
-import type { InitData } from '@tma.js/sdk';
-import { retrieveRawInitData } from '@tma.js/sdk-react';
+// InitData from Telegram WebView (SDK provides via SDKProvider)
 
 interface AuthContextType {
   user: User | null;
@@ -53,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Get initData from Telegram SDK
-      const initDataRaw = retrieveRawInitData();
+      const initDataRaw = ((window as any).Telegram?.WebApp?.initData) || '';
       
       if (initDataRaw) {
         try {
