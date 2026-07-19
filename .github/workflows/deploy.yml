@@ -22,6 +22,8 @@ jobs:
           node-version: 22
       - run: npm install -g pnpm
       - run: pnpm install --no-frozen-lockfile
+      - run: pnpm approve-builds esbuild
+      - run: pnpm install --no-frozen-lockfile
       - run: npx --yes vite build
         env:
           VITE_API_URL: https://rayig-dev.hf.space
