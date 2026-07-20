@@ -1,382 +1,306 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { AppLayout } from "@/components/layout";
-import { useModels, useUsageStats, ROLE_MODEL_MAP } from "@/hooks/use-system";
+import { useUsageStats } from "@/hooks/use-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Database, HardDrive,
-  Terminal, Code2, Settings2, Palette, Bug, Search, Map, Shield, Cpu,
-  Brain, Trash2, AlertTriangle } from "lucide-react";
+import {
+  Loader2, Database, HardDrive, Terminal, Code2, Settings2,
+  Palette, Bug, Search, Map, Shield, Cpu, Brain, Trash2, AlertTriangle,
+  Bot, Zap, ChevronRight, User, Info, LogOut, Eye, EyeOff,
+  Layers, Sparkles, CheckCircle2,
+} from "lucide-react";
 import { useRagStats, useClearMemory } from "@/hooks/use-memory";
-import { useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { cn } from "@/lib/utils";
 
 // ─── Ring Chart ───────────────────────────────────────────────────────────────
 function RingChart({
-  used, total, label, color, format = "number",
+  used, total, label, color,
 }: {
-  used: number; total: number; label: string; color: string; format?: "number" | "bytes";
+  used: number; total: number; label: string; color: string;
 }) {
-  const percentage = total > 0 ? Math.min(100, Math.max(0, (used / total) * 100)) : 0;
-  const radius = 40;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (percentage / 100) * circumference;
-  const displayUsed = format === "bytes" ? `${(used / 1024 / 1024).toFixed(1)}MB` : used.toLocaleString();
-  const displayTotal = format === "bytes" ? `${(total / 1024 / 1024).toFixed(1)}MB` : total.toLocaleString();
+  const pct = total > 0 ? Math.min(100, Math.max(0, (used / total) * 100)) : 0;
+  const r = 34;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (pct / 100) * circ;
 
   return (
-    <div className="flex flex-col items-center justify-center">
-      <div className="relative h-32 w-32 flex items-center justify-center">
-        <svg className="h-full w-full -rotate-90 transform" viewBox="0 0 100 100">
-          <circle className="text-muted stroke-current" strokeWidth="8" cx="50" cy="50" r={radius} fill="transparent" />
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative h-24 w-24 flex items-center justify-center">
+        <svg className="h-full w-full -rotate-90" viewBox="0 0 80 80">
+          <circle stroke="hsl(var(--muted))" strokeWidth="6" cx="40" cy="40" r={r} fill="transparent" />
           <circle
-            className="stroke-current transition-all duration-1000 ease-out"
-            style={{ color, strokeDasharray: circumference, strokeDashoffset }}
-            strokeWidth="8" strokeLinecap="round" cx="50" cy="50" r={radius} fill="transparent"
+            style={{ color, strokeDasharray: circ, strokeDashoffset: offset, transition: "stroke-dashoffset 1s ease" }}
+            className="stroke-current"
+            strokeWidth="6" strokeLinecap="round" cx="40" cy="40" r={r} fill="transparent"
           />
         </svg>
-        <div className="absolute flex flex-col items-center justify-center text-center">
-          <span className="text-xl font-bold font-mono tracking-tighter">{percentage.toFixed(0)}%</span>
+        <div className="absolute flex flex-col items-center">
+          <span className="text-lg font-bold font-mono">{pct.toFixed(0)}%</span>
         </div>
       </div>
-      <div className="mt-4 text-center">
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-xs text-muted-foreground font-mono mt-1">{displayUsed} / {displayTotal}</p>
+      <div className="text-center">
+        <p className="text-xs font-medium">{label}</p>
+        <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{used.toLocaleString()} / {total.toLocaleString()}</p>
       </div>
     </div>
   );
 }
 
-// ─── Agent Mode Config ────────────────────────────────────────────────────────
+// ─── Agent Mode Card ──────────────────────────────────────────────────────────
+// NOTE: Model names are intentionally hidden — only "Requiem Agent 1" brand is shown
 const AGENT_MODES = [
-  {
-    key: "orchestrator",
-    Icon: Settings2,
-    label: "Orchestrator",
-    description: "Main coordinator — distributes tasks across models, manages context and vision.",
-    model: "mimo-v2.5-free",
-    modelLabel: "Mimo V2.5",
-    color: "text-primary bg-primary/10 border-primary/20",
-  },
-  {
-    key: "coder",
-    Icon: Code2,
-    label: "Coder",
-    description: "Fast code generation, file edits, and multi-file parallel development.",
-    model: "deepseek-v4-flash-free",
-    modelLabel: "Deepseek V4 Flash",
-    color: "text-cyan-400 bg-cyan-400/10 border-cyan-400/20",
-  },
-  {
-    key: "planner",
-    Icon: Terminal,
-    label: "Planner",
-    description: "Heavy reasoning, architectural planning, and logic analysis.",
-    model: "hy3-free",
-    modelLabel: "Hy3",
-    color: "text-violet-400 bg-violet-400/10 border-violet-400/20",
-  },
-  {
-    key: "debugger",
-    Icon: Bug,
-    label: "Debugger",
-    description: "Large-scale testing, root-cause analysis, and multi-layer debugging.",
-    model: "nemotron-3-ultra-free",
-    modelLabel: "Nemotron Ultra",
-    color: "text-destructive bg-destructive/10 border-destructive/20",
-  },
-  {
-    key: "reviewer",
-    Icon: Cpu,
-    label: "Reviewer",
-    description: "Dependency integrity, dead-code detection, and code cleanliness.",
-    model: "north-mini-code-free",
-    modelLabel: "North Mini Code",
-    color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
-  },
-  {
-    key: "designer",
-    Icon: Palette,
-    label: "Designer",
-    description: "UI/UX direction, visual identity, and frontend architecture.",
-    model: "mimo-v2.5-free",
-    modelLabel: "Mimo V2.5",
-    color: "text-pink-400 bg-pink-400/10 border-pink-400/20",
-  },
-  {
-    key: "researcher",
-    Icon: Search,
-    label: "Researcher",
-    description: "Web research, documentation analysis, and knowledge gathering.",
-    model: "hy3-free",
-    modelLabel: "Hy3",
-    color: "text-amber-400 bg-amber-400/10 border-amber-400/20",
-  },
-  {
-    key: "explorer",
-    Icon: Map,
-    label: "Explorer",
-    description: "Parallel multi-file exploration and codebase mapping.",
-    model: "big-pickle",
-    modelLabel: "Big Pickle",
-    color: "text-orange-400 bg-orange-400/10 border-orange-400/20",
-  },
-  {
-    key: "security",
-    Icon: Shield,
-    label: "Security",
-    description: "Vulnerability detection, secure coding, and pentest analysis.",
-    model: "deepseek-v4-flash-free",
-    modelLabel: "Deepseek V4 Flash",
-    color: "text-red-400 bg-red-400/10 border-red-400/20",
-  },
-] as const;
+  { key: "orchestrator", Icon: Settings2, label: "Orchestrator", desc: "Main coordinator — distributes tasks across agents",  color: "text-primary   bg-primary/10   border-primary/20" },
+  { key: "coder",        Icon: Code2,     label: "Coder",        desc: "Fast code generation and multi-file edits",           color: "text-cyan-400  bg-cyan-400/10  border-cyan-400/20" },
+  { key: "planner",      Icon: Terminal,  label: "Planner",      desc: "Heavy reasoning and architectural planning",          color: "text-violet-400 bg-violet-400/10 border-violet-400/20" },
+  { key: "debugger",     Icon: Bug,       label: "Debugger",     desc: "Large-scale debugging and root-cause analysis",       color: "text-rose-400  bg-rose-400/10  border-rose-400/20" },
+  { key: "reviewer",     Icon: Cpu,       label: "Reviewer",     desc: "Dependency integrity and code quality",               color: "text-amber-400 bg-amber-400/10 border-amber-400/20" },
+  { key: "researcher",   Icon: Search,    label: "Researcher",   desc: "Deep research and information synthesis",             color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20" },
+  { key: "designer",     Icon: Palette,   label: "Designer",     desc: "UI/UX design and creative tasks",                    color: "text-pink-400  bg-pink-400/10  border-pink-400/20" },
+  { key: "explorer",     Icon: Map,       label: "Explorer",     desc: "Codebase navigation and dependency mapping",          color: "text-indigo-400 bg-indigo-400/10 border-indigo-400/20" },
+  { key: "security",     Icon: Shield,    label: "Security",     desc: "Vulnerability scanning and security analysis",        color: "text-orange-400 bg-orange-400/10 border-orange-400/20" },
+];
 
-const EFFORT_INFO = [
-  {
-    key: "lite",
-    label: "Lite",
-    description: "Quick planning, analysis, and simple single-step tasks.",
-    color: "text-muted-foreground bg-muted border-border",
-  },
-  {
-    key: "medium",
-    label: "Medium",
-    description: "Standard coding tasks, feature verification, format checks.",
-    color: "text-cyan-400 bg-cyan-400/10 border-cyan-400/30",
-  },
-  {
-    key: "high",
-    label: "High",
-    description: "Precise debugging, root-cause analysis, strict validation.",
-    color: "text-amber-400 bg-amber-400/10 border-amber-400/30",
-  },
-  {
-    key: "max",
-    label: "Max",
-    description: "Full project builds, parallel development, multi-model orchestration.",
-    color: "text-destructive bg-destructive/10 border-destructive/30",
-  },
-] as const;
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
-  const { data: modelsData, isLoading: modelsLoading } = useModels();
-  const { data: ragStats, isLoading: ragLoading } = useRagStats();
+  const { data: usage, isLoading: usageLoading } = useUsageStats();
+  const { data: ragStats } = useRagStats();
   const clearMemory = useClearMemory();
+  const { user, logout } = useAuth();
   const [clearConfirm, setClearConfirm] = useState(false);
-  const { data: usageData, isLoading: usageLoading } = useUsageStats();
+  const [showUserId, setShowUserId] = useState(false);
+
+  const readPct  = usage ? Math.min(100, ((usage.quotaReadUsed ?? 0) / (usage.readLimit ?? 500)) * 100) : 0;
+  const writePct = usage ? Math.min(100, ((usage.quotaWriteUsed ?? 0) / (usage.writeLimit ?? 200)) * 100) : 0;
 
   return (
     <AppLayout>
-      <div className="flex flex-col h-full overflow-y-auto p-4 md:p-8 space-y-10 pb-24">
+      <div className="flex flex-col h-full overflow-y-auto">
+        <div className="px-4 pt-4 pb-6 space-y-5 max-w-lg mx-auto w-full">
 
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground font-mono">/settings</h1>
-          <p className="text-sm text-muted-foreground mt-1">Requiem Agent — pipeline overview and usage</p>
-        </div>
-
-        {/* ─── Agent Modes ─────────────────────────────────────────────────── */}
-        <section>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest font-mono mb-4">
-            Agent Modes
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {AGENT_MODES.map(({ key, Icon, label, description, model, modelLabel, color }) => (
-              <Card key={key} className="border-border/50 bg-[#0d0d0f] hover:border-border transition-colors">
-                <CardHeader className="pb-2 pt-4 px-4">
-                  <div className="flex items-center gap-2">
-                    <div className={`h-8 w-8 rounded-md border flex items-center justify-center ${color}`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold">{label}</CardTitle>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="px-4 pb-4 space-y-2">
-                  <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
-                  <div className="flex items-center gap-1.5 pt-1">
-                    <Cpu className="h-3 w-3 text-muted-foreground/60 shrink-0" />
-                    <span className="text-[10px] font-mono text-muted-foreground/80 truncate">{modelLabel}</span>
-                    <span className="text-[10px] font-mono text-muted-foreground/40">({model})</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
-
-        {/* ─── Effort Levels ───────────────────────────────────────────────── */}
-        <section>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest font-mono mb-4">
-            Effort Levels
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {EFFORT_INFO.map(({ key, label, description, color }) => (
-              <Card key={key} className="border-border/50 bg-[#0d0d0f]">
-                <CardContent className="p-4">
-                  <Badge variant="outline" className={`capitalize font-mono text-[10px] mb-2 ${color}`}>
-                    {label}
-                  </Badge>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
-
-        {/* ─── Active Models (6 Free from OpenCode Zen) ────────────────────── */}
-        <section>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest font-mono mb-4">
-            Active Models — OpenCode Zen (Free Tier)
-          </h2>
-          {modelsLoading ? (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+          {/* ── Header ── */}
+          <div className="flex items-center gap-3 animate-slide-up">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+              <Bot className="h-5 w-5 text-primary" />
             </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {modelsData?.models.map((model) => {
-                const modeEntry = AGENT_MODES.find(m => m.key === model.assignedRole);
-                const ModeIcon = modeEntry?.Icon ?? Cpu;
-                const modeColor = modeEntry?.color ?? "text-muted-foreground bg-muted border-border";
+            <div>
+              <h1 className="text-base font-semibold tracking-tight">Settings</h1>
+              <p className="text-xs text-muted-foreground">Requiem Agent 1 configuration</p>
+            </div>
+          </div>
+
+          {/* ── Account ── */}
+          <section className="animate-slide-up space-y-2" style={{ animationDelay: "40ms" }}>
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Account</h2>
+            <Card className="border-border/50 bg-card/40 overflow-hidden">
+              <CardContent className="p-0">
+                {/* User info */}
+                <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border/40">
+                  <div className="h-9 w-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                    <User className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{user?.firstName || "Telegram User"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {user?.username ? `@${user.username}` : "Telegram Mini App"}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-emerald-400 border-emerald-400/30 bg-emerald-400/5 text-[10px] font-mono shrink-0">
+                    active
+                  </Badge>
+                </div>
+
+                {/* Telegram ID */}
+                {user?.telegramId ? (
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-border/40">
+                    <span className="text-xs text-muted-foreground">Telegram ID</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-foreground/70">
+                        {showUserId ? user.telegramId : "••••••••"}
+                      </span>
+                      <button onClick={() => setShowUserId(p => !p)} className="text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+                        {showUserId ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Member since */}
+                {user?.createdAt && (
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-border/40">
+                    <span className="text-xs text-muted-foreground">Member since</span>
+                    <span className="text-xs font-mono text-foreground/70">
+                      {new Date(user.createdAt).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}
+                    </span>
+                  </div>
+                )}
+
+                {/* Logout */}
+                <button
+                  onClick={logout}
+                  className="flex items-center gap-2 w-full px-4 py-3 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-all"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Sign out
+                </button>
+              </CardContent>
+            </Card>
+          </section>
+
+          {/* ── Usage stats ── */}
+          <section className="animate-slide-up space-y-2" style={{ animationDelay: "80ms" }}>
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Usage</h2>
+            <Card className="border-border/50 bg-card/40">
+              <CardContent className="p-4">
+                {usageLoading ? (
+                  <div className="flex justify-center py-6">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary/60" />
+                  </div>
+                ) : (
+                  <div className="flex justify-around">
+                    <RingChart
+                      used={usage?.quotaReadUsed ?? 0}
+                      total={usage?.readLimit ?? 500}
+                      label="Read quota"
+                      color="hsl(var(--primary))"
+                    />
+                    <RingChart
+                      used={usage?.quotaWriteUsed ?? 0}
+                      total={usage?.writeLimit ?? 200}
+                      label="Write quota"
+                      color="hsl(var(--secondary))"
+                    />
+                  </div>
+                )}
+                {usage?.quotaResetAt && (
+                  <p className="text-center text-[10px] text-muted-foreground/50 font-mono mt-3">
+                    Resets {new Date(usage.quotaResetAt).toLocaleDateString("en", { month: "short", day: "numeric" })}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+
+          {/* ── Agent Modes ── */}
+          <section className="animate-slide-up space-y-2" style={{ animationDelay: "120ms" }}>
+            <div className="flex items-center gap-2 px-1">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Agent Modes</h2>
+              <div className="flex items-center gap-1 ml-auto">
+                <Sparkles className="h-3 w-3 text-primary/60" />
+                <span className="text-[10px] text-primary/60 font-mono">Requiem Agent 1</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              {AGENT_MODES.map(({ key, Icon, label, desc, color }) => {
+                const [textColor, bgColor, borderColor] = color.split(" ");
                 return (
-                  <div key={model.id} className="flex items-center gap-3 p-3 rounded-lg border border-border/50 bg-[#0d0d0f]">
-                    <div className={`h-8 w-8 rounded-md border flex items-center justify-center shrink-0 ${modeColor}`}>
-                      <ModeIcon className="h-3.5 w-3.5" />
+                  <div
+                    key={key}
+                    className={cn("flex items-center gap-3 px-3 py-2.5 rounded-xl border bg-card/20 transition-all", borderColor)}
+                  >
+                    <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center border shrink-0", bgColor, borderColor)}>
+                      <Icon className={cn("h-4 w-4", textColor)} />
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{model.name}</p>
-                      <p className="text-[10px] font-mono text-muted-foreground truncate">{model.id}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold">{label}</p>
+                      <p className="text-[10px] text-muted-foreground/60 truncate">{desc}</p>
                     </div>
-                    <Badge variant="outline" className={`capitalize font-mono text-[10px] shrink-0 ${modeColor}`}>
-                      {model.assignedRole}
-                    </Badge>
+                    {/* No model name shown — only agent branding */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <div className="h-1.5 w-1.5 rounded-full bg-emerald-400/60" />
+                    </div>
                   </div>
                 );
               })}
             </div>
-          )}
-        </section>
+          </section>
 
-        {/* ─── Usage ───────────────────────────────────────────────────────── */}
-        <section>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest font-mono mb-4">
-            Usage Quota
-          </h2>
-          {usageLoading ? (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading usage...
-            </div>
-          ) : usageData ? (
-            <Card className="border-border/50 bg-[#0d0d0f]">
-              <CardContent className="p-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                  <RingChart
-                    used={usageData.quotaReadUsed ?? 0}
-                    total={50000}
-                    label="Read Quota"
-                    color="#8b5cf6"
-                  />
-                  <RingChart
-                    used={usageData.quotaWriteUsed ?? 0}
-                    total={20000}
-                    label="Write Quota"
-                    color="#06b6d4"
-                  />
-                  <div className="flex flex-col justify-center items-center text-center gap-2">
-                    <Database className="h-8 w-8 text-primary/60" />
-                    <p className="text-sm font-medium">Session Count</p>
-                    <p className="text-2xl font-bold font-mono">{usageData.sessionCount ?? 0}</p>
-                  </div>
-                  <div className="flex flex-col justify-center items-center text-center gap-2">
-                    <HardDrive className="h-8 w-8 text-cyan-500/60" />
-                    <p className="text-sm font-medium">Message Count</p>
-                    <p className="text-2xl font-bold font-mono">{usageData.messageCount ?? 0}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <p className="text-sm text-muted-foreground">No usage data available.</p>
-          )}
-        </section>
-
-
-        {/* ─── Memory (RAG) ────────────────────────────────────────────────── */}
-        <section>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest font-mono mb-4">
-            Agent Memory
-          </h2>
-          {ragLoading ? (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading memory stats...
-            </div>
-          ) : (
-            <Card className="border-border/50 bg-[#0d0d0f]">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Brain className="h-5 w-5 text-violet-400" />
-                    <div>
-                      <p className="text-sm font-medium">
-                        {ragStats?.total ?? 0} stored memories
-                      </p>
-                      <p className="text-xs text-muted-foreground font-mono">
-                        {Object.entries(ragStats?.by_type ?? {}).map(([t, n]) => `${n} ${t}`).join(' · ') || 'no memories yet'}
-                      </p>
+          {/* ── Memory / RAG ── */}
+          {ragStats && (
+            <section className="animate-slide-up space-y-2" style={{ animationDelay: "160ms" }}>
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Memory</h2>
+              <Card className="border-border/50 bg-card/40">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Brain className="h-4 w-4 text-violet-400" />
+                      <span className="text-sm font-medium">RAG Memory</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono text-muted-foreground">{ragStats.total} entries</span>
+                      {clearConfirm ? (
+                        <div className="flex items-center gap-1.5">
+                          <AlertTriangle className="h-3 w-3 text-amber-400" />
+                          <button
+                            onClick={() => { clearMemory.mutate(undefined); setClearConfirm(false); }}
+                            disabled={clearMemory.isPending}
+                            className="text-[10px] text-destructive font-mono px-2 py-0.5 rounded border border-destructive/40 hover:bg-destructive/10"
+                          >
+                            {clearMemory.isPending ? "..." : "yes"}
+                          </button>
+                          <button
+                            onClick={() => setClearConfirm(false)}
+                            className="text-[10px] text-muted-foreground font-mono px-2 py-0.5 rounded border border-border/50"
+                          >
+                            no
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setClearConfirm(true)}
+                          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-destructive transition-colors font-mono px-2 py-0.5 rounded border border-border/50 hover:border-destructive/50"
+                        >
+                          <Trash2 className="h-2.5 w-2.5" /> clear
+                        </button>
+                      )}
                     </div>
                   </div>
-                  {!clearConfirm ? (
-                    <button
-                      onClick={() => setClearConfirm(true)}
-                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors font-mono px-2 py-1 rounded border border-border/50 hover:border-destructive/50"
-                    >
-                      <Trash2 className="h-3 w-3" /> clear all
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
-                      <span className="text-xs text-amber-400 font-mono">sure?</span>
-                      <button
-                        onClick={() => { clearMemory.mutate(undefined); setClearConfirm(false); }}
-                        className="text-xs text-destructive font-mono px-2 py-0.5 rounded border border-destructive/40 hover:bg-destructive/10"
-                        disabled={clearMemory.isPending}
-                      >
-                        {clearMemory.isPending ? '...' : 'yes'}
-                      </button>
-                      <button
-                        onClick={() => setClearConfirm(false)}
-                        className="text-xs text-muted-foreground font-mono px-2 py-0.5 rounded border border-border/50"
-                      >
-                        no
-                      </button>
+
+                  {ragStats.total > 0 && (
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {[
+                        { label: "code",       color: "text-cyan-400",    bg: "bg-cyan-400/8"    },
+                        { label: "fact",       color: "text-emerald-400", bg: "bg-emerald-400/8" },
+                        { label: "pref",       color: "text-violet-400",  bg: "bg-violet-400/8"  },
+                        { label: "context",    color: "text-amber-400",   bg: "bg-amber-400/8"   },
+                      ].map(({ label, color, bg }) => (
+                        <div key={label} className={cn("rounded-lg p-2.5 text-center border border-transparent", bg)}>
+                          <p className={cn("text-base font-bold font-mono leading-none", color)}>
+                            {(ragStats as any).by_type?.[label === "pref" ? "preference" : label] ?? 0}
+                          </p>
+                          <p className="text-[9px] text-muted-foreground/50 mt-1">{label}</p>
+                        </div>
+                      ))}
                     </div>
                   )}
-                </div>
-                {ragStats && ragStats.total > 0 && (
-                  <div className="grid grid-cols-4 gap-2">
-                    {[
-                      { label: 'code',       color: 'text-cyan-400',   bg: 'bg-cyan-400/10'   },
-                      { label: 'fact',       color: 'text-emerald-400', bg: 'bg-emerald-400/10'},
-                      { label: 'preference', color: 'text-violet-400', bg: 'bg-violet-400/10' },
-                      { label: 'context',    color: 'text-amber-400',  bg: 'bg-amber-400/10'  },
-                    ].map(({ label, color, bg }) => (
-                      <div key={label} className={`${bg} rounded-lg p-3 text-center`}>
-                        <p className={`text-lg font-bold font-mono ${color}`}>
-                          {ragStats.by_type[label] ?? 0}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
-                      </div>
-                    ))}
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {/* ── About ── */}
+          <section className="animate-slide-up" style={{ animationDelay: "200ms" }}>
+            <Card className="border-border/40 bg-card/20">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                    <Bot className="h-5 w-5 text-primary" />
                   </div>
-                )}
+                  <div>
+                    <p className="text-sm font-semibold gradient-text">Requiem Agent 1</p>
+                    <p className="text-[10px] text-muted-foreground/50">Powered by Requiem AI</p>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-border/40 flex items-center gap-3 text-[10px] text-muted-foreground/40 font-mono">
+                  <span className="flex items-center gap-1"><CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" /> Multi-model orchestration</span>
+                  <span className="flex items-center gap-1"><CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" /> RAG Memory</span>
+                </div>
               </CardContent>
             </Card>
-          )}
-        </section>
+          </section>
 
+          <div className="pb-4" />
+        </div>
       </div>
     </AppLayout>
   );

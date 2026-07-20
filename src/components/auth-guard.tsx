@@ -1,90 +1,118 @@
 import { useAuth } from "@/hooks/use-auth";
 
-export default function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, token, isLoading } = useAuth();
-
-  if (isLoading) {
-    return (
+// ── Loading screen ────────────────────────────────────────────────────────────
+function LoadingScreen() {
+  return (
+    <div style={{
+      display: "flex", height: "100dvh", width: "100%",
+      alignItems: "center", justifyContent: "center",
+      background: "hsl(240 7% 6%)", flexDirection: "column", gap: "20px",
+      fontFamily: "'Inter','Cairo','Noto Sans Arabic',system-ui,sans-serif",
+    }}>
+      {/* Logo */}
       <div style={{
-        display: 'flex', height: '100vh', width: '100%',
-        alignItems: 'center', justifyContent: 'center',
-        background: '#0a0c10', color: '#e0e0e0',
-        flexDirection: 'column', gap: '16px',
-        fontFamily: "'Segoe UI', 'Cairo', 'Noto Sans Arabic', sans-serif",
+        height: "52px", width: "52px", borderRadius: "14px",
+        background: "hsl(262 83% 62% / 0.12)", border: "1px solid hsl(262 83% 62% / 0.25)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        animation: "ra-float 3s ease-in-out infinite",
       }}>
-        <div style={{
-          width: '28px', height: '28px', borderRadius: '50%',
-          border: '2px solid #a855f7', borderTopColor: 'transparent',
-          animation: 'spin 0.8s linear infinite',
-        }} />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        <p style={{ color: '#888', fontSize: '14px', letterSpacing: '1px' }}>جاري التحميل...</p>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div dir="rtl" style={{
-        display: 'flex', height: '100vh', width: '100%',
-        alignItems: 'center', justifyContent: 'center',
-        background: '#0a0c10', color: '#e0e0e0',
-        flexDirection: 'column', gap: '12px', padding: '32px',
-        textAlign: 'center',
-        fontFamily: "'Segoe UI', 'Cairo', 'Noto Sans Arabic', sans-serif",
-      }}>
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#a855f7" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="hsl(262 83% 65%)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
           <path d="M9 12l2 2 4-4"/>
         </svg>
-        
-        <h1 style={{ fontSize: '22px', fontWeight: 700, margin: '8px 0 4px', color: '#ffffff' }}>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ width: "140px", height: "2px", background: "hsl(240 6% 14%)", borderRadius: "1px", overflow: "hidden" }}>
+        <div style={{
+          height: "100%",
+          background: "linear-gradient(90deg, hsl(262 83% 62%), hsl(188 94% 38%))",
+          animation: "ra-progress 2s ease-in-out infinite",
+          borderRadius: "1px",
+        }} />
+      </div>
+
+      <p style={{ color: "hsl(240 5% 45%)", fontSize: "12px", letterSpacing: "0.5px", margin: 0 }}>
+        Connecting…
+      </p>
+
+      <style>{`
+        @keyframes ra-float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-5px); }
+        }
+        @keyframes ra-progress {
+          0% { width: 5%; }
+          50% { width: 72%; }
+          100% { width: 94%; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ── Access denied screen ──────────────────────────────────────────────────────
+function AccessDeniedScreen() {
+  return (
+    <div dir="rtl" style={{
+      display: "flex", height: "100dvh", width: "100%",
+      alignItems: "center", justifyContent: "center",
+      background: "hsl(240 7% 6%)", flexDirection: "column", gap: "16px",
+      padding: "32px", textAlign: "center",
+      fontFamily: "'Inter','Cairo','Noto Sans Arabic',system-ui,sans-serif",
+    }}>
+      {/* Shield icon */}
+      <div style={{
+        height: "60px", width: "60px", borderRadius: "16px",
+        background: "hsl(262 83% 62% / 0.1)", border: "1px solid hsl(262 83% 62% / 0.2)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        animation: "ra-float 3s ease-in-out infinite",
+      }}>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="hsl(262 83% 65%)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+      </div>
+
+      <div style={{ maxWidth: "280px" }}>
+        <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#fff", margin: "0 0 8px" }}>
           وصول مقيد
         </h1>
-        
-        <p style={{ color: '#999', fontSize: '14px', lineHeight: '1.8', maxWidth: '360px', margin: '0' }}>
-          لا يمكن الوصول إلى <bdi style={{unicodeBidi:'embed'}}>Requiem Agent</bdi> إلا من داخل
-          تطبيق تلغرام عبر <bdi style={{unicodeBidi:'embed'}}>WebView</bdi>.
+        <p style={{ color: "hsl(240 5% 55%)", fontSize: "13px", lineHeight: "1.8", margin: 0 }}>
+          لا يمكن الوصول إلى{" "}
+          <span style={{ color: "hsl(262 83% 65%)", fontWeight: 600 }}>Requiem Agent 1</span>
+          {" "}إلا من داخل تطبيق تلغرام.
         </p>
-        
-        <p style={{ color: '#777', fontSize: '13px', lineHeight: '1.7', maxWidth: '320px', margin: '12px 0 0' }}>
-          افتح البوت
-          <bdi style={{unicodeBidi:'embed', color:'#a855f7', fontWeight:600}}> @RequiemAgentBot </bdi>
-          في تلغرام ثم اضغط
-          <bdi style={{unicodeBidi:'embed', color:'#a855f7', fontWeight:600}}> Launch </bdi>
-          للبدء.
-        </p>
-        
-        <div style={{
-          marginTop: '20px', padding: '10px 24px',
-          background: '#16162a', borderRadius: '10px',
-          border: '1px solid #2a2a44', fontSize: '12px', color: '#666',
-        }}>
-          <bdi style={{unicodeBidi:'embed'}}>Telegram Mini Apps</bdi>
-        </div>
       </div>
-    );
-  }
 
-  if (token === 'tg-' && !user) {
-    return (
-      <div dir="rtl" style={{
-        display: 'flex', height: '100vh', width: '100%',
-        alignItems: 'center', justifyContent: 'center',
-        background: '#0a0c10', color: '#e0e0e0',
-        flexDirection: 'column', gap: '12px',
-        fontFamily: "'Segoe UI', 'Cairo', 'Noto Sans Arabic', sans-serif",
+      <div style={{
+        background: "hsl(240 6% 9%)", border: "1px solid hsl(240 6% 14%)",
+        borderRadius: "12px", padding: "14px 20px", maxWidth: "260px",
       }}>
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="15" y1="9" x2="9" y2="15"/>
-          <line x1="9" y1="9" x2="15" y2="15"/>
-        </svg>
-        <p style={{ color: '#ef4444', fontSize: '15px', fontWeight: 500 }}>فشل التحقق</p>
-        <p style={{ color: '#888', fontSize: '13px', margin: 0 }}>حاول مرة أخرى من تلغرام</p>
+        <p style={{ color: "hsl(240 5% 45%)", fontSize: "12px", lineHeight: "1.7", margin: 0 }}>
+          افتح البوت{" "}
+          <span style={{ color: "hsl(262 83% 65%)", fontWeight: 600 }}>@RequiemAgentBot</span>
+          {" "}في تلغرام ثم اضغط{" "}
+          <span style={{ color: "hsl(262 83% 65%)", fontWeight: 600 }}>Launch</span>
+        </p>
       </div>
-    );
-  }
+
+      <style>{`
+        @keyframes ra-float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-5px); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ── AuthGuard ─────────────────────────────────────────────────────────────────
+export default function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) return <LoadingScreen />;
+  if (!user)     return <AccessDeniedScreen />;
 
   return <>{children}</>;
 }

@@ -1,564 +1,121 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { AppLayout } from "@/components/layout";
-import { useSessions, useSessionMutations, useSession, useMessageMutations, useMessages } from "@/hooks/use-sessions";
+import {
+  useSessions, useSessionMutations, useMessageMutations, useMessages,
+} from "@/hooks/use-sessions";
 import { ROLE_MODEL_MAP, FREE_ZEN_MODELS } from "@/hooks/use-system";
-import { FormattedMessage, TypewriterText } from "@/components/message-formatter";
+import { FormattedMessage } from "@/components/message-formatter";
 import { streamZenChat } from "@/lib/zen-client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { SessionMode, SessionEffort } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Terminal, Plus, X, Command, Code2, 
-  Settings2, Palette, Bug, Search, 
-  Map, Shield, Send, Loader2, Cpu, BrainCircuit, Wrench, CheckCircle2
+import {
+  Terminal, Plus, X, Command, Code2, Settings2, Palette,
+  Bug, Search, Map, Shield, Send, Loader2, Cpu, BrainCircuit,
+  Wrench, CheckCircle2, ChevronDown, Zap, Layers, RotateCcw,
+  Bot, Sparkles, ArrowUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchRagContext, autoStoreMemory } from "@/hooks/use-memory";
-import { Brain } from "lucide-react";
 
-const MODE_ICONS: Record<SessionMode, React.ElementType> = {
-  planner: Command,
-  coder: Code2,
-  orchestrator: Settings2,
-  designer: Palette,
-  debugger: Bug,
-  researcher: Search,
-  explorer: Map,
-  security: Shield,
+// ── Mode icons ────────────────────────────────────────────────────────────────
+const MODE_META: Record<SessionMode, { Icon: React.ElementType; label: string; color: string; desc: string }> = {
+  orchestrator: { Icon: Settings2, label: "Orchestrator", color: "text-primary",     desc: "Coordinates all models" },
+  coder:        { Icon: Code2,     label: "Coder",        color: "text-cyan-400",    desc: "Code generation & edits" },
+  planner:      { Icon: Command,   label: "Planner",      color: "text-violet-400",  desc: "Architectural planning" },
+  debugger:     { Icon: Bug,       label: "Debugger",     color: "text-rose-400",    desc: "Root-cause analysis" },
+  designer:     { Icon: Palette,   label: "Designer",     color: "text-pink-400",    desc: "UI/UX & creative" },
+  researcher:   { Icon: Search,    label: "Researcher",   color: "text-amber-400",   desc: "Deep research & analysis" },
+  explorer:     { Icon: Map,       label: "Explorer",     color: "text-emerald-400", desc: "Codebase navigation" },
+  security:     { Icon: Shield,    label: "Security",     color: "text-orange-400",  desc: "Vulnerability scanning" },
 };
 
-const EFFORT_COLORS: Record<SessionEffort, string> = {
-  lite: "text-muted-foreground bg-muted border-border hover:bg-muted/80",
-  medium: "text-cyan-400 bg-cyan-400/10 border-cyan-400/30 hover:bg-cyan-400/20",
-  high: "text-amber-400 bg-amber-400/10 border-amber-400/30 hover:bg-amber-400/20",
-  max: "text-destructive bg-destructive/10 border-destructive/30 hover:bg-destructive/20 shadow-[0_0_15px_rgba(239,68,68,0.2)]",
+const EFFORT_META: Record<SessionEffort, { label: string; desc: string; color: string; bg: string }> = {
+  lite:   { label: "Lite",   desc: "Fast & light",     color: "text-muted-foreground", bg: "bg-muted/60" },
+  medium: { label: "Med",    desc: "Balanced",         color: "text-cyan-400",         bg: "bg-cyan-400/10" },
+  high:   { label: "High",   desc: "Deep analysis",    color: "text-amber-400",        bg: "bg-amber-400/10" },
+  max:    { label: "Max",    desc: "All models",       color: "text-rose-400",         bg: "bg-rose-400/10" },
 };
 
-export default function WorkspacePage() {
-  const { data: sessions = [], isLoading: sessionsLoading } = useSessions();
-  const { create, update, remove, isCreating } = useSessionMutations();
-  const { toast } = useToast();
-
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState("");
-  
-  // Set initial active session
+// ── Thinking indicator ────────────────────────────────────────────────────────
+function ThinkingIndicator({ mode }: { mode: SessionMode }) {
+  const { Icon, color, label } = MODE_META[mode] || MODE_META.orchestrator;
+  const stages = [
+    "Analyzing context",
+    "Retrieving memory",
+    `${label} mode active`,
+    "Generating response",
+  ];
+  const [stage, setStage] = useState(0);
   useEffect(() => {
-    if (sessions.length > 0 && !activeSessionId && !sessionsLoading) {
-      setActiveSessionId(sessions[0].id);
-    } else if (sessions.length === 0 && !sessionsLoading) {
-      setActiveSessionId(null);
-    }
-  }, [sessions, activeSessionId, sessionsLoading]);
-
-  // Handle session selection to ensure it exists
-  useEffect(() => {
-    if (activeSessionId && sessions.length > 0) {
-      const exists = sessions.find(s => s.id === activeSessionId);
-      if (!exists) {
-        setActiveSessionId(sessions[0].id);
-      }
-    }
-  }, [sessions, activeSessionId]);
-
-  const activeSession = sessions.find(s => s.id === activeSessionId);
-
-  async function handleCreateSession() {
-    if (sessions.length >= 3) {
-      toast({ title: "Limit reached", description: "You can only have 3 active sessions. Delete one first.", variant: "destructive" });
-      return;
-    }
-    try {
-      const newSession = await create({
-        name: `Session ${sessions.length + 1}`,
-        mode: SessionMode.coder,
-        effort: SessionEffort.medium,
-      });
-      setActiveSessionId(newSession.id);
-    } catch (e: any) {
-      toast({ title: "Error", description: "Failed to create session.", variant: "destructive" });
-    }
-  }
-
-  async function handleDeleteSession(id: string, e: React.MouseEvent) {
-    e.stopPropagation();
-    try {
-      await remove(id);
-      if (activeSessionId === id) {
-        setActiveSessionId(null);
-      }
-    } catch (e: any) {
-      toast({ title: "Error", description: "Failed to delete session.", variant: "destructive" });
-    }
-  }
-
-  async function handleRenameSession(id: string) {
-    if (!editingName.trim()) {
-      setEditingSessionId(null);
-      return;
-    }
-    try {
-      await update(id, { name: editingName.trim() });
-      setEditingSessionId(null);
-    } catch (e: any) {
-      toast({ title: "Error", description: "Failed to rename session.", variant: "destructive" });
-    }
-  }
-
-  async function handleUpdateMode(mode: SessionMode) {
-    if (!activeSessionId || !activeSession) return;
-    try {
-      await update(activeSessionId, { mode });
-    } catch (e: any) {
-      // Ignore error for optimistic-like feel
-    }
-  }
-
-  async function handleUpdateEffort(effort: SessionEffort) {
-    if (!activeSessionId || !activeSession) return;
-    try {
-      await update(activeSessionId, { effort });
-    } catch (e: any) {
-      // Ignore
-    }
-  }
-
-  // Active Model Derivation
-  const activeModelId = activeSession?.activeModel || ROLE_MODEL_MAP[activeSession?.mode ?? "orchestrator"] || "deepseek-v4-flash-free";
-  const activeModel = FREE_ZEN_MODELS.find(m => m.id === activeModelId);
-
+    const t = setInterval(() => setStage(s => (s + 1) % stages.length), 1400);
+    return () => clearInterval(t);
+  }, []);
   return (
-    <AppLayout>
-      <div className="flex flex-col h-full bg-[#0d0d0f] relative overflow-hidden">
-        
-        {/* Top Session Tabs */}
-        <div className="h-12 border-b border-border/50 bg-[#141416] flex items-center px-2 shrink-0 overflow-x-auto hide-scrollbar z-10 relative">
-          <div className="flex items-center gap-1.5 h-full">
-            {sessionsLoading ? (
-              <div className="flex items-center px-4 py-1 text-sm text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin mr-2" /> Loading sessions...</div>
-            ) : (
-              <>
-                {sessions.map((session) => {
-                  const isActive = activeSessionId === session.id;
-                  const Icon = MODE_ICONS[session.mode as SessionMode] || Terminal;
-                  const isEditing = editingSessionId === session.id;
-                  
-                  return (
-                    <div 
-                      key={session.id}
-                      onClick={() => !isEditing && setActiveSessionId(session.id)}
-                      className={cn(
-                        "group flex items-center h-9 px-3 min-w-[140px] max-w-[200px] rounded-md border border-transparent transition-all cursor-pointer select-none",
-                        isActive 
-                          ? "bg-card border-border/80 text-foreground shadow-sm" 
-                          : "text-muted-foreground hover:bg-white/[0.03] hover:text-foreground"
-                      )}
-                    >
-                      <Icon className={cn("h-3.5 w-3.5 shrink-0 mr-2", isActive ? "text-primary" : "")} />
-                      
-                      {isEditing ? (
-                        <input
-                          autoFocus
-                          className="flex-1 bg-transparent border-none outline-none text-sm font-medium p-0 h-full min-w-0"
-                          value={editingName}
-                          onChange={(e) => setEditingName(e.target.value)}
-                          onBlur={() => handleRenameSession(session.id)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleRenameSession(session.id);
-                            if (e.key === 'Escape') setEditingSessionId(null);
-                          }}
-                        />
-                      ) : (
-                        <span 
-                          className="flex-1 truncate text-sm font-medium"
-                          onDoubleClick={() => {
-                            setEditingName(session.name);
-                            setEditingSessionId(session.id);
-                          }}
-                        >
-                          {session.name}
-                        </span>
-                      )}
-                      
-                      <button 
-                        className={cn(
-                          "ml-1 shrink-0 p-1 rounded-sm opacity-0 group-hover:opacity-100 transition-opacity focus:opacity-100 outline-none",
-                          isActive ? "hover:bg-muted" : "hover:bg-white/10"
-                        )}
-                        onClick={(e) => handleDeleteSession(session.id, e)}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  );
-                })}
-                
-                {sessions.length < 3 && (
-                  <button 
-                    className="flex items-center justify-center h-9 w-9 rounded-md border border-dashed border-border/50 text-muted-foreground hover:text-foreground hover:border-border hover:bg-white/[0.02] transition-colors ml-1"
-                    onClick={handleCreateSession}
-                    disabled={isCreating}
-                  >
-                    {isCreating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-4 w-4" />}
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Main Content Area */}
-        {activeSessionId && activeSession ? (
-          <div className="flex-1 flex overflow-hidden">
-            {/* Left Panel: Configuration */}
-            <div className="w-64 shrink-0 border-r border-border/50 bg-[#0a0a0c] flex flex-col hidden md:flex z-10 relative">
-              
-              <div className="p-4 border-b border-border/50">
-                <h3 className="text-[10px] uppercase font-mono tracking-widest text-muted-foreground mb-3 flex items-center">
-                  <Cpu className="h-3 w-3 mr-1.5" /> Agent Mode
-                </h3>
-                <div className="flex flex-col gap-1.5">
-                  {Object.keys(SessionMode).map((modeKey) => {
-                    const mode = modeKey as SessionMode;
-                    const Icon = MODE_ICONS[mode];
-                    const isActive = activeSession.mode === mode;
-                    return (
-                      <button
-                        key={mode}
-                        onClick={() => handleUpdateMode(mode)}
-                        className={cn(
-                          "flex items-center px-2.5 py-1.5 rounded-md text-sm transition-colors text-left",
-                          isActive 
-                            ? "bg-primary/15 text-primary font-medium border border-primary/20" 
-                            : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground border border-transparent"
-                        )}
-                      >
-                        <Icon className="h-4 w-4 mr-2.5 shrink-0" />
-                        <span className="capitalize">{mode}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="p-4 border-b border-border/50">
-                <h3 className="text-[10px] uppercase font-mono tracking-widest text-muted-foreground mb-3 flex items-center">
-                  <ActivityIcon className="h-3 w-3 mr-1.5" /> Compute Effort
-                </h3>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {Object.keys(SessionEffort).map((effortKey) => {
-                    const effort = effortKey as SessionEffort;
-                    const isActive = activeSession.effort === effort;
-                    return (
-                      <button
-                        key={effort}
-                        onClick={() => handleUpdateEffort(effort)}
-                        className={cn(
-                          "px-2 py-1.5 rounded border text-xs font-mono font-medium transition-all text-center uppercase tracking-wide",
-                          isActive ? EFFORT_COLORS[effort] : "bg-transparent border-border/50 text-muted-foreground hover:bg-white/[0.02]"
-                        )}
-                      >
-                        {effort}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="p-4 mt-auto">
-                <h3 className="text-[10px] uppercase font-mono tracking-widest text-muted-foreground mb-2 flex items-center">
-                  <BrainCircuit className="h-3 w-3 mr-1.5" /> Active Model
-                </h3>
-                <div className="p-2 rounded-md bg-[#141416] border border-border/50 flex flex-col">
-                  <span className="text-sm font-medium text-foreground truncate">{activeModel?.name || "Loading..."}</span>
-                  <span className="text-[10px] font-mono text-muted-foreground mt-0.5 truncate">{activeModelId}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Center Panel: Chat */}
-            <div className="flex-1 flex flex-col min-w-0 bg-[#0d0d0f] relative">
-              <ChatInterface 
-                sessionId={activeSessionId} 
-                sessionMode={activeSession.mode} 
-                sessionEffort={activeSession.effort}
-                activeModelId={activeModelId}
-              />
-            </div>
-            
-          </div>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col">
-            {!sessionsLoading && sessions.length === 0 ? (
-              <>
-                <Terminal className="h-12 w-12 mb-4 opacity-20" />
-                <p>No active sessions. Create one to begin.</p>
-                <Button onClick={handleCreateSession} className="mt-4" variant="outline">
-                  <Plus className="h-4 w-4 mr-2" /> New Workspace
-                </Button>
-              </>
-            ) : (
-              <Loader2 className="h-8 w-8 animate-spin opacity-50" />
-            )}
-          </div>
-        )}
+    <div className="flex items-center gap-3 py-2 animate-fade-in">
+      <div className={cn("h-7 w-7 rounded-lg flex items-center justify-center bg-card border border-border/60 shrink-0", color)}>
+        <Icon className="h-3.5 w-3.5" />
       </div>
-    </AppLayout>
+      <div className="flex flex-col gap-0.5">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground font-mono">{stages[stage]}</span>
+          <span className="flex gap-0.5">
+            {[0,1,2].map(i => (
+              <span key={i} className="typing-dot h-1.5 w-1.5 rounded-full bg-primary/60 inline-block" />
+            ))}
+          </span>
+        </div>
+      </div>
+    </div>
   );
 }
 
-function ChatInterface({ sessionId, sessionMode, sessionEffort, activeModelId }: { sessionId: string, sessionMode: string, sessionEffort: string, activeModelId: string }) {
-  const { data: messages = [], isLoading } = useMessages(sessionId);
-  const { add } = useMessageMutations(sessionId);
-  const [input, setInput] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [memoriesUsed, setMemoriesUsed] = useState(0);
-  const [streamingContent, setStreamingContent] = useState("");
-  const [streamingThinking, setStreamingThinking] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const { toast } = useToast();
+// ── Message bubble ────────────────────────────────────────────────────────────
+function MessageBubble({
+  message, isNew,
+}: {
+  message: { id: string; role: string; content: string; modelUsed?: string | null; codeChanges?: string | null };
+  isNew: boolean;
+}) {
+  const isUser = message.role === "user";
+  const isThinking = message.role === "thinking";
+  const isTool = message.role === "tool";
 
-  // Scroll to bottom on new messages
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, streamingContent, streamingThinking]);
-
-  async function handleSubmit(e?: React.FormEvent) {
-    if (e) e.preventDefault();
-    if (!input.trim() || isStreaming) return;
-
-    const userMessageContent = input.trim();
-    setInput("");
-    
-    // Save user message to DB
-    try {
-      await add({
-        role: "user",
-        content: userMessageContent,
-        mode: sessionMode,
-        effort: sessionEffort,
-        modelUsed: activeModelId
-      });
-    } catch (e: any) {
-      toast({ title: "Error", description: "Failed to save message.", variant: "destructive" });
-      return;
-    }
-
-    // ── RAG memory context injection ─────────────────────────────────
-    const ragResult = await fetchRagContext(userMessageContent, sessionId);
-    setMemoriesUsed(ragResult.memoriesUsed);
-
-    // Build context — prepend system memory block when available
-    const baseMessages = messages.map(m => ({
-      role: m.role === "thinking" || m.role === "tool" ? "assistant" : m.role,
-      content: m.content
-    })).concat([{ role: "user", content: userMessageContent }]);
-
-    const contextMessages = ragResult.systemContext
-      ? [{ role: "system", content: ragResult.systemContext }, ...baseMessages]
-      : baseMessages;
-
-    setIsStreaming(true);
-    setStreamingContent("");
-    setStreamingThinking("");
-
-    let fullContent = "";
-    let isThinkingMode = sessionEffort === 'high' || sessionEffort === 'max';
-    let thinkingBuffer = "";
-
-    try {
-      const abortController = new AbortController();
-      const stream = streamZenChat(activeModelId, contextMessages as any, abortController.signal);
-      
-      for await (const chunk of stream) {
-        if (isThinkingMode) {
-          // Simplistic extraction of thinking vs actual response for visual flair
-          // Real models might use specific tags, but we'll simulate it based on length
-          if (thinkingBuffer.length < 500 && !chunk.includes('```')) {
-             thinkingBuffer += chunk;
-             setStreamingThinking(prev => prev + chunk);
-          } else {
-             isThinkingMode = false;
-             fullContent += chunk;
-             setStreamingContent(prev => prev + chunk);
-          }
-        } else {
-          fullContent += chunk;
-          setStreamingContent(prev => prev + chunk);
-        }
-      }
-
-      // Save assistant message to DB
-      if (fullContent) {
-        await add({
-          role: "assistant",
-          content: fullContent,
-          mode: sessionMode,
-          effort: sessionEffort,
-          modelUsed: activeModelId
-        });
-        // Auto-extract and store memories (fire and forget)
-        autoStoreMemory(userMessageContent, fullContent, sessionId);
-      }
-      
-      if (thinkingBuffer) {
-        await add({
-          role: "thinking",
-          content: thinkingBuffer,
-          mode: sessionMode,
-          effort: sessionEffort,
-          modelUsed: activeModelId
-        });
-      }
-
-    } catch (error: any) {
-      toast({ title: "API Error", description: error.message, variant: "destructive" });
-    } finally {
-      setIsStreaming(false);
-      setStreamingContent("");
-      setStreamingThinking("");
-    }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  };
-
-  return (
-    <>
-      <div 
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 pb-32"
-      >
-        {isLoading && messages.length === 0 ? (
-          <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
-            <Terminal className="h-16 w-16 mb-4" />
-            <p className="font-mono text-sm tracking-widest uppercase">System Ready</p>
-          </div>
-        ) : (
-          messages.map((msg, i) => (
-            <MessageBubble key={msg.id || i} message={msg} />
-          ))
-        )}
-
-        {/* Streaming States */}
-        {streamingThinking && (
-          <div className="flex justify-start w-full">
-            <div className="w-full max-w-3xl bg-[#141416] border border-border/50 rounded-lg p-3">
-              <div className="flex items-center gap-2 mb-2 text-muted-foreground text-xs font-mono uppercase tracking-widest">
-                <BrainCircuit className="h-3 w-3 animate-pulse" /> Analyzing context
-              </div>
-              <div className="font-mono text-xs text-muted-foreground/80 leading-relaxed whitespace-pre-wrap opacity-70">
-                {streamingThinking}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {memoriesUsed > 0 && !isStreaming && (
-          <div className="flex items-center gap-1.5 px-4 pt-1 text-[10px] text-violet-400/60 font-mono select-none">
-            <Brain className="h-2.5 w-2.5" />
-            <span>{memoriesUsed} memories active</span>
-          </div>
-        )}
-        {streamingContent && (
-          <div className="flex justify-start w-full">
-            <div className="w-full max-w-3xl">
-              <FormattedMessage content={streamingContent} />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Input Area */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#0d0d0f] via-[#0d0d0f] to-transparent pt-10 pb-4 px-4 md:px-8">
-        <div className="max-w-4xl mx-auto relative">
-          <form 
-            onSubmit={handleSubmit}
-            className="relative bg-[#141416] border border-border rounded-xl shadow-lg focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all"
-          >
-            <div className="absolute top-3 left-4 flex gap-2 z-10 pointer-events-none">
-              <Badge variant="outline" className="h-5 text-[9px] uppercase font-mono tracking-widest bg-[#0a0a0c]">
-                {sessionMode}
-              </Badge>
-              <Badge variant="outline" className={cn("h-5 text-[9px] uppercase font-mono tracking-widest", sessionEffort === 'max' ? "text-destructive border-destructive/50" : sessionEffort === 'high' ? "text-amber-400 border-amber-400/50" : "text-muted-foreground")}>
-                {sessionEffort}
-              </Badge>
-            </div>
-            
-            <Textarea 
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Enter directive... (Ctrl+Enter to submit)"
-              className="min-h-[100px] max-h-[400px] w-full resize-none border-0 bg-transparent focus-visible:ring-0 pt-10 px-4 pb-12 shadow-none font-mono text-sm"
-              disabled={isStreaming}
-            />
-            
-            <div className="absolute bottom-3 right-3 flex items-center gap-2">
-              <span className="text-[10px] text-muted-foreground font-mono hidden sm:inline-block">CTRL+ENTER</span>
-              <Button 
-                type="submit" 
-                size="sm" 
-                disabled={!input.trim() || isStreaming}
-                className="h-8 w-8 p-0 bg-primary hover:bg-primary/90 text-primary-foreground transition-all disabled:opacity-30"
-              >
-                {isStreaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              </Button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function MessageBubble({ message }: { message: any }) {
-  if (message.role === "user") {
+  if (isThinking) {
     return (
-      <div className="flex justify-end w-full">
-        <div className="max-w-[85%] bg-primary/10 border border-primary/20 text-foreground rounded-2xl rounded-tr-sm px-4 py-3 text-sm">
-          {message.content}
-        </div>
-      </div>
-    );
-  }
-
-  if (message.role === "thinking") {
-    return (
-      <div className="flex justify-start w-full">
-        <details className="w-full max-w-3xl bg-[#141416]/50 border border-border/30 rounded-lg group cursor-pointer">
-          <summary className="p-3 text-xs font-mono uppercase tracking-widest text-muted-foreground flex items-center outline-none list-none">
-            <BrainCircuit className="h-3 w-3 mr-2 group-open:text-primary transition-colors" /> 
-            Reasoning Engine
-            <span className="ml-auto opacity-50 group-open:rotate-180 transition-transform">▼</span>
-          </summary>
-          <div className="px-4 pb-4 pt-1 font-mono text-xs text-muted-foreground/70 leading-relaxed whitespace-pre-wrap border-t border-border/30">
+      <div className={cn("flex justify-start w-full", isNew && "animate-slide-up")}>
+        <div className="bg-card/40 border border-border/40 rounded-xl px-3.5 py-2.5 max-w-[85%]">
+          <div className="flex items-center gap-2 mb-1.5">
+            <BrainCircuit className="h-3 w-3 text-violet-400" />
+            <span className="text-[10px] font-mono text-violet-400 uppercase tracking-wider">thinking</span>
+          </div>
+          <p className="text-xs text-muted-foreground/70 italic leading-relaxed line-clamp-4">
             {message.content}
-          </div>
-        </details>
+          </p>
+        </div>
       </div>
     );
   }
 
-  if (message.role === "tool") {
+  if (isTool) {
     return (
-      <div className="flex justify-start w-full">
-        <div className="bg-[#0a0a0c] border border-cyan-500/20 rounded-md px-3 py-2 flex items-center gap-3 text-xs">
-          <Wrench className="h-3 w-3 text-cyan-500" />
-          <span className="font-mono text-cyan-400">{message.content.substring(0, 50)}...</span>
-          <CheckCircle2 className="h-3 w-3 text-emerald-500 ml-2" />
+      <div className={cn("flex justify-start w-full", isNew && "animate-slide-up")}>
+        <div className="bg-[#0a0c10] border border-cyan-500/20 rounded-lg px-3 py-2 flex items-center gap-3 text-xs max-w-[85%]">
+          <Wrench className="h-3 w-3 text-cyan-500 shrink-0" />
+          <span className="font-mono text-cyan-400 truncate">{message.content.substring(0, 80)}</span>
+          <CheckCircle2 className="h-3 w-3 text-emerald-500 ml-auto shrink-0" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isUser) {
+    return (
+      <div className={cn("flex justify-end w-full", isNew && "animate-slide-up")}>
+        <div className="msg-user border rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[85%] text-sm leading-relaxed">
+          {message.content}
         </div>
       </div>
     );
@@ -566,21 +123,33 @@ function MessageBubble({ message }: { message: any }) {
 
   // Assistant
   return (
-    <div className="flex justify-start w-full">
-      <div className="w-full max-w-3xl">
-        <FormattedMessage content={message.content} />
-        
+    <div className={cn("flex justify-start w-full", isNew && "animate-slide-up")}>
+      <div className="w-full max-w-full">
+        {/* Model badge */}
+        {message.modelUsed && (
+          <div className="flex items-center gap-1.5 mb-2">
+            <div className="h-4 w-4 rounded bg-primary/10 flex items-center justify-center">
+              <Bot className="h-2.5 w-2.5 text-primary" />
+            </div>
+            <span className="text-[10px] text-muted-foreground/50 font-mono">Requiem Agent 1</span>
+          </div>
+        )}
+
+        <div className="msg-assistant border rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed">
+          <FormattedMessage content={message.content} />
+        </div>
+
         {message.codeChanges && (
-          <div className="mt-4 bg-[#0a0a0c] border border-border rounded-lg overflow-hidden">
-            <div className="bg-[#141416] px-3 py-2 border-b border-border flex items-center text-xs font-mono">
-              <Code2 className="h-3 w-3 mr-2 text-primary" />
-              File Modifications
+          <div className="mt-2 bg-[#0a0c10] border border-border rounded-xl overflow-hidden">
+            <div className="bg-[#0f1014] px-3 py-2 border-b border-border flex items-center text-xs font-mono gap-2">
+              <Code2 className="h-3 w-3 text-primary" />
+              <span className="text-muted-foreground">File Modifications</span>
             </div>
             <pre className="p-3 text-xs font-mono overflow-x-auto">
               <code>
                 {message.codeChanges.split('\n').map((line: string, idx: number) => {
-                  if (line.startsWith('+')) return <div key={idx} className="text-emerald-400 bg-emerald-400/10 px-1">{line}</div>;
-                  if (line.startsWith('-')) return <div key={idx} className="text-destructive bg-destructive/10 px-1">{line}</div>;
+                  if (line.startsWith('+')) return <div key={idx} className="text-emerald-400 bg-emerald-400/10 px-1 rounded-sm">{line}</div>;
+                  if (line.startsWith('-')) return <div key={idx} className="text-rose-400 bg-rose-400/10 px-1 rounded-sm">{line}</div>;
                   if (line.startsWith('@@')) return <div key={idx} className="text-cyan-400 my-1">{line}</div>;
                   return <div key={idx} className="text-muted-foreground px-1">{line}</div>;
                 })}
@@ -593,10 +162,580 @@ function MessageBubble({ message }: { message: any }) {
   );
 }
 
-function ActivityIcon(props: React.SVGProps<SVGSVGElement>) {
+// ── Streaming message ─────────────────────────────────────────────────────────
+function StreamingMessage({ content, thinking }: { content: string; thinking: string }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-    </svg>
+    <div className="flex justify-start w-full animate-fade-in">
+      <div className="w-full max-w-full space-y-2">
+        {thinking && (
+          <div className="bg-card/40 border border-border/40 rounded-xl px-3.5 py-2.5">
+            <div className="flex items-center gap-2 mb-1">
+              <BrainCircuit className="h-3 w-3 text-violet-400" />
+              <span className="text-[10px] font-mono text-violet-400 uppercase tracking-wider">thinking</span>
+            </div>
+            <p className="text-xs text-muted-foreground/60 italic leading-relaxed">{thinking}</p>
+          </div>
+        )}
+        {content && (
+          <div className="msg-assistant border rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed">
+            <FormattedMessage content={content} />
+            <span className="stream-cursor" />
+          </div>
+        )}
+        {!content && !thinking && <ThinkingIndicator mode={SessionMode.orchestrator} />}
+      </div>
+    </div>
+  );
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+function EmptyChat({ mode, onPrompt }: { mode: SessionMode; onPrompt: (t: string) => void }) {
+  const { Icon, label, color } = MODE_META[mode] || MODE_META.orchestrator;
+  const suggestions = {
+    coder:      ["Write a REST API in TypeScript", "Create a React component", "Refactor this function"],
+    planner:    ["Plan a microservices architecture", "Break down this project", "Design a database schema"],
+    debugger:   ["Debug this error", "Find memory leaks", "Trace this crash"],
+    researcher: ["Explain this concept", "Compare these approaches", "Research best practices"],
+    designer:   ["Design a landing page", "Create UI components", "Build a color system"],
+    explorer:   ["Explore the codebase", "Find all API endpoints", "Map dependencies"],
+    security:   ["Scan for vulnerabilities", "Review auth flow", "Check for SQL injection"],
+    orchestrator: ["Build a full-stack app", "Coordinate complex task", "Multi-model analysis"],
+  };
+  const tips = suggestions[mode] || suggestions.orchestrator;
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full px-6 text-center gap-6 animate-fade-in">
+      {/* Icon */}
+      <div className="relative">
+        <div className={cn("h-16 w-16 rounded-2xl border flex items-center justify-center bg-card/60 shadow-lg", color.replace("text-", "border-").replace("400", "400/30"))}>
+          <Icon className={cn("h-8 w-8", color)} />
+        </div>
+        <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-background border border-border flex items-center justify-center">
+          <Sparkles className="h-2.5 w-2.5 text-primary" />
+        </div>
+      </div>
+
+      {/* Title */}
+      <div className="space-y-1.5">
+        <h2 className="text-base font-semibold tracking-tight">
+          {label} <span className="gradient-text">Ready</span>
+        </h2>
+        <p className="text-xs text-muted-foreground/60 max-w-56 leading-relaxed">
+          Requiem Agent 1 is listening. Start a conversation or try a suggestion below.
+        </p>
+      </div>
+
+      {/* Quick suggestions */}
+      <div className="flex flex-col gap-2 w-full max-w-xs">
+        {tips.map((tip, i) => (
+          <button
+            key={i}
+            onClick={() => onPrompt(tip)}
+            className="text-left text-xs px-3.5 py-2.5 rounded-xl border border-border/60 bg-card/30 hover:bg-card hover:border-primary/30 transition-all duration-150 text-muted-foreground hover:text-foreground"
+          >
+            {tip}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Session tab ───────────────────────────────────────────────────────────────
+function SessionTab({
+  session, isActive, onSelect, onDelete, onRename,
+}: {
+  session: any; isActive: boolean;
+  onSelect: () => void; onDelete: (e: React.MouseEvent) => void;
+  onRename: (id: string, name: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(session.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const modeInfo = MODE_META[session.mode as SessionMode] || MODE_META.orchestrator;
+
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  function commit() {
+    setEditing(false);
+    if (name.trim()) onRename(session.id, name.trim());
+    else setName(session.name);
+  }
+
+  return (
+    <button
+      onClick={onSelect}
+      className={cn(
+        "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 min-w-0 group relative shrink-0",
+        isActive
+          ? "bg-primary/12 text-primary border border-primary/25 shadow-sm"
+          : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04] border border-transparent"
+      )}
+    >
+      <modeInfo.Icon className={cn("h-3 w-3 shrink-0", isActive ? modeInfo.color : "text-muted-foreground")} />
+
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setEditing(false); setName(session.name); } }}
+          onClick={e => e.stopPropagation()}
+          className="bg-transparent border-none outline-none text-xs w-24 text-foreground"
+        />
+      ) : (
+        <span
+          className="truncate max-w-[80px]"
+          onDoubleClick={e => { e.stopPropagation(); setEditing(true); }}
+        >
+          {session.name}
+        </span>
+      )}
+
+      <button
+        onClick={onDelete}
+        className={cn(
+          "ml-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive shrink-0",
+          isActive ? "opacity-60" : ""
+        )}
+      >
+        <X className="h-2.5 w-2.5" />
+      </button>
+    </button>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+export default function WorkspacePage() {
+  const { data: sessions = [], isLoading: sessionsLoading } = useSessions();
+  const { create, update, remove, isCreating } = useSessionMutations();
+  const { toast } = useToast();
+
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [showModePanel, setShowModePanel] = useState(false);
+  const [showEffortPanel, setShowEffortPanel] = useState(false);
+
+  // Set initial session
+  useEffect(() => {
+    if (sessions.length > 0 && !activeSessionId && !sessionsLoading) {
+      setActiveSessionId(sessions[0].id);
+    } else if (sessions.length === 0 && !sessionsLoading) {
+      setActiveSessionId(null);
+    }
+  }, [sessions, sessionsLoading]);
+
+  useEffect(() => {
+    if (activeSessionId && sessions.length > 0) {
+      const exists = sessions.find(s => s.id === activeSessionId);
+      if (!exists) setActiveSessionId(sessions[0].id);
+    }
+  }, [sessions, activeSessionId]);
+
+  const activeSession = sessions.find(s => s.id === activeSessionId);
+
+  async function handleCreateSession() {
+    if (sessions.length >= 3) {
+      toast({ title: "Limit reached", description: "Max 3 sessions. Delete one first.", variant: "destructive" });
+      return;
+    }
+    try {
+      const s = await create({ name: `Session ${sessions.length + 1}`, mode: SessionMode.coder, effort: SessionEffort.medium });
+      setActiveSessionId(s.id);
+    } catch {
+      toast({ title: "Error", description: "Failed to create session.", variant: "destructive" });
+    }
+  }
+
+  async function handleDeleteSession(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    try {
+      await remove(id);
+      if (activeSessionId === id) setActiveSessionId(null);
+    } catch {
+      toast({ title: "Error", description: "Failed to delete session.", variant: "destructive" });
+    }
+  }
+
+  async function handleRenameSession(id: string, name: string) {
+    try { await update({ id, data: { name } }); } catch {}
+  }
+
+  async function handleChangeMode(mode: SessionMode) {
+    if (!activeSession) return;
+    try { await update({ id: activeSession.id, data: { mode } }); setShowModePanel(false); } catch {}
+  }
+
+  async function handleChangeEffort(effort: SessionEffort) {
+    if (!activeSession) return;
+    try { await update({ id: activeSession.id, data: { effort } }); setShowEffortPanel(false); } catch {}
+  }
+
+  // Close panels on outside click
+  useEffect(() => {
+    if (!showModePanel && !showEffortPanel) return;
+    const handler = () => { setShowModePanel(false); setShowEffortPanel(false); };
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [showModePanel, showEffortPanel]);
+
+  return (
+    <AppLayout>
+      <div className="flex flex-col h-full overflow-hidden">
+        {/* ── Session bar ── */}
+        <div className="shrink-0 flex items-center gap-2 px-3 pt-2 pb-1.5 border-b border-border/50 overflow-x-auto scrollbar-none">
+          {sessionsLoading ? (
+            <div className="h-7 w-24 rounded-lg animate-shimmer" />
+          ) : (
+            <>
+              {sessions.map(s => (
+                <SessionTab
+                  key={s.id}
+                  session={s}
+                  isActive={s.id === activeSessionId}
+                  onSelect={() => setActiveSessionId(s.id)}
+                  onDelete={(e) => handleDeleteSession(s.id, e)}
+                  onRename={handleRenameSession}
+                />
+              ))}
+              {sessions.length < 3 && (
+                <button
+                  onClick={handleCreateSession}
+                  disabled={isCreating}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground border border-dashed border-border/50 hover:border-border transition-all"
+                >
+                  {isCreating
+                    ? <Loader2 className="h-3 w-3 animate-spin" />
+                    : <Plus className="h-3 w-3" />
+                  }
+                  <span>New</span>
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* ── Mode/Effort toolbar (only when session active) ── */}
+        {activeSession && (
+          <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-border/30">
+            {/* Mode selector */}
+            <div className="relative" onClick={e => e.stopPropagation()}>
+              <button
+                onClick={() => { setShowModePanel(p => !p); setShowEffortPanel(false); }}
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border transition-all",
+                  showModePanel
+                    ? "bg-primary/10 border-primary/30 text-primary"
+                    : "bg-card/40 border-border/50 text-muted-foreground hover:text-foreground hover:border-border"
+                )}
+              >
+                {(() => { const m = MODE_META[activeSession.mode as SessionMode] || MODE_META.orchestrator; return <m.Icon className={cn("h-3 w-3", m.color)} />; })()}
+                <span className="capitalize">{MODE_META[activeSession.mode as SessionMode]?.label || activeSession.mode}</span>
+                <ChevronDown className="h-2.5 w-2.5" />
+              </button>
+
+              {showModePanel && (
+                <div className="absolute top-full left-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 p-1.5 grid grid-cols-2 gap-0.5 w-56 animate-scale-in">
+                  {Object.entries(MODE_META).map(([key, { Icon, label, color, desc }]) => (
+                    <button
+                      key={key}
+                      onClick={() => handleChangeMode(key as SessionMode)}
+                      className={cn(
+                        "flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs transition-all text-left",
+                        activeSession.mode === key
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
+                      )}
+                    >
+                      <Icon className={cn("h-3 w-3 shrink-0", color)} />
+                      <span className="font-medium">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Effort selector */}
+            <div className="relative" onClick={e => e.stopPropagation()}>
+              <button
+                onClick={() => { setShowEffortPanel(p => !p); setShowModePanel(false); }}
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border transition-all",
+                  showEffortPanel
+                    ? "bg-primary/10 border-primary/30 text-primary"
+                    : "bg-card/40 border-border/50 text-muted-foreground hover:text-foreground hover:border-border"
+                )}
+              >
+                <Zap className={cn("h-3 w-3", EFFORT_META[activeSession.effort as SessionEffort]?.color || "text-muted-foreground")} />
+                <span>{EFFORT_META[activeSession.effort as SessionEffort]?.label || activeSession.effort}</span>
+                <ChevronDown className="h-2.5 w-2.5" />
+              </button>
+
+              {showEffortPanel && (
+                <div className="absolute top-full left-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 p-1.5 w-44 animate-scale-in">
+                  {Object.entries(EFFORT_META).map(([key, { label, desc, color }]) => (
+                    <button
+                      key={key}
+                      onClick={() => handleChangeEffort(key as SessionEffort)}
+                      className={cn(
+                        "flex items-center justify-between w-full px-2.5 py-2 rounded-lg text-xs transition-all",
+                        activeSession.effort === key
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
+                      )}
+                    >
+                      <span className={cn("font-medium", color)}>{label}</span>
+                      <span className="text-muted-foreground/50">{desc}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="ml-auto flex items-center gap-1.5 text-[10px] text-muted-foreground/40 font-mono">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/60" />
+              online
+            </div>
+          </div>
+        )}
+
+        {/* ── Chat area ── */}
+        {activeSessionId ? (
+          <ChatPanel
+            sessionId={activeSessionId}
+            mode={(activeSession?.mode as SessionMode) || SessionMode.orchestrator}
+            effort={(activeSession?.effort as SessionEffort) || SessionEffort.medium}
+          />
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6 text-center animate-fade-in">
+            <div className="h-14 w-14 rounded-2xl bg-primary/8 border border-primary/15 flex items-center justify-center animate-float">
+              <Terminal className="h-7 w-7 text-primary" />
+            </div>
+            <div className="space-y-1.5">
+              <h1 className="text-lg font-semibold tracking-tight gradient-text">Requiem Agent 1</h1>
+              <p className="text-xs text-muted-foreground/60 max-w-52">
+                Create a session to start chatting with the AI agent.
+              </p>
+            </div>
+            <button
+              onClick={handleCreateSession}
+              disabled={isCreating}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-all active:scale-95 shadow-lg shadow-primary/20"
+            >
+              {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              New Session
+            </button>
+          </div>
+        )}
+      </div>
+    </AppLayout>
+  );
+}
+
+// ── Chat Panel (isolated) ─────────────────────────────────────────────────────
+function ChatPanel({
+  sessionId, mode, effort,
+}: {
+  sessionId: string; mode: SessionMode; effort: SessionEffort;
+}) {
+  const { data: messages = [], isLoading } = useMessages(sessionId);
+  const { addMessage } = useMessageMutations();
+  const { toast } = useToast();
+
+  const [input, setInput] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingContent, setStreamingContent] = useState("");
+  const [streamingThinking, setStreamingThinking] = useState("");
+  const [newMessageIds, setNewMessageIds] = useState<Set<string>>(new Set());
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Auto-scroll
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, streamingContent]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 140) + "px";
+  }, [input]);
+
+  const modelId = ROLE_MODEL_MAP[mode] || "deepseek-v4-flash-free";
+
+  async function handleSend() {
+    const text = input.trim();
+    if (!text || isStreaming) return;
+    setInput("");
+    setIsStreaming(true);
+    setStreamingContent("");
+    setStreamingThinking("");
+
+    try {
+      // Save user message
+      const userMsg = await addMessage(sessionId, {
+        role: "user", content: text, mode, effort,
+      });
+      setNewMessageIds(prev => new Set(prev).add(userMsg.id));
+
+      // Build context
+      const ragCtx = await fetchRagContext(text, sessionId, 1200);
+      const systemPrompt = [
+        "You are Requiem Agent 1 — a powerful AI coding and research assistant.",
+        ragCtx?.systemContext ? `\n\nMemory context:\n${ragCtx.systemContext}` : "",
+      ].join("").trim();
+
+      const historyMsgs = messages.slice(-12).filter(m => m.role === "user" || m.role === "assistant");
+      const contextMessages = [
+        { role: "system", content: systemPrompt },
+        ...historyMsgs.map(m => ({ role: m.role, content: m.content })),
+        { role: "user", content: text },
+      ];
+
+      // Stream
+      abortRef.current = new AbortController();
+      let full = "";
+      let thinking = "";
+      let tokenCount = 0;
+
+      for await (const chunk of streamZenChat(modelId, contextMessages, abortRef.current.signal)) {
+        full += chunk;
+        tokenCount++;
+        // First 300 tokens of high/max effort → thinking
+        if ((effort === "high" || effort === "max") && tokenCount <= 40) {
+          thinking += chunk;
+          setStreamingThinking(thinking);
+        } else {
+          setStreamingContent(full.slice(thinking.length));
+        }
+      }
+
+      // Save assistant message
+      const assistantMsg = await addMessage(sessionId, {
+        role: "assistant",
+        content: full,
+        modelUsed: modelId,
+        mode,
+        effort,
+      });
+      setNewMessageIds(prev => new Set(prev).add(assistantMsg.id));
+
+      // Auto-store memory (fire & forget)
+      autoStoreMemory(text, full, sessionId);
+
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        toast({ title: "Error", description: err.message || "Failed to send message.", variant: "destructive" });
+      }
+    } finally {
+      setIsStreaming(false);
+      setStreamingContent("");
+      setStreamingThinking("");
+    }
+  }
+
+  function handleAbort() {
+    abortRef.current?.abort();
+    setIsStreaming(false);
+    setStreamingContent("");
+    setStreamingThinking("");
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  }
+
+  function handleSuggestion(text: string) {
+    setInput(text);
+    textareaRef.current?.focus();
+  }
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      {/* Messages scroll area */}
+      <div className="flex-1 overflow-y-auto min-h-0 px-3 py-3 space-y-3">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-10">
+            <Loader2 className="h-5 w-5 animate-spin text-primary/60" />
+          </div>
+        ) : messages.length === 0 && !isStreaming ? (
+          <EmptyChat mode={mode} onPrompt={handleSuggestion} />
+        ) : (
+          <>
+            {messages.map(m => (
+              <MessageBubble
+                key={m.id}
+                message={m as any}
+                isNew={newMessageIds.has(m.id)}
+              />
+            ))}
+            {isStreaming && (
+              <StreamingMessage content={streamingContent} thinking={streamingThinking} />
+            )}
+          </>
+        )}
+        <div ref={messagesEndRef} className="h-1" />
+      </div>
+
+      {/* Prompt input — never overlaps messages */}
+      <div className="shrink-0 px-3 pb-3 pt-2 border-t border-border/40">
+        <div
+          className={cn(
+            "flex items-end gap-2 rounded-2xl border bg-card/60 px-3 py-2 transition-all duration-200",
+            isStreaming ? "border-primary/30" : "border-border/60 focus-within:border-primary/40"
+          )}
+        >
+          <Textarea
+            ref={textareaRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={isStreaming ? "Agent is responding..." : "Message Requiem Agent 1…"}
+            disabled={isStreaming}
+            rows={1}
+            className="flex-1 resize-none border-none bg-transparent p-0 text-sm placeholder:text-muted-foreground/40 focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[24px] max-h-[140px] leading-relaxed disabled:opacity-50"
+          />
+          <div className="flex items-center gap-1.5 pb-0.5 shrink-0">
+            {isStreaming ? (
+              <button
+                onClick={handleAbort}
+                className="h-7 w-7 rounded-lg bg-rose-500/15 text-rose-400 flex items-center justify-center hover:bg-rose-500/25 transition-colors"
+                title="Stop"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <button
+                onClick={handleSend}
+                disabled={!input.trim()}
+                className={cn(
+                  "h-7 w-7 rounded-lg flex items-center justify-center transition-all duration-150",
+                  input.trim()
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/20 active:scale-90"
+                    : "bg-muted text-muted-foreground/40 cursor-not-allowed"
+                )}
+                title="Send (Enter)"
+              >
+                <ArrowUp className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between mt-1.5 px-1">
+          <span className="text-[10px] text-muted-foreground/30 font-mono">Enter to send · Shift+Enter for newline</span>
+          <span className="text-[10px] text-muted-foreground/30 font-mono">
+            {FREE_ZEN_MODELS.find(m => m.id === modelId)?.name || "Requiem Agent 1"}
+          </span>
+        </div>
+      </div>
+    </div>
   );
 }
