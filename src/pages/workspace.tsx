@@ -16,6 +16,8 @@ import {
   Map, Shield, Send, Loader2, Cpu, BrainCircuit, Wrench, CheckCircle2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { fetchRagContext, autoStoreMemory } from "@/hooks/use-memory";
+import { Brain } from "lucide-react";
 
 const MODE_ICONS: Record<SessionMode, React.ElementType> = {
   planner: Command,
@@ -314,6 +316,7 @@ function ChatInterface({ sessionId, sessionMode, sessionEffort, activeModelId }:
   const { add } = useMessageMutations(sessionId);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [memoriesUsed, setMemoriesUsed] = useState(0);
   const [streamingContent, setStreamingContent] = useState("");
   const [streamingThinking, setStreamingThinking] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -347,11 +350,19 @@ function ChatInterface({ sessionId, sessionMode, sessionEffort, activeModelId }:
       return;
     }
 
-    // Build context for API
-    const contextMessages = messages.map(m => ({
+    // ── RAG memory context injection ─────────────────────────────────
+    const ragResult = await fetchRagContext(userMessageContent, sessionId);
+    setMemoriesUsed(ragResult.memoriesUsed);
+
+    // Build context — prepend system memory block when available
+    const baseMessages = messages.map(m => ({
       role: m.role === "thinking" || m.role === "tool" ? "assistant" : m.role,
       content: m.content
     })).concat([{ role: "user", content: userMessageContent }]);
+
+    const contextMessages = ragResult.systemContext
+      ? [{ role: "system", content: ragResult.systemContext }, ...baseMessages]
+      : baseMessages;
 
     setIsStreaming(true);
     setStreamingContent("");
@@ -392,6 +403,8 @@ function ChatInterface({ sessionId, sessionMode, sessionEffort, activeModelId }:
           effort: sessionEffort,
           modelUsed: activeModelId
         });
+        // Auto-extract and store memories (fire and forget)
+        autoStoreMemory(userMessageContent, fullContent, sessionId);
       }
       
       if (thinkingBuffer) {
@@ -453,6 +466,12 @@ function ChatInterface({ sessionId, sessionMode, sessionEffort, activeModelId }:
           </div>
         )}
 
+        {memoriesUsed > 0 && !isStreaming && (
+          <div className="flex items-center gap-1.5 px-4 pt-1 text-[10px] text-violet-400/60 font-mono select-none">
+            <Brain className="h-2.5 w-2.5" />
+            <span>{memoriesUsed} memories active</span>
+          </div>
+        )}
         {streamingContent && (
           <div className="flex justify-start w-full">
             <div className="w-full max-w-3xl">
