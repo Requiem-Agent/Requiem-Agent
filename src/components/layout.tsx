@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { Terminal, Bot as BotIcon, Settings, FolderOpen, Brain, CheckSquare } from "lucide-react";
-import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
 
 const NAV_ITEMS = [
   { href: "/",         label: "Agent",    Icon: Terminal    },
@@ -12,50 +12,84 @@ const NAV_ITEMS = [
   { href: "/settings", label: "Settings", Icon: Settings    },
 ];
 
-// ─── Safe Area Hook ────────────────────────────────────────────────────────────
-// Telegram WebView injects its own header bar (≈44-56px) on top.
-// We rely on CSS env() + a fixed constant for older Telegram clients.
-const TG_EXTRA_PAD = 0; // px — extra padding on top of env(safe-area-inset-top)
+// ── Telegram safe-area hook ───────────────────────────────────────────────────
+// Telegram WebApp safeAreaInsets (Bot API 7.7+): the header buttons area height in px.
+// contentSafeAreaInsets: additional content padding (usually 0).
+// CSS var --tg-safe-area-inset-top is set by @tma.js/sdk-react with cssVars:true, but
+// may lag behind initialization, so we also read directly from the TG WebApp object.
+function useTelegramSafeArea() {
+  const [topInset, setTopInset] = useState(() => {
+    // Try to read synchronously on first render
+    const tg = (window as any).Telegram?.WebApp;
+    const safeTop    = tg?.safeAreaInsets?.top         ?? 0;
+    const contentTop = tg?.contentSafeAreaInsets?.top  ?? 0;
+    return Math.max(safeTop + contentTop, 0);
+  });
 
+  useEffect(() => {
+    const tg = (window as any).Telegram?.WebApp;
+    if (!tg) return;
+
+    // Expand to full height so content fills the WebView
+    tg.expand?.();
+    // On newer TG clients, request full-screen mode
+    tg.requestFullscreen?.();
+
+    const readInsets = () => {
+      const safeTop    = tg.safeAreaInsets?.top         ?? 0;
+      const contentTop = tg.contentSafeAreaInsets?.top  ?? 0;
+      setTopInset(Math.max(safeTop + contentTop, 0));
+    };
+
+    readInsets();
+
+    tg.onEvent?.("safeAreaChanged",        readInsets);
+    tg.onEvent?.("contentSafeAreaChanged", readInsets);
+    tg.onEvent?.("viewportChanged",        readInsets);
+
+    return () => {
+      tg.offEvent?.("safeAreaChanged",        readInsets);
+      tg.offEvent?.("contentSafeAreaChanged", readInsets);
+      tg.offEvent?.("viewportChanged",        readInsets);
+    };
+  }, []);
+
+  return topInset;
+}
+
+// ── AppLayout ─────────────────────────────────────────────────────────────────
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const { user } = useAuth();
-
-  if (!user) {
-    return (
-      <div
-        className="flex flex-col bg-background text-foreground overflow-hidden"
-        style={{
-          height: "100dvh",
-          paddingTop: `calc(env(safe-area-inset-top, 0px) + ${TG_EXTRA_PAD}px)`,
-        }}
-      >
-        <main className="flex-1 overflow-hidden min-h-0 relative">{children}</main>
-      </div>
-    );
-  }
+  const topInset   = useTelegramSafeArea();
 
   return (
     <div
       className="flex flex-col bg-background text-foreground overflow-hidden"
-      style={{
-        height: "100dvh",
-        /* Telegram header sits on top — push content below it */
-        paddingTop: `calc(env(safe-area-inset-top, 0px) + ${TG_EXTRA_PAD}px)`,
-        /* Bottom home-indicator on iOS */
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
-      }}
+      style={{ height: "100dvh" }}
     >
-      {/* ── Page content ── */}
-      <main className="flex-1 overflow-hidden min-h-0 relative">{children}</main>
+      {/* Telegram header spacer — pushes content below TG buttons */}
+      {topInset > 0 && (
+        <div
+          className="shrink-0 w-full"
+          style={{ height: `${topInset}px` }}
+          aria-hidden="true"
+        />
+      )}
 
-      {/* ── Bottom navigation ── */}
+      {/* Page content */}
+      <main className="flex-1 overflow-hidden min-h-0 relative">
+        {children}
+      </main>
+
+      {/* Bottom navigation */}
       <nav
-        className="shrink-0 flex items-center justify-around border-t border-border/60 select-none z-50 relative"
+        className="shrink-0 flex items-center justify-around border-t border-border/60 select-none z-50"
         style={{
-          background: "hsl(var(--background))",
-          height: "56px",
-          boxShadow: "0 -1px 0 hsl(var(--border) / 0.6), 0 -4px 16px hsl(0 0% 0% / 0.2)",
+          background:     "hsl(var(--background))",
+          height:         "56px",
+          boxShadow:      "0 -1px 0 hsl(var(--border) / 0.6), 0 -4px 16px hsl(0 0% 0% / 0.25)",
+          // iOS home-indicator
+          paddingBottom:  "env(safe-area-inset-bottom, 0px)",
         }}
       >
         {NAV_ITEMS.map(({ href, label, Icon }) => {
@@ -69,21 +103,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 isActive ? "text-primary" : "text-muted-foreground/70"
               )}
             >
-              {/* Active indicator pill */}
+              {/* Active pill at top */}
               {isActive && (
                 <span
                   className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-b-full"
-                  style={{ background: "hsl(var(--primary))", boxShadow: "0 2px 8px hsl(var(--primary) / 0.5)" }}
+                  style={{
+                    background:  "hsl(var(--primary))",
+                    boxShadow:   "0 2px 8px hsl(var(--primary) / 0.5)",
+                  }}
                 />
               )}
 
-              {/* Icon container */}
+              {/* Icon */}
               <div
                 className={cn(
                   "flex items-center justify-center h-7 w-7 rounded-xl transition-all duration-200",
-                  isActive
-                    ? "bg-primary/15"
-                    : "hover:bg-white/[0.04]"
+                  isActive ? "bg-primary/15" : "hover:bg-white/[0.04]"
                 )}
               >
                 <Icon
