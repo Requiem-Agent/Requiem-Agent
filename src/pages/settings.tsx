@@ -1,10 +1,14 @@
 import { useMemo } from "react";
 import { AppLayout } from "@/components/layout";
 import { useModels, useUsageStats, ROLE_MODEL_MAP } from "@/hooks/use-system";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Database, HardDrive, 
-  Terminal, Code2, Settings2, Palette, Bug, Search, Map, Shield, Cpu } from "lucide-react";
+import { Loader2, Database, HardDrive,
+  Terminal, Code2, Settings2, Palette, Bug, Search, Map, Shield, Cpu,
+  Brain, Trash2, AlertTriangle } from "lucide-react";
+import { useRagStats, useClearMemory } from "@/hooks/use-memory";
+import { useState } from "react";
 
 // ─── Ring Chart ───────────────────────────────────────────────────────────────
 function RingChart({
@@ -157,6 +161,9 @@ const EFFORT_INFO = [
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const { data: modelsData, isLoading: modelsLoading } = useModels();
+  const { data: ragStats, isLoading: ragLoading } = useRagStats();
+  const clearMemory = useClearMemory();
+  const [clearConfirm, setClearConfirm] = useState(false);
   const { data: usageData, isLoading: usageLoading } = useUsageStats();
 
   return (
@@ -293,6 +300,80 @@ export default function SettingsPage() {
             </Card>
           ) : (
             <p className="text-sm text-muted-foreground">No usage data available.</p>
+          )}
+        </section>
+
+
+        {/* ─── Memory (RAG) ────────────────────────────────────────────────── */}
+        <section>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-widest font-mono mb-4">
+            Agent Memory
+          </h2>
+          {ragLoading ? (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading memory stats...
+            </div>
+          ) : (
+            <Card className="border-border/50 bg-[#0d0d0f]">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Brain className="h-5 w-5 text-violet-400" />
+                    <div>
+                      <p className="text-sm font-medium">
+                        {ragStats?.total ?? 0} stored memories
+                      </p>
+                      <p className="text-xs text-muted-foreground font-mono">
+                        {Object.entries(ragStats?.by_type ?? {}).map(([t, n]) => `${n} ${t}`).join(' · ') || 'no memories yet'}
+                      </p>
+                    </div>
+                  </div>
+                  {!clearConfirm ? (
+                    <button
+                      onClick={() => setClearConfirm(true)}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors font-mono px-2 py-1 rounded border border-border/50 hover:border-destructive/50"
+                    >
+                      <Trash2 className="h-3 w-3" /> clear all
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+                      <span className="text-xs text-amber-400 font-mono">sure?</span>
+                      <button
+                        onClick={() => { clearMemory.mutate(undefined); setClearConfirm(false); }}
+                        className="text-xs text-destructive font-mono px-2 py-0.5 rounded border border-destructive/40 hover:bg-destructive/10"
+                        disabled={clearMemory.isPending}
+                      >
+                        {clearMemory.isPending ? '...' : 'yes'}
+                      </button>
+                      <button
+                        onClick={() => setClearConfirm(false)}
+                        className="text-xs text-muted-foreground font-mono px-2 py-0.5 rounded border border-border/50"
+                      >
+                        no
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {ragStats && ragStats.total > 0 && (
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { label: 'code',       color: 'text-cyan-400',   bg: 'bg-cyan-400/10'   },
+                      { label: 'fact',       color: 'text-emerald-400', bg: 'bg-emerald-400/10'},
+                      { label: 'preference', color: 'text-violet-400', bg: 'bg-violet-400/10' },
+                      { label: 'context',    color: 'text-amber-400',  bg: 'bg-amber-400/10'  },
+                    ].map(({ label, color, bg }) => (
+                      <div key={label} className={`${bg} rounded-lg p-3 text-center`}>
+                        <p className={`text-lg font-bold font-mono ${color}`}>
+                          {ragStats.by_type[label] ?? 0}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
         </section>
 
