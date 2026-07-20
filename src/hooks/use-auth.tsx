@@ -1,16 +1,19 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useTelegramAuth, User, setAuthTokenGetter } from '@workspace/api-client-react';
-// InitData from Telegram WebView (SDK provides via SDKProvider)
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
+  isTelegram: boolean;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
-  user: null, token: null, isLoading: true,
+  user: null,
+  token: null,
+  isLoading: true,
+  isTelegram: true,
   logout: () => {},
 });
 
@@ -18,21 +21,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isTelegram, setIsTelegram] = useState(true);
 
   const authMutation = useTelegramAuth();
 
   useEffect(() => {
-    setAuthTokenGetter(() => localStorage.getItem('requiem_token'));
+    // Register token getter for the API client
+    setAuthTokenGetter(() => {
+      return localStorage.getItem('requiem_token');
+    });
 
     const initAuth = async () => {
-      // Check stored token first
+      // 1. Check local storage
       const storedToken = localStorage.getItem('requiem_token');
       const storedUser = localStorage.getItem('requiem_user');
       
       if (storedToken && storedUser) {
         try {
-          const apiBase = import.meta.env.VITE_API_URL || '';
-          const check = await fetch(apiBase + '/api/usage', {
+          // Validate stored token is still accepted by the API
+          const check = await fetch('/api/usage', {
             headers: { Authorization: `Bearer ${storedToken}` },
           });
           if (check.ok || check.status !== 401) {
@@ -41,9 +48,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsLoading(false);
             return;
           }
+          // 401 → token invalid, clear and re-auth below
           localStorage.removeItem('requiem_token');
           localStorage.removeItem('requiem_user');
         } catch {
+          // network error — trust stored token optimistically
           setToken(storedToken);
           setUser(JSON.parse(storedUser));
           setIsLoading(false);
@@ -51,42 +60,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Get initData from Telegram SDK
-      const initDataRaw = ((window as any).Telegram?.WebApp?.initData) || '';
-      
-      if (initDataRaw) {
+      // 2. Try Telegram Auth
+      const webApp = (window as any).Telegram?.WebApp;
+      if (webApp) {
+        webApp.ready();
+        webApp.expand();
+      }
+
+      const initData = webApp?.initData;
+      if (initData) {
         try {
-          const authResult = await authMutation.mutateAsync({ data: { initData: initDataRaw } });
+          const authResult = await authMutation.mutateAsync({ data: { initData } });
           setToken(authResult.token);
           setUser(authResult.user);
+          setIsTelegram(true);
           localStorage.setItem('requiem_token', authResult.token);
           localStorage.setItem('requiem_user', JSON.stringify(authResult.user));
         } catch (error) {
-          console.error('Auth failed:', error);
+          console.error('Failed to auth with Telegram', error);
         }
-      }
-      
-      // Create local user if initData is empty (keyboard launch)
-      if (!user || !token) {
-        let localId = localStorage.getItem('requiem_local_id');
-        if (!localId) {
-          localId = 'tg-' + Math.random().toString(36).substring(2, 10);
-          localStorage.setItem('requiem_local_id', localId);
-        }
-        const localUser: User = {
-          id: localId, telegramId: 0, firstName: 'Telegram User',
-          createdAt: new Date().toISOString(), quotaReadUsed: 0, quotaWriteUsed: 0,
-        };
-        setToken(localId);
-        setUser(localUser);
-        localStorage.setItem('requiem_token', localId);
-        localStorage.setItem('requiem_user', JSON.stringify(localUser));
+      } else {
+        // Non-Telegram access — show rejection message
+        setIsTelegram(false);
+        setIsLoading(false);
+        return;
       }
       
       setIsLoading(false);
     };
 
     initAuth();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const logout = () => {
@@ -97,10 +101,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, isTelegram, logout }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export function useAuth() { return useContext(AuthContext); }
+export function useAuth() {
+  return useContext(AuthContext);
+}
+
+/** Hook for Telegram-only access check */
+export function useRequireTelegram() {
+  const { isLoading, isTelegram, user } = useAuth();
+  return { isReady: !isLoading && isTelegram && !!user, isLoading, isTelegram };
+}
