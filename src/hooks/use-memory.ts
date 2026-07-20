@@ -19,7 +19,6 @@ async function apiFetch(path: string, opts: RequestInit = {}) {
   return res.json();
 }
 
-// ── Types ───────────────────────────────────────────────────────────────────
 export type MemoryType = "code" | "fact" | "preference" | "context" | "error";
 export type MemoryPriority = "critical" | "high" | "medium" | "low";
 
@@ -42,74 +41,25 @@ export interface RagStats {
   by_priority: Record<string, number>;
 }
 
-export interface InjectedContext {
-  systemContext: string;
-  memoriesUsed: number;
-  tokenCount: number;
-  sources: Array<{ id: string; type: MemoryType; score: number }>;
-}
-
-// ── Query Keys ────────────────────────────────────────────────────────────────
-export const RAG_KEYS = {
+const RAG_KEYS = {
+  all: () => ["rag"] as const,
   stats: () => ["rag", "stats"] as const,
-  memories: (filter?: Record<string, string>) => ["rag", "memories", filter] as const,
+  memories: (type?: string) => ["rag", "memories", type] as const,
 };
 
-// ── Hooks ────────────────────────────────────────────────────────────────────
 export function useRagStats() {
-  return useQuery<RagStats>({
+  return useQuery({
     queryKey: RAG_KEYS.stats(),
     queryFn: () => apiFetch("/rag/stats"),
-    staleTime: 30_000,
-    retry: false,
+    staleTime: 1000 * 30,
   });
 }
 
-export function useMemoryList(opts: {
-  limit?: number;
-  offset?: number;
-  sessionId?: string;
-  type?: MemoryType;
-} = {}) {
-  const params = new URLSearchParams();
-  if (opts.limit)     params.set("limit",      String(opts.limit));
-  if (opts.offset)    params.set("offset",     String(opts.offset));
-  if (opts.sessionId) params.set("session_id", opts.sessionId);
-  if (opts.type)      params.set("type",        opts.type);
-  const qs = params.toString() ? `?${params.toString()}` : "";
-
-  return useQuery<{ memories: Memory[]; count: number }>({
-    queryKey: RAG_KEYS.memories({ ...opts } as Record<string, string>),
-    queryFn: () => apiFetch(`/rag/memories${qs}`),
-    staleTime: 20_000,
-    retry: false,
-  });
-}
-
-export function useDeleteMemory() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) =>
-      apiFetch(`/rag/memory/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: RAG_KEYS.stats() });
-      qc.invalidateQueries({ queryKey: ["rag", "memories"] });
-    },
-  });
-}
-
-export function useClearMemory() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (sessionId?: string) =>
-      apiFetch("/rag/clear", {
-        method: "POST",
-        body: JSON.stringify(sessionId ? { session_id: sessionId } : {}),
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: RAG_KEYS.stats() });
-      qc.invalidateQueries({ queryKey: ["rag", "memories"] });
-    },
+export function useMemories(type?: MemoryType) {
+  return useQuery({
+    queryKey: RAG_KEYS.memories(type),
+    queryFn: () => apiFetch(`/rag/memories${type ? `?type=${type}` : ""}`),
+    staleTime: 1000 * 30,
   });
 }
 
@@ -123,17 +73,36 @@ export function useStoreMemory() {
       session_id?: string;
     }) => apiFetch("/rag/store", { method: "POST", body: JSON.stringify(data) }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: RAG_KEYS.stats() });
+      qc.invalidateQueries({ queryKey: RAG_KEYS.all() });
     },
   });
 }
 
-// ── Inject RAG context before a chat message ─────────────────────────────────
+export function useClearMemory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiFetch("/rag/clear", { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: RAG_KEYS.all() });
+    },
+  });
+}
+
+export function useDeleteMemory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch(`/rag/memory/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: RAG_KEYS.all() });
+    },
+  });
+}
+
 export async function fetchRagContext(
   query: string,
   sessionId: string,
   maxTokens = 1500,
-): Promise<InjectedContext> {
+) {
   try {
     return await apiFetch("/rag/inject-context", {
       method: "POST",
@@ -144,7 +113,6 @@ export async function fetchRagContext(
   }
 }
 
-// ── Auto-store memories after a chat turn ────────────────────────────────────
 export async function autoStoreMemory(
   userMessage: string,
   assistantResponse: string,
@@ -160,6 +128,6 @@ export async function autoStoreMemory(
       }),
     });
   } catch {
-    // Fire and forget — fail silently
+    // Fire and forget
   }
 }

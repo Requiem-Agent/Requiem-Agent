@@ -12,6 +12,9 @@ if (apiUrl) setBaseUrl(apiUrl);
 
 // Pages
 import WorkspacePage from '@/pages/workspace';
+import FilesPage from '@/pages/files';
+import MemoryPage from '@/pages/memory';
+import TasksPage from '@/pages/tasks';
 import BotsPage from '@/pages/bots';
 import SettingsPage from '@/pages/settings';
 import NotFound from '@/pages/not-found';
@@ -29,6 +32,9 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={WorkspacePage} />
+      <Route path="/files" component={FilesPage} />
+      <Route path="/memory" component={MemoryPage} />
+      <Route path="/tasks" component={TasksPage} />
       <Route path="/bots" component={BotsPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
@@ -63,9 +69,6 @@ function App() {
                 <bdi style={{unicodeBidi:'embed',color:'#a855f7',fontWeight:600}}> Launch </bdi>
                 للبدء.
               </p>
-              <div style={{marginTop:'20px',padding:'10px 24px',background:'#16162a',borderRadius:'10px',border:'1px solid #2a2a44',fontSize:'12px',color:'#666'}}>
-                <bdi style={{unicodeBidi:'embed'}}>Telegram Mini Apps</bdi>
-              </div>
             </div>
           )}
           loading={
