@@ -87,12 +87,17 @@ function ToolUseCard({ event, isStreaming: streamActive = false }: { event: Agen
   );
 
   if (event.type === "file_written") {
-    const filename = (event as any).filename ?? (event as any).path ?? "file";
+    const fw = event as any;
+    const filePath = fw.path ?? fw.filename ?? "file";
+    const actionLabel = fw.action === "ws_write" ? "Created" : fw.action === "ws_edit" ? "Edited" : "Written";
     return (
-      <div className="flex items-center gap-2 py-1.5 px-3 rounded-xl border border-emerald-500/25 bg-emerald-500/8 text-xs font-mono animate-fade-in">
-        <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-400" />
-        <span className="text-emerald-400 font-semibold">Written</span>
-        <span className="text-muted-foreground/70 truncate">{String(filename)}</span>
+      <div className="flex items-center gap-2 py-1.5 px-3 rounded-xl bg-emerald-500/8 border border-emerald-500/20 text-xs font-mono text-emerald-400 animate-fade-in">
+        <CheckCircle2 className="h-3 w-3 shrink-0" />
+        <span className="font-semibold">{actionLabel}</span>
+        <span className="text-emerald-400/70 truncate">{String(filePath)}</span>
+        {fw.lines > 0 && (
+          <span className="ml-auto text-emerald-400/40 shrink-0">{fw.lines}L</span>
+        )}
       </div>
     );
   }
@@ -289,41 +294,89 @@ function WorkspaceSelector({
 
 // ── Mode metadata ─────────────────────────────────────────────────────────────
 const MODE_META: Record<string, { Icon: React.ElementType; label: string; color: string; desc: string }> = {
-  orchestrator: { Icon: Settings2, label: "Orchestrator", color: "text-primary",      desc: "Coordinates all models" },
-  coder:        { Icon: Code2,     label: "Coder",        color: "text-cyan-400",     desc: "Code generation & edits" },
-  planner:      { Icon: Command,   label: "Planner",      color: "text-violet-400",   desc: "Architectural planning" },
-  debugger:     { Icon: Bug,       label: "Debugger",     color: "text-rose-400",     desc: "Root-cause analysis" },
-  designer:     { Icon: Palette,   label: "Designer",     color: "text-pink-400",     desc: "UI/UX & creative" },
-  researcher:   { Icon: Search,    label: "Researcher",   color: "text-amber-400",    desc: "Deep research" },
-  explorer:     { Icon: Map,       label: "Explorer",     color: "text-emerald-400",  desc: "Codebase navigation" },
-  security:     { Icon: Shield,    label: "Security",     color: "text-orange-400",   desc: "Vulnerability analysis" },
+  orchestrator: { Icon: Settings2, label: "Orchestrator", color: "text-primary",      desc: "Coordinates all agents · Best for full-stack tasks" },
+  coder:        { Icon: Code2,     label: "Coder",        color: "text-cyan-400",     desc: "Code generation, refactoring & edits" },
+  planner:      { Icon: Command,   label: "Planner",      color: "text-violet-400",   desc: "Architecture, roadmaps & task breakdown" },
+  debugger:     { Icon: Bug,       label: "Debugger",     color: "text-rose-400",     desc: "Root-cause analysis & error tracing" },
+  designer:     { Icon: Palette,   label: "Designer",     color: "text-pink-400",     desc: "UI/UX, components & design systems" },
+  researcher:   { Icon: Search,    label: "Researcher",   color: "text-amber-400",    desc: "Deep research & concept explanation" },
+  explorer:     { Icon: Map,       label: "Explorer",     color: "text-emerald-400",  desc: "Codebase navigation & dependency mapping" },
+  security:     { Icon: Shield,    label: "Security",     color: "text-orange-400",   desc: "Vulnerability audits & auth review" },
 };
 
-const EFFORT_META: Record<string, { label: string; color: string }> = {
-  lite:   { label: "Lite",   color: "text-muted-foreground" },
-  medium: { label: "Med",    color: "text-cyan-400"         },
-  high:   { label: "High",   color: "text-amber-400"        },
-  max:    { label: "Max",    color: "text-rose-400"         },
+const EFFORT_META: Record<string, { label: string; color: string; steps: string; desc: string }> = {
+  lite:   { label: "Lite", color: "text-muted-foreground", steps: "3 steps",  desc: "Fast answer · Best for quick questions" },
+  medium: { label: "Med",  color: "text-cyan-400",         steps: "7 steps",  desc: "Balanced · Best for most tasks"         },
+  high:   { label: "High", color: "text-amber-400",        steps: "12 steps", desc: "Deep analysis · Best for complex code"  },
+  max:    { label: "Max",  color: "text-rose-400",         steps: "20 steps", desc: "Full depth · Best for architecture"     },
 };
 
-// ── Typing indicator ──────────────────────────────────────────────────────────
-function ThinkingIndicator({ mode }: { mode: string }) {
+// ── Live agent status (replaces ThinkingIndicator) ────────────────────────────
+function LiveAgentStatus({
+  mode,
+  events,
+  lastThinking,
+}: {
+  mode: string;
+  events: AgentChatEvent[];
+  lastThinking: string;
+}) {
   const m = MODE_META[mode] || MODE_META.orchestrator;
-  const stages = ["Analyzing context…", "Retrieving memory…", `${m.label} active…`, "Generating…"];
-  const [stage, setStage] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setStage(s => (s + 1) % stages.length), 1400);
-    return () => clearInterval(t);
-  }, []);
+  const toolEvents = events.filter(e => e.type === "tool_use");
+  const toolCount = toolEvents.length;
+  const progressEvent = events.filter(e => e.type === "progress").at(-1) as any;
+  const progress = progressEvent ? progressEvent.step / progressEvent.total : null;
+
   return (
-    <div className="flex items-center gap-3 py-2 animate-fade-in">
-      <div className={cn("h-7 w-7 rounded-lg flex items-center justify-center bg-card border border-border/60 shrink-0", m.color)}>
-        <m.Icon className="h-3.5 w-3.5" />
+    <div className="space-y-2 animate-fade-in">
+      {/* Main status line */}
+      <div className="flex items-center gap-2.5 py-2 px-3 rounded-xl bg-violet-500/6 border border-violet-500/15">
+        <div className={cn(
+          "h-6 w-6 rounded-lg flex items-center justify-center shrink-0",
+          "bg-violet-500/15"
+        )}>
+          <BrainCircuit className={cn("h-3.5 w-3.5 animate-pulse", m.color)} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-foreground/80 font-medium truncate">
+              {lastThinking || `${m.label} working…`}
+            </span>
+            <span className="flex gap-0.5 shrink-0">
+              {[0, 1, 2].map(i => (
+                <span key={i} className="typing-dot h-1 w-1 rounded-full bg-violet-400/70" />
+              ))}
+            </span>
+          </div>
+          {progress !== null && (
+            <div className="mt-1.5 h-0.5 bg-border/40 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-violet-500/70 rounded-full transition-all duration-500"
+                style={{ width: `${Math.round(progress * 100)}%` }}
+              />
+            </div>
+          )}
+        </div>
       </div>
-      <span className="text-xs text-muted-foreground font-mono">{stages[stage]}</span>
-      <span className="flex gap-0.5 mt-0.5">
-        {[0, 1, 2].map(i => <span key={i} className="typing-dot h-1.5 w-1.5 rounded-full bg-primary/60" />)}
-      </span>
+
+      {/* Recent tool chips — last 4 */}
+      {toolCount > 0 && (
+        <div className="flex flex-wrap gap-1 px-1">
+          {toolEvents.slice(-4).map((e: any, i) => {
+            const tool = e.tool ?? "";
+            const detail = e.input?.path ?? e.input?.command ?? e.input?.pattern ?? "";
+            return (
+              <div key={i} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-cyan-500/8 border border-cyan-500/20 text-cyan-400">
+                <Wrench className="h-2.5 w-2.5 shrink-0" />
+                <span className="truncate max-w-[80px]">{tool}</span>
+                {detail && (
+                  <span className="text-cyan-400/50 truncate max-w-[60px]">{String(detail)}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -616,13 +669,16 @@ export default function WorkspacePage() {
                 <>
                   {/* Backdrop to close dropdown when clicking outside */}
                   <div className="fixed inset-0 z-40" onClick={() => setShowModePanel(false)} />
-                  <div className="absolute top-full left-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 p-1.5 grid grid-cols-2 gap-0.5 w-56 animate-scale-in">
-                    {Object.entries(MODE_META).map(([key, { Icon, label, color }]) => (
+                  <div className="absolute top-full left-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 p-1.5 flex flex-col gap-0.5 w-64 animate-scale-in">
+                    {Object.entries(MODE_META).map(([key, { Icon, label, color, desc }]) => (
                       <button key={key} onClick={() => handleChangeMode(key as SessionMode)}
-                        className={cn("flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs transition-all",
+                        className={cn("flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-all text-left",
                           activeSession.mode === key ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground")}>
-                        <Icon className={cn("h-3 w-3 shrink-0", color)} />
-                        <span className="font-medium">{label}</span>
+                        <Icon className={cn("h-3 w-3 shrink-0 mt-0.5", color)} />
+                        <div className="min-w-0">
+                          <div className="font-medium leading-tight">{label}</div>
+                          <div className="text-[10px] text-muted-foreground/50 mt-0.5 leading-snug">{desc}</div>
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -642,12 +698,19 @@ export default function WorkspacePage() {
               {showEffortPanel && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowEffortPanel(false)} />
-                  <div className="absolute top-full left-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 p-1.5 w-40 animate-scale-in">
-                    {Object.entries(EFFORT_META).map(([key, { label, color }]) => (
+                  <div className="absolute top-full left-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 p-1.5 w-56 animate-scale-in">
+                    {Object.entries(EFFORT_META).map(([key, { label, color, steps, desc }]) => (
                       <button key={key} onClick={() => handleChangeEffort(key as SessionEffort)}
-                        className={cn("flex items-center justify-between w-full px-2.5 py-2 rounded-lg text-xs transition-all",
+                        className={cn("flex items-start gap-2.5 w-full px-2.5 py-2 rounded-lg text-xs transition-all text-left",
                           activeSession.effort === key ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground")}>
-                        <span className={cn("font-medium", color)}>{label}</span>
+                        <Zap className={cn("h-3 w-3 shrink-0 mt-0.5", color)} />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn("font-semibold", color)}>{label}</span>
+                            <span className="text-[10px] text-muted-foreground/50 font-mono">{steps}</span>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground/50 mt-0.5 leading-snug">{desc}</div>
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -711,6 +774,9 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamContent, setStreamContent] = useState("");
   const [streamThinking, setStreamThinking] = useState("");
+  const [lastThinking, setLastThinking] = useState("");
+  // Attached images for vision analysis
+  const [attachedImages, setAttachedImages] = useState<Array<{url: string; name: string}>>([]);
   // Tool-use events during agent loop — persist after streaming ends
   const [agentEvents, setAgentEvents] = useState<AgentChatEvent[]>([]);
   // Last completed stream content — held until confirmed in messages[] (prevents flicker)
@@ -738,17 +804,27 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
 
   async function handleSend() {
     const text = input.trim();
-    if (!text || isStreaming) return;
+    const hasImages = attachedImages.length > 0;
+    if (!text && !hasImages) return;
+    if (isStreaming) return;
     setInput("");
+    const imagesToSend = [...attachedImages];
+    setAttachedImages([]);
     setIsStreaming(true);
     setStreamContent("");
     setStreamThinking("");
+    setLastThinking("");
     setAgentEvents([]);
     setPendingMessage(null);
 
+    // Build display content for user message (include image count if any)
+    const userDisplayContent = hasImages
+      ? `${text || ""}${text ? "\n" : ""}[${imagesToSend.length} image${imagesToSend.length > 1 ? "s" : ""} attached]`
+      : text;
+
     try {
       // 1. Save user message — skip invalidate to avoid a re-fetch mid-stream
-      const userMsg = await addMessage({ role: "user", content: text }, true);
+      const userMsg = await addMessage({ role: "user", content: userDisplayContent || text || "[image]" }, true);
       setNewIds(prev => new Set([...prev, userMsg.id]));
 
       abortRef.current = new AbortController();
@@ -763,10 +839,19 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
           .map((m: any) => ({ role: m.role, content: m.content }));
 
         for await (const event of streamAgentChat(
-          text, workspaceId, sessionId, mode, effort, history, abortRef.current.signal
+          text || (hasImages ? "Analyze this image" : ""), workspaceId, sessionId, mode, effort, history, abortRef.current.signal,
+          imagesToSend.map(img => ({ url: img.url }))
         )) {
-          if (event.type === "thinking" || event.type === "tool_use"
-              || event.type === "tool_result" || event.type === "memory_hit") {
+          if (event.type === "thinking") {
+            setAgentEvents(prev => [...prev, event]);
+            setLastThinking(event.content ?? "");
+          } else if (
+            event.type === "tool_use" ||
+            event.type === "tool_result" ||
+            event.type === "memory_hit"
+          ) {
+            setAgentEvents(prev => [...prev, event]);
+          } else if (event.type === "progress" || event.type === "file_written") {
             setAgentEvents(prev => [...prev, event]);
           } else if (event.type === "text") {
             cleanFull = event.content ?? "";
@@ -839,6 +924,7 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
       setIsStreaming(false);
       setStreamContent("");
       setStreamThinking("");
+      setLastThinking("");
       setPendingMessage(null);
     }
   }
@@ -848,6 +934,7 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
     setIsStreaming(false);
     setStreamContent("");
     setStreamThinking("");
+    setLastThinking("");
     // Keep agentEvents visible; don't clear them on abort
     setPendingMessage(null);
   }
@@ -881,24 +968,32 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
             {isStreaming && (
               <div className="flex justify-start animate-fade-in">
                 <div className="w-full max-w-full space-y-2">
-                  {streamContent ? (
+                  {/* Live agent status — always visible while working, before text arrives */}
+                  {!streamContent && (
+                    <LiveAgentStatus
+                      mode={mode}
+                      events={agentEvents}
+                      lastThinking={lastThinking}
+                    />
+                  )}
+
+                  {/* Streaming text output */}
+                  {streamContent && (
                     <div className="msg-assistant border rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed message-content stream-container">
                       <div className="flex items-center gap-1.5 mb-1.5">
                         <div className="h-4 w-4 rounded bg-primary/10 flex items-center justify-center">
                           <Bot className="h-2.5 w-2.5 text-primary" />
                         </div>
-                        <span className="text-[10px] text-muted-foreground/50 font-mono">Requiem Agent 1</span>
+                        <span className="text-[10px] text-muted-foreground/50 font-mono">Requiem Agent 1.2</span>
                         {workspaceId && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono ml-1">
-                            workspace mode
+                            workspace
                           </span>
                         )}
                       </div>
                       <FormattedMessage content={streamContent} />
                       <span className="stream-cursor" />
                     </div>
-                  ) : (
-                    <ThinkingIndicator mode={mode} />
                   )}
                 </div>
               </div>
@@ -926,44 +1021,101 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
         <div ref={messagesEndRef} className="h-1" />
       </div>
 
-      {/* Prompt box — shrink-0 guarantees it never gets pushed up */}
+      {/* Prompt box */}
       <div className="shrink-0 px-3 pb-3 pt-2 border-t border-border/40">
+        {/* Image preview strip */}
+        {attachedImages.length > 0 && (
+          <div className="flex gap-2 mb-2 flex-wrap px-1">
+            {attachedImages.map((img: any, i: number) => (
+              <div key={i} className="relative group h-14 w-14 rounded-lg overflow-hidden border border-border/60">
+                <img src={img.url} alt="" className="h-full w-full object-cover" />
+                <button
+                  onClick={() => setAttachedImages((prev: any[]) => prev.filter((_: any, j: number) => j !== i))}
+                  className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                >
+                  <X className="h-3.5 w-3.5 text-white" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className={cn(
           "flex items-end gap-2 rounded-2xl border bg-card/60 px-3 py-2 transition-all duration-200",
-          isStreaming ? "border-primary/30" : "border-border/60 focus-within:border-primary/40"
+          isStreaming ? "border-primary/30 bg-primary/[0.02]" : "border-border/60 focus-within:border-primary/40",
+          attachedImages.length > 0 && "border-violet-500/30"
         )}>
+          {/* Image attach */}
+          <label className="flex items-center pb-0.5 shrink-0 cursor-pointer" title="Attach image for vision analysis">
+            <div className="h-6 w-6 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-violet-400 hover:bg-violet-500/10 transition-all">
+              <Palette className="h-3.5 w-3.5" />
+            </div>
+            <input type="file" accept="image/*" multiple className="hidden"
+              onChange={async (e) => {
+                const files = Array.from(e.target.files ?? []);
+                for (const f of files) {
+                  const url = await new Promise<string>((res) => {
+                    const reader = new FileReader();
+                    reader.onload = () => res(reader.result as string);
+                    reader.readAsDataURL(f);
+                  });
+                  setAttachedImages((prev: any[]) => [...prev, { url, name: f.name }]);
+                }
+                e.target.value = "";
+              }}
+            />
+          </label>
+
           <Textarea
             ref={textareaRef}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isStreaming ? "Agent is responding…" : "Message Requiem Agent 1…"}
+            placeholder={
+              isStreaming ? "Agent is responding…" :
+              attachedImages.length > 0 ? "Ask about the image…" :
+              "Message Requiem Agent 1.2…"
+            }
             disabled={isStreaming}
             rows={1}
-            className="flex-1 resize-none border-none bg-transparent p-0 text-sm placeholder:text-muted-foreground/40 focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[24px] max-h-[140px] leading-relaxed disabled:opacity-50"
+            className="flex-1 resize-none border-none bg-transparent p-0 text-sm placeholder:text-muted-foreground/35 focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[24px] max-h-[140px] leading-relaxed disabled:opacity-50"
           />
           <div className="flex items-center pb-0.5 shrink-0">
             {isStreaming ? (
               <button onClick={handleAbort}
-                className="h-7 w-7 rounded-lg bg-rose-500/15 text-rose-400 flex items-center justify-center hover:bg-rose-500/25 transition-colors"
+                className="h-7 w-7 rounded-lg bg-rose-500/15 text-rose-400 flex items-center justify-center hover:bg-rose-500/25 transition-colors active:scale-90"
                 title="Stop generation">
                 <RotateCcw className="h-3.5 w-3.5" />
               </button>
             ) : (
-              <button onClick={handleSend} disabled={!input.trim()}
-                className={cn("h-7 w-7 rounded-lg flex items-center justify-center transition-all",
-                  input.trim()
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/20 active:scale-90"
-                    : "bg-muted text-muted-foreground/40 cursor-not-allowed")}
-                title="Send (Enter)">
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() && attachedImages.length === 0}
+                className={cn(
+                  "h-7 w-7 rounded-lg flex items-center justify-center transition-all",
+                  (input.trim() || attachedImages.length > 0)
+                    ? attachedImages.length > 0
+                      ? "bg-violet-600 text-white hover:bg-violet-500 shadow-md shadow-violet-500/25 active:scale-90"
+                      : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/25 active:scale-90"
+                    : "bg-muted text-muted-foreground/40 cursor-not-allowed"
+                )}
+                title="Send (Enter)"
+              >
                 <ArrowUp className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
         </div>
-        <p className="text-[10px] text-muted-foreground/25 font-mono mt-1.5 px-1">
-          Enter to send · Shift+Enter for newline
-        </p>
+        <div className="flex items-center justify-between mt-1 px-1">
+          <p className="text-[10px] text-muted-foreground/25 font-mono">
+            Enter · Shift+Enter newline
+          </p>
+          {attachedImages.length > 0 && (
+            <p className="text-[10px] text-violet-400/60 font-mono animate-fade-in">
+              {attachedImages.length} image{attachedImages.length > 1 ? "s" : ""} · vision
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

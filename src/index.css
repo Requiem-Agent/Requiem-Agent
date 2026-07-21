@@ -402,3 +402,98 @@ button:active:not(:disabled) {
 .animate-fade-in-quick {
   animation: fade-in 0.2s ease-out forwards;
 }
+
+/* ── Requiem Agent 1.2 — Advanced Animations ── */
+
+/* Agent brain pulse (thinking state) */
+@keyframes brain-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(262 83% 58% / 0); }
+  50% { box-shadow: 0 0 0 6px hsl(262 83% 58% / 0.15); }
+}
+.brain-pulse { animation: brain-pulse 2s ease-in-out infinite; }
+
+/* Progress bar shimmer */
+@keyframes progress-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+.progress-bar-glow::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 25%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, hsl(262 83% 58% / 0.6), transparent);
+  animation: progress-shimmer 1.8s ease-in-out infinite;
+}
+
+/* Tool chip appear */
+@keyframes chip-in {
+  from { opacity: 0; transform: scale(0.8) translateX(-4px); }
+  to { opacity: 1; transform: scale(1) translateX(0); }
+}
+.chip-in { animation: chip-in 0.15s ease-out forwards; }
+
+/* Code token highlight */
+.code-rust   .keyword { color: #ff7b72; }
+.code-rust   .string  { color: #a5d6ff; }
+.code-rust   .comment { color: #8b949e; }
+.code-rust   .number  { color: #79c0ff; }
+
+/* Message stream fade-in line by line */
+@keyframes line-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.stream-line { animation: line-in 0.1s ease-out forwards; }
+
+/* Thinking dot wave (improved) */
+@keyframes wave-dot {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-4px); }
+}
+.wave-dot { animation: wave-dot 1.4s ease-in-out infinite; }
+.wave-dot:nth-child(2) { animation-delay: 0.15s; }
+.wave-dot:nth-child(3) { animation-delay: 0.30s; }
+
+/* Sidebar glow on active */
+.nav-active-glow {
+  box-shadow: 0 0 12px hsl(262 83% 58% / 0.3);
+}
+
+/* Agent status card */
+.agent-status-card {
+  background: linear-gradient(135deg, hsl(262 83% 58% / 0.06), hsl(262 83% 58% / 0.02));
+  border: 1px solid hsl(262 83% 58% / 0.18);
+  backdrop-filter: blur(8px);
+}
+
+/* Code block with syntax highlight hint */
+.code-block-rust { border-left: 2px solid hsl(25 95% 53% / 0.6); }
+.code-block-typescript { border-left: 2px solid hsl(210 100% 66% / 0.6); }
+.code-block-python { border-left: 2px solid hsl(48 96% 53% / 0.6); }
+.code-block-sh,
+.code-block-bash { border-left: 2px solid hsl(142 71% 45% / 0.6); }
+.code-block-json { border-left: 2px solid hsl(291 64% 42% / 0.6); }
+.code-block-sql { border-left: 2px solid hsl(195 100% 50% / 0.6); }
+
+/* Effort badge */
+.effort-lite    { color: hsl(142 71% 45%); background: hsl(142 71% 45% / 0.1); border-color: hsl(142 71% 45% / 0.25); }
+.effort-medium  { color: hsl(210 100% 66%); background: hsl(210 100% 66% / 0.1); border-color: hsl(210 100% 66% / 0.25); }
+.effort-high    { color: hsl(48 96% 53%); background: hsl(48 96% 53% / 0.1); border-color: hsl(48 96% 53% / 0.25); }
+.effort-max     { color: hsl(262 83% 70%); background: hsl(262 83% 70% / 0.12); border-color: hsl(262 83% 70% / 0.3); }
+
+/* Message actions toolbar (copy/expand) */
+.msg-actions {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.group:hover .msg-actions { opacity: 1; }
+
+/* Stagger animation children */
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }
+.stagger > *:nth-child(5) { animation-delay: 160ms; }
+.stagger > *:nth-child(n+6) { animation-delay: 200ms; }

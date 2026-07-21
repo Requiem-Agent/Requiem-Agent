@@ -43,19 +43,16 @@ export interface WorkspaceTree {
   tree: TreeNode[];
 }
 
-export interface AgentChatEvent {
-  type: "thinking" | "tool_use" | "tool_result" | "memory_hit" | "text" | "error" | "done";
-  content?: string;
-  tool?: string;
-  input?: Record<string, unknown>;
-  tool_call_id?: string;
-  result?: unknown;
-  message?: string;
-  usage?: { steps: number };
-  // memory_hit specific
-  count?: number;
-  preview?: string;
-}
+export type AgentChatEvent =
+  | { type: "thinking"; content: string }
+  | { type: "tool_use"; tool: string; input: Record<string, unknown>; tool_call_id: string }
+  | { type: "tool_result"; tool_call_id: string; result: unknown }
+  | { type: "memory_hit"; count: number; preview: string }
+  | { type: "text"; content: string }
+  | { type: "error"; message: string }
+  | { type: "progress"; step: number; total: number; label: string }
+  | { type: "file_written"; path: string; lines: number; action: string }
+  | { type: "done"; usage: unknown };
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
 
@@ -179,6 +176,7 @@ export async function* streamAgentChat(
   effort       = "medium",
   history:     Array<{role: string; content: string}> = [],
   signal?:     AbortSignal,
+  images?:     Array<{url: string; base64?: string; media_type?: string}>,
 ): AsyncGenerator<AgentChatEvent> {
   const res = await fetch(`${API_BASE}/api/agent/chat`, {
     method: "POST",
@@ -189,6 +187,7 @@ export async function* streamAgentChat(
     body: JSON.stringify({
       message, workspace_id: workspaceId, session_id: sessionId,
       mode, effort, history,
+      ...(images && images.length > 0 ? { images } : {}),
     }),
     signal,
   });

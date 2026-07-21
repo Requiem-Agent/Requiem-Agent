@@ -232,50 +232,174 @@ function renderMarkdown(text: string): React.ReactNode[] {
   return nodes;
 }
 
+// Language → color accent for code block border
+const LANG_ACCENT: Record<string, string> = {
+  rust: "border-l-orange-500/60",
+  rs: "border-l-orange-500/60",
+  typescript: "border-l-blue-400/60",
+  tsx: "border-l-blue-400/60",
+  ts: "border-l-blue-400/60",
+  javascript: "border-l-yellow-400/60",
+  js: "border-l-yellow-400/60",
+  jsx: "border-l-yellow-400/60",
+  python: "border-l-yellow-300/60",
+  py: "border-l-yellow-300/60",
+  bash: "border-l-emerald-400/60",
+  sh: "border-l-emerald-400/60",
+  shell: "border-l-emerald-400/60",
+  json: "border-l-violet-400/60",
+  sql: "border-l-cyan-400/60",
+  toml: "border-l-amber-400/60",
+  yaml: "border-l-amber-400/60",
+  html: "border-l-orange-400/60",
+  css: "border-l-pink-400/60",
+};
+
+// Language → badge label color
+const LANG_COLOR: Record<string, string> = {
+  rust: "text-orange-400", rs: "text-orange-400",
+  typescript: "text-blue-400", tsx: "text-blue-400", ts: "text-blue-400",
+  javascript: "text-yellow-400", js: "text-yellow-400",
+  python: "text-yellow-300", py: "text-yellow-300",
+  bash: "text-emerald-400", sh: "text-emerald-400", shell: "text-emerald-400",
+  json: "text-violet-400",
+  sql: "text-cyan-400",
+  html: "text-orange-400",
+  css: "text-pink-400",
+};
+
 function CodeBlock({ language, code }: { language: string; code: string }) {
   const [collapsed, setCollapsed] = useState(false);
   const lines = code.split("\n");
-  const tooLong = lines.length > 30;
+  const tooLong = lines.length > 25;
   const lang = language.toLowerCase();
+
   if (lang === "svg" || (!lang && code.trimStart().startsWith("<svg"))) return <SvgBlock code={code} />;
   if (lang === "html" && code.includes("<body")) return <HtmlPreviewBlock code={code} />;
   if (lang === "chart" || lang === "recharts") return <ChartBlock code={code} />;
   if (lang === "mermaid") return <MermaidBlock code={code} />;
+
+  const accentClass = LANG_ACCENT[lang] ?? "border-l-border/40";
+  const labelColor  = LANG_COLOR[lang]  ?? "text-muted-foreground/60";
+  const displayLang = language || "text";
+
   return (
-    <div className="rounded-xl bg-[#0a0b0e] border border-border/50 overflow-hidden my-3 shadow-md">
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[#0f1014] border-b border-border/40">
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-rose-500/60"/><span className="h-2.5 w-2.5 rounded-full bg-amber-500/60"/><span className="h-2.5 w-2.5 rounded-full bg-emerald-500/60"/></div>
-          {language && <span className="text-[10px] font-mono text-muted-foreground/60 uppercase tracking-wider">{language}</span>}
-          {tooLong && <span className="text-[10px] font-mono text-muted-foreground/40">{lines.length} lines</span>}
+    <div className={cn("rounded-xl bg-[#0a0b0e] border border-border/50 border-l-2 overflow-hidden my-3 shadow-lg", accentClass)}>
+      {/* Header bar */}
+      <div className="flex items-center justify-between px-3 py-1.5 bg-[#0f1014] border-b border-border/30">
+        <div className="flex items-center gap-2.5">
+          {/* macOS traffic lights */}
+          <div className="flex gap-1.5 shrink-0">
+            <span className="h-2.5 w-2.5 rounded-full bg-rose-500/70"/>
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-500/70"/>
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/70"/>
+          </div>
+          <span className={cn("text-[10px] font-mono uppercase tracking-wider font-semibold", labelColor)}>
+            {displayLang}
+          </span>
+          <span className="text-[10px] font-mono text-muted-foreground/30">
+            {lines.length}L
+          </span>
         </div>
         <div className="flex items-center gap-1">
-          {tooLong && <button onClick={() => setCollapsed(c=>!c)} className="flex items-center gap-1 px-2 py-1 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-all">{collapsed ? <ChevronDown className="h-3 w-3"/> : <ChevronUp className="h-3 w-3"/>}{collapsed ? "expand" : "collapse"}</button>}
+          {tooLong && (
+            <button
+              onClick={() => setCollapsed(c => !c)}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.06] transition-all border border-transparent hover:border-border/40"
+            >
+              {collapsed
+                ? <><ChevronDown className="h-3 w-3"/>expand</>
+                : <><ChevronUp className="h-3 w-3"/>collapse</>
+              }
+            </button>
+          )}
           <CopyButton text={code} />
         </div>
       </div>
-      {!collapsed ? <div className="overflow-x-auto"><pre className="code-block text-[0.8125rem] p-4 leading-relaxed"><code className="text-[#e2e8f0]">{code}</code></pre></div>
-        : <div className="px-4 py-2 text-xs text-muted-foreground/40 font-mono">{lines.length} lines hidden · click expand</div>}
+
+      {/* Code body */}
+      {!collapsed ? (
+        <div className="overflow-x-auto">
+          <pre className="code-block text-[0.8125rem] p-4 leading-relaxed">
+            <code className="text-[#e2e8f0]">{code}</code>
+          </pre>
+        </div>
+      ) : (
+        <button
+          onClick={() => setCollapsed(false)}
+          className="w-full px-4 py-2 text-xs text-muted-foreground/40 font-mono hover:text-muted-foreground/70 hover:bg-white/[0.02] transition-all text-left"
+        >
+          ▸ {lines.length} lines hidden — click to expand
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Think block — collapsible chain-of-thought ────────────────────────────────
+function ThinkBlock({ content }: { content: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="my-2 rounded-xl border border-violet-500/20 bg-violet-500/4 overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/[0.02] transition-colors text-left"
+      >
+        <span className="text-violet-400 text-[10px] font-mono">⟨think⟩</span>
+        <span className="text-violet-400/70 text-[10px]">
+          {open ? "hide chain-of-thought" : "show chain-of-thought"}
+        </span>
+        <span className="ml-auto text-muted-foreground/30">
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+      {open && (
+        <div className="px-3 pb-3 pt-1 text-[0.75rem] text-violet-300/60 leading-relaxed italic border-t border-violet-500/10 font-mono whitespace-pre-wrap">
+          {content.trim()}
+        </div>
+      )}
     </div>
   );
 }
 
 export function FormattedMessage({ content }: { content: string }) {
-  const normalized = content.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\r/g, "");
-  const segments = normalized.split(/(```[\s\S]*?```)/g);
+  // Step 1: normalize escape sequences
+  const normalized = content
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "\t")
+    .replace(/\\r/g, "");
+
+  // Step 2: extract <think>...</think> blocks first
+  const withThink = normalized.split(/(<think>[\s\S]*?<\/think>)/g);
+
+  // Step 3: for non-think segments, split by code fences
   return (
     <div className="space-y-1">
-      {segments.map((seg, i) => {
-        if (seg.startsWith("```") && seg.endsWith("```")) {
-          const inner = seg.slice(3, -3);
-          const firstBreak = inner.indexOf("\n");
-          const lang = firstBreak > -1 ? inner.slice(0, firstBreak).trim() : "";
-          const code = firstBreak > -1 ? inner.slice(firstBreak + 1) : inner;
-          if (!lang && code.trimStart().startsWith("<svg")) return <SvgBlock key={i} code={code.trimEnd()} />;
-          return <CodeBlock key={i} language={lang} code={code.trimEnd()} />;
+      {withThink.map((seg, i) => {
+        // Think block
+        if (seg.startsWith("<think>") && seg.endsWith("</think>")) {
+          const inner = seg.slice(7, -8);
+          return <ThinkBlock key={i} content={inner} />;
         }
-        if (!seg.trim()) return null;
-        return <React.Fragment key={i}>{renderMarkdown(seg)}</React.Fragment>;
+
+        // Code fences within segment
+        const codeSplit = seg.split(/(```[\s\S]*?```)/g);
+        return (
+          <React.Fragment key={i}>
+            {codeSplit.map((part, j) => {
+              if (part.startsWith("```") && part.endsWith("```")) {
+                const inner = part.slice(3, -3);
+                const firstBreak = inner.indexOf("\n");
+                const lang = firstBreak > -1 ? inner.slice(0, firstBreak).trim() : "";
+                const code = firstBreak > -1 ? inner.slice(firstBreak + 1) : inner;
+                if (!lang && code.trimStart().startsWith("<svg")) return <SvgBlock key={j} code={code.trimEnd()} />;
+                return <CodeBlock key={j} language={lang} code={code.trimEnd()} />;
+              }
+              if (!part.trim()) return null;
+              return <React.Fragment key={j}>{renderMarkdown(part)}</React.Fragment>;
+            })}
+          </React.Fragment>
+        );
       })}
     </div>
   );
