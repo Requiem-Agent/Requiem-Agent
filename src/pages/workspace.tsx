@@ -136,6 +136,34 @@ function MiniTree({ nodes, depth = 0 }: { nodes: TreeNode[]; depth?: number }) {
   );
 }
 
+// ── Agent event stream — collapsible per-turn tool trace ─────────────────────
+function AgentEventStream({ events }: { events: AgentChatEvent[] }) {
+  const [collapsed, setCollapsed] = useState(false);
+  const toolCount = events.filter(e => e.type === "tool_use").length;
+  return (
+    <div className="rounded-xl border border-violet-500/15 bg-violet-500/4 overflow-hidden animate-fade-in">
+      <button
+        onClick={() => setCollapsed(c => !c)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-white/[0.02] transition-colors"
+      >
+        <BrainCircuit className="h-3 w-3 text-violet-400 shrink-0 animate-pulse" />
+        <span className="text-violet-400 font-medium">Agent thinking</span>
+        {toolCount > 0 && (
+          <span className="ml-1 px-1.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 text-[9px] font-mono">
+            {toolCount} tool{toolCount !== 1 ? "s" : ""}
+          </span>
+        )}
+        <ChevronRight className={cn("h-3 w-3 text-muted-foreground/30 ml-auto transition-transform", !collapsed && "rotate-90")} />
+      </button>
+      {!collapsed && (
+        <div className="px-3 pb-2 space-y-1.5 max-h-48 overflow-y-auto">
+          {events.map((ev, i) => <ToolUseCard key={i} event={ev} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Workspace selector pill ───────────────────────────────────────────────────
 function WorkspaceSelector({
   value, onChange,
@@ -769,6 +797,7 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
     setIsStreaming(false);
     setStreamContent("");
     setStreamThinking("");
+    setAgentEvents([]);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -791,13 +820,9 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
               <MessageBubble key={m.id} message={m} isNew={newIds.has(m.id)} />
             ))}
 
-            {/* Agent tool-use events */}
-            {agentEvents.length > 0 && (
-              <div className="space-y-1.5 animate-fade-in">
-                {agentEvents.map((ev, i) => (
-                  <ToolUseCard key={i} event={ev} />
-                ))}
-              </div>
+            {/* Agent tool-use events — only show while streaming or just finished */}
+            {agentEvents.length > 0 && isStreaming && (
+              <AgentEventStream events={agentEvents} />
             )}
 
             {/* Streaming message */}

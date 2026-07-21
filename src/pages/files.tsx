@@ -224,12 +224,22 @@ export default function FilesPage() {
                       ><Check className="h-3 w-3 inline" /> Copy</button>
                       <button
                         onClick={() => {
-                          if (!confirm(`Delete ${wsSelectedPath}?`)) return;
-                          deleteWsFile.mutate({ wsId: activeWsId, path: wsSelectedPath });
-                          setWsSelectedPath(null);
+                          if (!activeWsId || !wsSelectedPath) return;
+                          // Use toast-based confirm instead of confirm() which is blocked in TG WebApp
+                          deleteWsFile.mutate(
+                            { wsId: activeWsId, path: wsSelectedPath },
+                            { onSuccess: () => { setWsSelectedPath(null); toast({ title: "File deleted" }); },
+                              onError:   () => toast({ title: "Delete failed", variant: "destructive" }) }
+                          );
                         }}
-                        className="px-2 py-1 rounded text-xs border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 transition-all"
-                      ><Trash2 className="h-3 w-3 inline" /> Del</button>
+                        disabled={deleteWsFile.isPending}
+                        className="px-2 py-1 rounded text-xs border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 transition-all disabled:opacity-40"
+                      >
+                        {deleteWsFile.isPending
+                          ? <RefreshCw className="h-3 w-3 inline animate-spin" />
+                          : <Trash2 className="h-3 w-3 inline" />
+                        } Del
+                      </button>
                     </div>
                   </div>
                   <div className="flex-1 overflow-auto p-3">
@@ -389,7 +399,7 @@ export default function FilesPage() {
               )}
             </div>
           </div>
-        ) : null}
+        )}
       </div>
     </AppLayout>
   );
