@@ -1,0 +1,517 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "Requiem Agent Prometheus datasource",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" }
+  ],
+  "title": "Requiem Agent — Alerting Rules",
+  "description": "Production alerting rules for Requiem Agent backend (S5-04)",
+  "tags": ["requiem", "alerts", "production"],
+  "schemaVersion": 39,
+  "version": 1,
+  "groups": [
+    {
+      "name": "requiem_rate_limiting",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "rl-hits-high",
+          "title": "Rate Limit Hits High",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "datasourceUid": "${DS_PROMETHEUS}",
+              "model": {
+                "expr": "sum(rate(requiem_rate_limit_hits_total[5m])) * 60",
+                "legendFormat": "Rate limit hits/min",
+                "refId": "A"
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "-100",
+              "model": {
+                "conditions": [
+                  {
+                    "evaluator": { "params": [50], "type": "gt" },
+                    "operator": { "type": "and" },
+                    "query": { "params": ["A"] },
+                    "reducer": { "params": [], "type": "last" },
+                    "type": "query"
+                  }
+                ],
+                "refId": "C",
+                "type": "classic_conditions"
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "for": "2m",
+          "annotations": {
+            "summary": "Rate limit hits exceed 50/min",
+            "description": "Rate limit hits are {{ $value | printf \"%.0f\" }}/min (threshold: 50/min). Possible abuse or misconfigured client.",
+            "runbook_url": "https://github.com/Requiem-Agent/Requiem-Agent/wiki/runbooks/rate-limit-high"
+          },
+          "labels": {
+            "severity": "warning",
+            "team": "backend",
+            "service": "requiem-agent"
+          },
+          "isPaused": false
+        },
+        {
+          "uid": "rl-hits-critical",
+          "title": "Rate Limit Hits Critical",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "datasourceUid": "${DS_PROMETHEUS}",
+              "model": {
+                "expr": "sum(rate(requiem_rate_limit_hits_total[5m])) * 60",
+                "legendFormat": "Rate limit hits/min",
+                "refId": "A"
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "-100",
+              "model": {
+                "conditions": [
+                  {
+                    "evaluator": { "params": [200], "type": "gt" },
+                    "operator": { "type": "and" },
+                    "query": { "params": ["A"] },
+                    "reducer": { "params": [], "type": "last" },
+                    "type": "query"
+                  }
+                ],
+                "refId": "C",
+                "type": "classic_conditions"
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "for": "1m",
+          "annotations": {
+            "summary": "Rate limit hits critically high (>200/min)",
+            "description": "Rate limit hits are {{ $value | printf \"%.0f\" }}/min. Possible DDoS or runaway client. Immediate investigation required.",
+            "runbook_url": "https://github.com/Requiem-Agent/Requiem-Agent/wiki/runbooks/rate-limit-critical"
+          },
+          "labels": {
+            "severity": "critical",
+            "team": "backend",
+            "service": "requiem-agent"
+          },
+          "isPaused": false
+        }
+      ]
+    },
+    {
+      "name": "requiem_error_rate",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "err-rate-high",
+          "title": "HTTP Error Rate High (>5%)",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "datasourceUid": "${DS_PROMETHEUS}",
+              "model": {
+                "expr": "sum(rate(requiem_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(requiem_http_requests_total[5m])) * 100",
+                "legendFormat": "Error rate %",
+                "refId": "A"
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "-100",
+              "model": {
+                "conditions": [
+                  {
+                    "evaluator": { "params": [5], "type": "gt" },
+                    "operator": { "type": "and" },
+                    "query": { "params": ["A"] },
+                    "reducer": { "params": [], "type": "last" },
+                    "type": "query"
+                  }
+                ],
+                "refId": "C",
+                "type": "classic_conditions"
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "for": "3m",
+          "annotations": {
+            "summary": "HTTP 5xx error rate exceeds 5%",
+            "description": "HTTP error rate is {{ $value | printf \"%.1f\" }}% (threshold: 5%). Check application logs for root cause.",
+            "runbook_url": "https://github.com/Requiem-Agent/Requiem-Agent/wiki/runbooks/error-rate-high"
+          },
+          "labels": {
+            "severity": "warning",
+            "team": "backend",
+            "service": "requiem-agent"
+          },
+          "isPaused": false
+        },
+        {
+          "uid": "err-rate-critical",
+          "title": "HTTP Error Rate Critical (>20%)",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "datasourceUid": "${DS_PROMETHEUS}",
+              "model": {
+                "expr": "sum(rate(requiem_http_requests_total{status=~\"5..\"}[5m])) / sum(rate(requiem_http_requests_total[5m])) * 100",
+                "legendFormat": "Error rate %",
+                "refId": "A"
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "-100",
+              "model": {
+                "conditions": [
+                  {
+                    "evaluator": { "params": [20], "type": "gt" },
+                    "operator": { "type": "and" },
+                    "query": { "params": ["A"] },
+                    "reducer": { "params": [], "type": "last" },
+                    "type": "query"
+                  }
+                ],
+                "refId": "C",
+                "type": "classic_conditions"
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "for": "1m",
+          "annotations": {
+            "summary": "HTTP error rate critically high (>20%)",
+            "description": "HTTP error rate is {{ $value | printf \"%.1f\" }}%. Service may be degraded. Immediate action required.",
+            "runbook_url": "https://github.com/Requiem-Agent/Requiem-Agent/wiki/runbooks/error-rate-critical"
+          },
+          "labels": {
+            "severity": "critical",
+            "team": "backend",
+            "service": "requiem-agent"
+          },
+          "isPaused": false
+        },
+        {
+          "uid": "agent-errors-high",
+          "title": "Agent Errors High",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "datasourceUid": "${DS_PROMETHEUS}",
+              "model": {
+                "expr": "sum(rate(requiem_agent_errors_total[5m])) * 60",
+                "legendFormat": "Agent errors/min",
+                "refId": "A"
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "-100",
+              "model": {
+                "conditions": [
+                  {
+                    "evaluator": { "params": [10], "type": "gt" },
+                    "operator": { "type": "and" },
+                    "query": { "params": ["A"] },
+                    "reducer": { "params": [], "type": "last" },
+                    "type": "query"
+                  }
+                ],
+                "refId": "C",
+                "type": "classic_conditions"
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "for": "2m",
+          "annotations": {
+            "summary": "Agent errors exceed 10/min",
+            "description": "Agent errors are {{ $value | printf \"%.0f\" }}/min. Check LLM connectivity and ReAct loop configuration.",
+            "runbook_url": "https://github.com/Requiem-Agent/Requiem-Agent/wiki/runbooks/agent-errors"
+          },
+          "labels": {
+            "severity": "warning",
+            "team": "backend",
+            "service": "requiem-agent"
+          },
+          "isPaused": false
+        }
+      ]
+    },
+    {
+      "name": "requiem_latency",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "latency-p95-high",
+          "title": "p95 Latency High (>2s)",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "datasourceUid": "${DS_PROMETHEUS}",
+              "model": {
+                "expr": "histogram_quantile(0.95, sum(rate(requiem_http_duration_seconds_bucket[5m])) by (le))",
+                "legendFormat": "p95 latency",
+                "refId": "A"
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "-100",
+              "model": {
+                "conditions": [
+                  {
+                    "evaluator": { "params": [2], "type": "gt" },
+                    "operator": { "type": "and" },
+                    "query": { "params": ["A"] },
+                    "reducer": { "params": [], "type": "last" },
+                    "type": "query"
+                  }
+                ],
+                "refId": "C",
+                "type": "classic_conditions"
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "for": "5m",
+          "annotations": {
+            "summary": "p95 HTTP latency exceeds 2 seconds",
+            "description": "p95 latency is {{ $value | printf \"%.2f\" }}s. Check database query performance and LLM response times.",
+            "runbook_url": "https://github.com/Requiem-Agent/Requiem-Agent/wiki/runbooks/latency-high"
+          },
+          "labels": {
+            "severity": "warning",
+            "team": "backend",
+            "service": "requiem-agent"
+          },
+          "isPaused": false
+        }
+      ]
+    },
+    {
+      "name": "requiem_availability",
+      "interval": "30s",
+      "rules": [
+        {
+          "uid": "service-down",
+          "title": "Requiem Agent Service Down",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "datasourceUid": "${DS_PROMETHEUS}",
+              "model": {
+                "expr": "up{job=\"requiem-agent\"}",
+                "legendFormat": "Service up",
+                "refId": "A"
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "-100",
+              "model": {
+                "conditions": [
+                  {
+                    "evaluator": { "params": [1], "type": "lt" },
+                    "operator": { "type": "and" },
+                    "query": { "params": ["A"] },
+                    "reducer": { "params": [], "type": "last" },
+                    "type": "query"
+                  }
+                ],
+                "refId": "C",
+                "type": "classic_conditions"
+              }
+            }
+          ],
+          "noDataState": "Alerting",
+          "execErrState": "Alerting",
+          "for": "1m",
+          "annotations": {
+            "summary": "Requiem Agent service is down",
+            "description": "The Requiem Agent backend is not responding to Prometheus scrapes. Service may be crashed or unreachable.",
+            "runbook_url": "https://github.com/Requiem-Agent/Requiem-Agent/wiki/runbooks/service-down"
+          },
+          "labels": {
+            "severity": "critical",
+            "team": "backend",
+            "service": "requiem-agent"
+          },
+          "isPaused": false
+        },
+        {
+          "uid": "connections-high",
+          "title": "Active Connections High (>500)",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "datasourceUid": "${DS_PROMETHEUS}",
+              "model": {
+                "expr": "requiem_active_connections",
+                "legendFormat": "Active connections",
+                "refId": "A"
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "-100",
+              "model": {
+                "conditions": [
+                  {
+                    "evaluator": { "params": [500], "type": "gt" },
+                    "operator": { "type": "and" },
+                    "query": { "params": ["A"] },
+                    "reducer": { "params": [], "type": "last" },
+                    "type": "query"
+                  }
+                ],
+                "refId": "C",
+                "type": "classic_conditions"
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "for": "3m",
+          "annotations": {
+            "summary": "Active connections exceed 500",
+            "description": "Active connections: {{ $value }}. Consider scaling horizontally or investigating connection leaks.",
+            "runbook_url": "https://github.com/Requiem-Agent/Requiem-Agent/wiki/runbooks/connections-high"
+          },
+          "labels": {
+            "severity": "warning",
+            "team": "backend",
+            "service": "requiem-agent"
+          },
+          "isPaused": false
+        }
+      ]
+    },
+    {
+      "name": "requiem_llm",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "llm-failure-rate",
+          "title": "LLM Call Failure Rate High (>10%)",
+          "condition": "C",
+          "data": [
+            {
+              "refId": "A",
+              "datasourceUid": "${DS_PROMETHEUS}",
+              "model": {
+                "expr": "sum(rate(requiem_llm_calls_total{success=\"false\"}[5m])) / sum(rate(requiem_llm_calls_total[5m])) * 100",
+                "legendFormat": "LLM failure rate %",
+                "refId": "A"
+              }
+            },
+            {
+              "refId": "C",
+              "datasourceUid": "-100",
+              "model": {
+                "conditions": [
+                  {
+                    "evaluator": { "params": [10], "type": "gt" },
+                    "operator": { "type": "and" },
+                    "query": { "params": ["A"] },
+                    "reducer": { "params": [], "type": "last" },
+                    "type": "query"
+                  }
+                ],
+                "refId": "C",
+                "type": "classic_conditions"
+              }
+            }
+          ],
+          "noDataState": "NoData",
+          "execErrState": "Error",
+          "for": "3m",
+          "annotations": {
+            "summary": "LLM call failure rate exceeds 10%",
+            "description": "LLM failure rate is {{ $value | printf \"%.1f\" }}%. Check Anthropic API status and API key validity.",
+            "runbook_url": "https://github.com/Requiem-Agent/Requiem-Agent/wiki/runbooks/llm-failures"
+          },
+          "labels": {
+            "severity": "warning",
+            "team": "backend",
+            "service": "requiem-agent"
+          },
+          "isPaused": false
+        }
+      ]
+    }
+  ],
+  "contactPoints": [
+    {
+      "name": "requiem-team-slack",
+      "receivers": [
+        {
+          "uid": "slack-backend",
+          "type": "slack",
+          "settings": {
+            "url": "${SLACK_WEBHOOK_URL}",
+            "channel": "#requiem-alerts",
+            "username": "Requiem Alertmanager",
+            "icon_emoji": ":rotating_light:",
+            "title": "{{ .CommonAnnotations.summary }}",
+            "text": "{{ .CommonAnnotations.description }}\n\nSeverity: {{ .CommonLabels.severity }}\nRunbook: {{ .CommonAnnotations.runbook_url }}"
+          }
+        }
+      ]
+    }
+  ],
+  "policies": [
+    {
+      "receiver": "requiem-team-slack",
+      "group_by": ["severity", "service"],
+      "group_wait": "30s",
+      "group_interval": "5m",
+      "repeat_interval": "4h",
+      "matchers": [
+        { "label": "service", "match": "=", "value": "requiem-agent" }
+      ],
+      "routes": [
+        {
+          "receiver": "requiem-team-slack",
+          "matchers": [
+            { "label": "severity", "match": "=", "value": "critical" }
+          ],
+          "group_wait": "10s",
+          "repeat_interval": "1h"
+        }
+      ]
+    }
+  ]
+}
