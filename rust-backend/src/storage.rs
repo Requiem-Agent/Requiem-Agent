@@ -10,6 +10,8 @@
 //! كل مستخدم يحصل على مجلد خاص: `users/{user_id}/sessions/{session_id}/`
 //! لا يمكن لمستخدم الوصول لملفات مستخدم آخر بسبب path_safety.
 
+pub mod workspace;
+
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use tokio::fs;

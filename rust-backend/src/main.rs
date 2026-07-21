@@ -266,6 +266,20 @@ async fn main() -> Result<()> {
         .route("/identity/prompt", get(routes::identity_shield::get_identity_prompt))
         .route("/identity/cutoff", post(routes::identity_shield::check_cutoff))
         .route("/identity/developer", get(routes::identity_shield::get_developer_info))
+        // ─── Agent Chat (tool-use loop) ────────────────────────────────────────
+        .route("/agent/chat", post(routes::agent_chat::agent_chat_handler))
+        // ─── Workspace Routes (Phase: Workspace Management) ───────────────────
+        .route("/workspaces",                        get(routes::workspaces::list_workspaces))
+        .route("/workspaces",                        post(routes::workspaces::create_workspace))
+        .route("/workspaces/{id}",                   get(routes::workspaces::get_workspace))
+        .route("/workspaces/{id}",                   patch(routes::workspaces::update_workspace))
+        .route("/workspaces/{id}",                   delete(routes::workspaces::delete_workspace))
+        .route("/workspaces/{id}/tree",              get(routes::workspaces::get_tree))
+        .route("/workspaces/{id}/files/*path",       get(routes::workspaces::read_file)
+                                                        .put(routes::workspaces::write_file)
+                                                        .delete(routes::workspaces::delete_file))
+        .route("/workspaces/{id}/mkdir/*path",       post(routes::workspaces::mkdir))
+        .route("/workspaces/{id}/clone",             post(routes::workspaces::clone_repo))
         // ── Auth middleware — MUST come after all .route() calls (Axum 0.8 rule) ──
         // route_layer applies to every route defined above it in this builder chain.
         .route_layer(middleware::from_fn_with_state(

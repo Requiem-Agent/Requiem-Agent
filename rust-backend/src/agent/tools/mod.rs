@@ -8,6 +8,8 @@ pub mod parser;
 pub mod diff;
 pub mod vcs;
 pub mod file_finder;
+pub mod workspace;
+pub use workspace::{workspace_tools_schema, execute_workspace_tool};
 
 pub use search::SearchTool;
 pub use parser::ParserTool;
