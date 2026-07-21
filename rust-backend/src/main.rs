@@ -8,7 +8,7 @@ use axum::{
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tower_http::{
-    cors::{Any, CorsLayer},
+    cors::{CorsLayer},
     services::ServeDir,
     trace::TraceLayer,
 };
@@ -122,10 +122,30 @@ async fn main() -> Result<()> {
     ));
     tracing::info!("✅ Phase 16 — Model Synergy Engine initialized");
 
+    // S1-04: تقييد CORS — بدلاً من Any نستخدم قائمة محددة
+    let allowed_origins = std::env::var("ALLOWED_ORIGINS")
+        .unwrap_or_else(|_| "https://requiem-agent.github.io,https://web.telegram.org".to_string());
+    
+    let origins: Vec<axum::http::HeaderValue> = allowed_origins
+        .split(',')
+        .filter_map(|o| o.trim().parse().ok())
+        .collect();
+    
     let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_origin(origins)
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::PUT,
+            axum::http::Method::DELETE,
+            axum::http::Method::OPTIONS,
+        ])
+        .allow_headers([
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::ACCEPT,
+        ])
+        .allow_credentials(true);
 
     let public_router = Router::new()
         .route("/healthz", get(routes::health::health_check))
