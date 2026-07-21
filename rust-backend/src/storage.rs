@@ -35,8 +35,6 @@ pub async fn hf_upload_file(
         return Ok(()); // لا رمز مميز — تخطى الرفع
     }
     let path = format!("users/{user_id}/sessions/{session_id}/{file_name}");
-    let url = format!("{HF_API_BASE}/{HF_DATASET}/resolve/main/{path}");
-
     // HF Datasets commit API
     let commit_url = format!("https://huggingface.co/api/datasets/{HF_DATASET}/commit/main");
     let client = reqwest::Client::new();
