@@ -39,7 +39,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (storedToken && storedUser) {
         try {
           // Validate stored token is still accepted by the API
-          const check = await fetch('/api/usage', {
+          const apiBase = import.meta.env.VITE_API_URL || "";
+          const check = await fetch(`${apiBase}/api/usage`, {
             headers: { Authorization: `Bearer ${storedToken}` },
           });
           if (check.ok || check.status !== 401) {
