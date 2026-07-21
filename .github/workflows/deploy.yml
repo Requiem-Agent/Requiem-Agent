@@ -21,15 +21,19 @@ jobs:
         with:
           node-version: 22
       - run: npm install -g pnpm
-      - run: pnpm install --no-frozen-lockfile
-      - name: Build TypeScript workspace libs
+      # Remove @replit/* packages that only exist inside Replit environment
+      - name: Strip Replit-only devDeps
         run: |
-          cd lib/api-zod && npx tsc --noEmit 2>/dev/null || true && cd ../..
-          cd lib/api-client-react && npx tsc --noEmit 2>/dev/null || true && cd ../..
-      - run: pnpm run build 2>/dev/null || npx --yes vite build
+          node -e "
+            const fs=require('fs');
+            const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
+            Object.keys(pkg.devDependencies||{}).forEach(k=>{if(k.startsWith('@replit/'))delete pkg.devDependencies[k];});
+            fs.writeFileSync('package.json',JSON.stringify(pkg,null,2));
+          "
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
+      - run: npx --yes vite build
         env:
           VITE_API_URL: https://rayig-dev.hf.space
-          BASE_URL: /Requiem-Agent/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist/public
