@@ -1,8 +1,10 @@
 //! # Storage Module — محرك التخزين الهجين
 //!
 //! ## طبقتان:
-//! 1. **محلي** — `/app/data` (سريع، مؤقت بين عمليات الإعادة)
-//! 2. **HuggingFace Bucket** — `rayig/Dev-storage` (دائم، منعزل per-user)
+//! 1. **HuggingFace Bucket Mount** — `/data` (دائم — مُعلَّق مباشرة في الحاوية)
+//!    الدلو `rayig/Dev-storage` مُربط في `/data` بصلاحية Read & Write.
+//!    كل ملف يُكتب في `/data` يُحفظ تلقائياً في الدلو ويبقى بعد إعادة التشغيل.
+//! 2. **محلي** — `/app/data` (بديل للتطوير المحلي فقط)
 //!
 //! ## العزل:
 //! كل مستخدم يحصل على مجلد خاص: `users/{user_id}/sessions/{session_id}/`
@@ -241,19 +243,27 @@ pub struct StorageEngine {
 impl StorageEngine {
     pub fn new(base_path: Option<&Path>) -> Self {
         let base = base_path.map(|p| p.to_path_buf()).unwrap_or_else(|| {
-            let candidates = ["/app/data", "/data"];
+            // Priority order:
+            // 1. /data  — HuggingFace Storage Bucket mount (persistent, survives restarts)
+            //    The bucket rayig/Dev-storage is mounted at /data with Read & Write access
+            // 2. /app/data — fallback for local dev
+            // 3. REQUIEM_STORAGE env var
+            let candidates = ["/data", "/app/data"];
             for p in &candidates {
                 let path = PathBuf::from(p);
                 if path.exists() {
                     let test = path.join(".perm_test");
                     if std::fs::write(&test, "").is_ok() {
                         std::fs::remove_file(&test).ok();
+                        tracing::info!("Storage base: {p} (writable)");
                         return path;
                     }
                 }
             }
-            PathBuf::from(std::env::var("REQUIEM_STORAGE")
-                .unwrap_or_else(|_| "/app/data".to_string()))
+            let fallback = std::env::var("REQUIEM_STORAGE")
+                .unwrap_or_else(|_| "/data".to_string());
+            tracing::warn!("Storage base fallback: {fallback}");
+            PathBuf::from(fallback)
         });
         let hf_token = std::env::var("HF_TOKEN").unwrap_or_default();
         Self { base_path: base, hf_token }

@@ -221,8 +221,14 @@ function renderInline(text: string): React.ReactNode {
 
 // ── Main FormattedMessage ─────────────────────────────────────────────────────
 export function FormattedMessage({ content }: { content: string }) {
+  // Normalize escaped sequences that may have been stored literally in DB
+  const normalized = content
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "\t")
+    .replace(/\\r/g, "");
+
   // Split by code fences first
-  const segments = content.split(/(```[\s\S]*?```)/g);
+  const segments = normalized.split(/(```[\s\S]*?```)/g);
 
   return (
     <div className="space-y-1">
@@ -232,9 +238,10 @@ export function FormattedMessage({ content }: { content: string }) {
           const firstBreak = inner.indexOf("\n");
           const lang = firstBreak > -1 ? inner.slice(0, firstBreak).trim() : "";
           const code = firstBreak > -1 ? inner.slice(firstBreak + 1) : inner;
-          return <CodeBlock key={i} language={lang} code={code} />;
+          return <CodeBlock key={i} language={lang} code={code.trimEnd()} />;
         }
-        // Render markdown
+        // Render markdown for non-code segments
+        if (!seg.trim()) return null;
         return <React.Fragment key={i}>{renderMarkdown(seg)}</React.Fragment>;
       })}
     </div>

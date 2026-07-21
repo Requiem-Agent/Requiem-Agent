@@ -12,49 +12,49 @@ const NAV_ITEMS = [
   { href: "/settings", label: "Settings", Icon: Settings    },
 ];
 
-// ── Telegram safe-area hook ───────────────────────────────────────────────────
-// Telegram WebApp safeAreaInsets (Bot API 7.7+): the header buttons area height in px.
-// contentSafeAreaInsets: additional content padding (usually 0).
-// CSS var --tg-safe-area-inset-top is set by @tma.js/sdk-react with cssVars:true, but
-// may lag behind initialization, so we also read directly from the TG WebApp object.
+// ── Telegram safe-area detection ─────────────────────────────────────────────
+// Telegram Mini Apps have a header bar (~44-56px) with Close/Back buttons.
+// We MUST pad the top of our UI so content doesn't overlap with those buttons.
 //
-// MINIMUM TOP INSET: Telegram Mini Apps always show a header bar with Back/Close buttons
-// (roughly 44-56px depending on platform). We guarantee a minimum of 8px so content
-// never bleeds under the TG header even if safeAreaInsets reports 0 during init.
-const MIN_TOP_INSET = 8;
+// Strategy (in priority order):
+//   1. tg.safeAreaInsets.top + tg.contentSafeAreaInsets.top (Bot API 7.7+)
+//   2. CSS var --tg-safe-area-inset-top (set by @tma.js/sdk-react)
+//   3. env(safe-area-inset-top) from CSS (iOS notch)
+//   4. Hard minimum: 44px when inside Telegram (standard header height)
+//
+// We use CSS for the actual padding so it applies immediately before JS hydrates,
+// preventing the layout from jumping on first render.
 
 function useTelegramSafeArea() {
-  const [topInset, setTopInset] = useState(() => {
-    // Try to read synchronously on first render
-    const tg = (window as any).Telegram?.WebApp;
-    // Also check CSS variable set by @tma.js/sdk
-    const cssVar = parseInt(getComputedStyle(document.documentElement)
-      .getPropertyValue("--tg-safe-area-inset-top") || "0") || 0;
-    const safeTop    = tg?.safeAreaInsets?.top         ?? cssVar;
-    const contentTop = tg?.contentSafeAreaInsets?.top  ?? 0;
-    const isTgWebApp = !!(tg?.initData);
-    // In Telegram: always add minimum inset. Outside: 0.
-    return isTgWebApp ? Math.max(safeTop + contentTop, MIN_TOP_INSET) : 0;
-  });
+  const [topInset, setTopInset] = useState(0);
 
   useEffect(() => {
     const tg = (window as any).Telegram?.WebApp;
-    if (!tg) return;
+    const isTg = !!(tg?.initData || tg?.initDataUnsafe);
 
-    // Expand to full height so content fills the WebView
+    if (!isTg) return; // Not in Telegram — no inset needed
+
+    // Expand to full height
     tg.expand?.();
-    // On newer TG clients, request full-screen mode
+    // Request fullscreen on newer TG versions
     tg.requestFullscreen?.();
-    // Disable vertical swipe to dismiss (prevents accidental close)
+    // Prevent accidental close via swipe
     tg.disableVerticalSwipes?.();
 
     const readInsets = () => {
-      const cssVar = parseInt(getComputedStyle(document.documentElement)
-        .getPropertyValue("--tg-safe-area-inset-top") || "0") || 0;
-      const safeTop    = tg.safeAreaInsets?.top         ?? cssVar;
-      const contentTop = tg.contentSafeAreaInsets?.top  ?? 0;
-      const isTgWebApp = !!(tg.initData);
-      setTopInset(isTgWebApp ? Math.max(safeTop + contentTop, MIN_TOP_INSET) : 0);
+      // Method 1: tg.safeAreaInsets (most accurate, Bot API 7.7+)
+      const safeTop    = (tg.safeAreaInsets?.top        ?? 0) as number;
+      const contentTop = (tg.contentSafeAreaInsets?.top ?? 0) as number;
+
+      // Method 2: CSS variable from @tma.js/sdk
+      const cssVarRaw = getComputedStyle(document.documentElement)
+        .getPropertyValue("--tg-safe-area-inset-top").trim();
+      const cssVar = cssVarRaw ? parseInt(cssVarRaw) || 0 : 0;
+
+      // Take the best reading: safeTop+contentTop if non-zero, else cssVar
+      // Then ensure minimum 44px (standard TG header height)
+      const raw = safeTop + contentTop > 0 ? safeTop + contentTop : cssVar;
+      setTopInset(Math.max(raw, 44)); // Always at least 44px in Telegram
     };
 
     readInsets();
@@ -78,25 +78,27 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const topInset   = useTelegramSafeArea();
 
-  // Check if we're inside Telegram WebView (for additional styling)
-  const isTelegram = !!(typeof window !== "undefined" && (window as any).Telegram?.WebApp?.initData);
-
   return (
     <div
       className="flex flex-col bg-background text-foreground overflow-hidden"
       style={{ height: "100dvh" }}
     >
-      {/* Telegram header spacer — always present in TG to avoid header overlap */}
-      {(topInset > 0 || isTelegram) && (
-        <div
-          className="shrink-0 w-full"
-          style={{
-            height: `${Math.max(topInset, isTelegram ? MIN_TOP_INSET : 0)}px`,
-            background: "hsl(var(--background))",
-          }}
-          aria-hidden="true"
-        />
-      )}
+      {/* Top spacer: protects content from TG header buttons.
+          Uses CSS env() as the baseline (applies before JS), then JS
+          overrides with exact inset once Telegram SDK reports it.
+          When topInset > 0 (JS measured), use it directly.
+          Otherwise rely on CSS env(safe-area-inset-top) via paddingTop. */}
+      <div
+        className="shrink-0 w-full"
+        style={{
+          background: "hsl(var(--background))",
+          // If JS measured a value, use it; otherwise use CSS env() with 44px min
+          height: topInset > 0
+            ? `${topInset}px`
+            : "max(env(safe-area-inset-top, 0px), 44px)",
+        }}
+        aria-hidden="true"
+      />
 
       {/* Page content */}
       <main className="flex-1 overflow-hidden min-h-0 relative">

@@ -105,6 +105,12 @@ function MessageBubble({ message, isNew }: {
     const inner = extractTextFromJson(displayContent);
     if (inner) displayContent = inner;
   }
+  // Fix escaped newlines that got stored literally (\n → actual newline)
+  displayContent = displayContent.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
+  // Remove any remaining outer JSON braces/quotes if the whole thing is still wrapped
+  if (displayContent.startsWith('"') && displayContent.endsWith('"')) {
+    try { displayContent = JSON.parse(displayContent); } catch {}
+  }
 
   return (
     <div className={cn("flex justify-start", isNew && "animate-slide-up")}>
@@ -114,9 +120,7 @@ function MessageBubble({ message, isNew }: {
             <Bot className="h-2.5 w-2.5 text-primary" />
           </div>
           <span className="text-[10px] text-muted-foreground/50 font-mono">Requiem Agent 1</span>
-          {message.modelUsed && (
-            <span className="text-[9px] text-muted-foreground/30 font-mono ml-1">· {message.modelUsed.split("/").pop()}</span>
-          )}
+          {/* Model name intentionally hidden — brand is always "Requiem Agent 1" */}
         </div>
         <div className="msg-assistant border rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed message-content">
           <FormattedMessage content={displayContent} />
@@ -496,15 +500,16 @@ function ChatPanel({ sessionId, mode, effort }: {
 
       for await (const chunk of streamZenChat(modelId, apiMessages, abortRef.current.signal)) {
         full += chunk;
-        // During streaming: try to extract clean text from JSON wrapper in real-time
-        // If the whole buffer is valid JSON with {"response":"..."}, show extracted text
-        // Otherwise show the raw buffer (normal streaming)
-        const displayChunk = extractTextFromJson(full) ?? full;
+        // Clean display: strip JSON wrapper, fix escaped \n
+        let displayChunk = extractTextFromJson(full) ?? full;
+        displayChunk = displayChunk.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
         setStreamContent(displayChunk);
       }
 
       // Extract clean text if the full response ended up being JSON-wrapped
-      const cleanFull = extractTextFromJson(full) ?? full;
+      let cleanFull = extractTextFromJson(full) ?? full;
+      // Fix escaped newlines in stored content
+      cleanFull = cleanFull.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
 
       // 5. Save assistant message to backend
       const assistantMsg = await addMessage({

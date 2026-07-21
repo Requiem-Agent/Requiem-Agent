@@ -385,7 +385,67 @@ pub async fn chat_handler(
         engine.generate_lock_context("autonomous", "medium")
     };
 
-    // ── 3. RAG memory context ────────────────────────────────────────────────
+    // ── 3. Agent Environment Awareness ──────────────────────────────────────
+    // Build a comprehensive environment block so the agent knows exactly what it
+    // can do, where files live, and how to use its capabilities.
+    let user_storage_path = format!("/data/users/{user_id}/sessions/{session_id}/files");
+    let env_block = format!(
+        r#"## REQUIEM AGENT 1 — ENVIRONMENT & CAPABILITIES
+
+### Your Identity
+You are Requiem Agent 1 — a real autonomous AI agent, NOT just a chatbot.
+You have persistent storage, memory, tools, and can write/read/execute code.
+Never say you "can't" do something that's in your capabilities below.
+
+### File Storage (Persistent — HF Bucket)
+Your working directory for this session: `{user_storage_path}`
+This maps to the HuggingFace bucket `rayig/Dev-storage` mounted at `/data`.
+Files written here PERSIST between sessions and container restarts.
+
+**The backend auto-saves code blocks** from your responses to this path.
+When you write code blocks in markdown (```language ... ```), they are
+automatically extracted and saved as files in the session storage.
+
+**Current session:** `{session_id}` | **User:** `{user_id}`
+
+### Available Capabilities
+1. **Write code** — Output code blocks and they are auto-saved to storage
+2. **File operations** — Via /api/files endpoints (list, read, write, delete)
+3. **Code execution** — Via /api/sandbox/exec (Python, JS, TS, Bash, Rust)
+4. **Web search** — Via /api/tools/search pattern matching in project files
+5. **Code parsing** — Via /api/tools/parse (AST analysis with tree-sitter)
+6. **Diff generation** — Via /api/tools/diff
+7. **Git/VCS** — Via /api/tools/vcs
+8. **RAG Memory** — Your memories are persisted via /api/rag endpoints
+9. **Task decomposition** — Break complex tasks via /api/tasks/decompose
+10. **Sub-agents** — Spawn specialized sub-agents via /api/agent/sub/spawn
+11. **Formats** — Convert between JSON/YAML/TOML/CSV/SQL/Markdown
+
+### Session Mode: {session_mode} | Effort: {session_effort}
+- orchestrator: coordinate multiple models for complex tasks
+- coder: deep code writing, refactoring, multi-file projects
+- planner: break down tasks, create roadmaps
+- debugger: root-cause analysis, fix bugs
+- researcher: deep research and synthesis
+- designer: UI/UX, creative tasks
+- explorer: codebase navigation, dependency mapping
+- security: vulnerability analysis
+
+### Response Guidelines
+- ALWAYS respond with plain text (no JSON wrappers like {{"response":"..."}})
+- Write code in proper markdown code blocks with language tags
+- Be proactive: if the user asks to "build" something, actually write the code
+- Files you write will appear in the Files tab of the app
+- You can reference files the user has in storage
+"#,
+        user_storage_path = user_storage_path,
+        session_id = session_id,
+        user_id = user_id,
+        session_mode = session_mode,
+        session_effort = session_effort,
+    );
+
+    // ── 4. RAG memory context ────────────────────────────────────────────────
     let rag_context = {
         let rag = RagEngine::new(state.conn.clone(), user_id);
         let query = body.messages.iter().rev()
@@ -402,11 +462,11 @@ pub async fn chat_handler(
         }
     };
 
-    // ── Build context messages — identity + locks + RAG first ────────────────
+    // ── Build context messages ────────────────────────────────────────────────
     let mut context_messages: Vec<serde_json::Value> = Vec::new();
 
-    // Identity + locks combined system block (always injected)
-    let system_block = format!("{}\n\n---\n\n{}", identity_prompt, lock_context);
+    // Combined system block: identity + environment + locks
+    let system_block = format!("{}\n\n{}\n\n---\n\n{}", identity_prompt, env_block, lock_context);
     context_messages.push(serde_json::json!({
         "role": "system",
         "content": system_block
@@ -416,17 +476,27 @@ pub async fn chat_handler(
     if let Some(ref memory_ctx) = rag_context {
         context_messages.push(serde_json::json!({
             "role": "system",
-            "content": memory_ctx
+            "content": format!("## Relevant Memory from Previous Sessions\n{memory_ctx}")
         }));
     }
+
+    // Current session files context (show agent what files exist)
     if let Ok(files) = storage::list_files(user_id, session_id).await {
         if !files.is_empty() {
-            let mut ctx = String::from("Current project files:");
+            let mut ctx = format!(
+                "## Current Project Files in {user_storage_path}\n\nYou have {} file(s) in this session:\n",
+                files.len()
+            );
+            for fname in &files {
+                ctx.push_str(&format!("- `{fname}`\n"));
+            }
+            ctx.push_str("\n### File Contents:\n");
             for fname in &files {
                 if let Ok(content) = storage::read_file(user_id, session_id, fname).await {
-                    ctx.push_str(&format!("\n--- {} ---\n{}", fname, &content[..content.len().min(2000)]));
-                    if content.len() > 2000 {
-                        ctx.push_str("\n... (truncated)");
+                    let preview = &content[..content.len().min(3000)];
+                    ctx.push_str(&format!("\n#### `{fname}`\n```\n{preview}\n```\n"));
+                    if content.len() > 3000 {
+                        ctx.push_str(&format!("*... {} more bytes truncated*\n", content.len() - 3000));
                     }
                 }
             }
