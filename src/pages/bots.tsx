@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout";
-import { useBots, useBotMutations } from "@/hooks/use-bots";
+import { useBots, useBotMutations, useBotStatusPoller, TRANSIENT_STATUSES } from "@/hooks/use-bots";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
-  Plus, Bot, Rocket, Trash2, Loader2, ExternalLink,
-  CheckCircle2, AlertCircle, Clock, Zap, RefreshCw, X,
+  Plus, Bot, Rocket, Trash2, Loader2,
+  CheckCircle2, AlertCircle, Clock, Zap, RefreshCw,
   MessageSquare, Settings2, Globe, Key, Copy, Check,
   ChevronRight, Terminal, ArrowRight, Sparkles, Shield,
+  Link2, ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +19,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Form, FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
 
-// ── Schema ─────────────────────────────────────────────────────────────────────
+// ── Schemas ────────────────────────────────────────────────────────────────────
+const provisionSchema = z.object({
+  name:        z.string().min(2, "At least 2 characters"),
+  description: z.string().optional(),
+  purpose:     z.string().optional(),
+});
+type ProvisionFormData = z.infer<typeof provisionSchema>;
+
+const linkTokenSchema = z.object({
+  token: z.string().min(10, "Paste your bot token from @BotFather"),
+});
+type LinkTokenFormData = z.infer<typeof linkTokenSchema>;
+
+// Legacy schema kept for type compat
 const botSchema = z.object({
   name:        z.string().min(2, "At least 2 characters"),
   token:       z.string().min(10, "Paste your bot token from @BotFather"),
@@ -38,8 +52,8 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string; bo
   sleeping:  { label: "sleeping",  color: "text-muted-foreground", bg: "bg-muted/20",  border: "border-border/50",      Icon: Clock        },
 };
 
-// ── Step-by-step guide to get a Telegram Bot Token via Managed Bots ───────────
-function ManagedBotGuide() {
+// ── BotFather step guide (static, shown on guide toggle) ─────────────────────
+function BotFatherGuide() {
   const [step, setStep] = useState(0);
   const [copied, setCopied] = useState(false);
 
@@ -145,6 +159,71 @@ function ManagedBotGuide() {
   );
 }
 
+// ── Provisioned bot info panel (shows suggested name/username + steps) ────────
+function ProvisionedSteps({ suggestedName, suggestedUsername, botfatherSteps }: {
+  suggestedName: string;
+  suggestedUsername: string;
+  botfatherSteps?: string[];
+}) {
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const copyText = async (text: string, field: string) => {
+    await navigator.clipboard.writeText(text).catch(() => {});
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const steps = botfatherSteps ?? [
+    "1. Open @BotFather in Telegram",
+    `/newbot`,
+    `Enter name: ${suggestedName}`,
+    `Enter username: ${suggestedUsername}`,
+    "Copy the token BotFather gives you",
+  ];
+
+  return (
+    <div className="rounded-xl border border-emerald-400/25 bg-emerald-400/[0.04] p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+        <p className="text-xs font-semibold text-emerald-400">Bot slot reserved — create it on Telegram</p>
+      </div>
+
+      <div className="space-y-2">
+        {[
+          { label: "Suggested name", value: suggestedName, field: "name" },
+          { label: "Suggested username", value: `@${suggestedUsername}`, field: "username" },
+        ].map(({ label, value, field }) => (
+          <div key={field} className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-card/40 border border-border/30">
+            <div>
+              <p className="text-[10px] text-muted-foreground/50">{label}</p>
+              <p className="text-xs font-mono font-medium text-foreground">{value}</p>
+            </div>
+            <button onClick={() => copyText(value, field)}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground transition-colors hover:bg-white/[0.05]">
+              {copiedField === field ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">Steps in BotFather:</p>
+        {steps.map((step, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <span className="h-4 w-4 rounded-full bg-primary/15 text-primary text-[9px] flex items-center justify-center font-bold shrink-0 mt-0.5">{i + 1}</span>
+            <p className="text-[11px] text-muted-foreground/80 font-mono">{step}</p>
+          </div>
+        ))}
+      </div>
+
+      <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer"
+        className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg bg-primary/10 text-primary border border-primary/25 text-xs font-medium hover:bg-primary/20 transition-all">
+        <ArrowRight className="h-3.5 w-3.5" />Open @BotFather now
+      </a>
+    </div>
+  );
+}
+
 // ── Bot Card ───────────────────────────────────────────────────────────────────
 function BotCard({ bot, onDeploy, onDelete, isDeploying }: {
   bot: any; onDeploy: (id: string) => void; onDelete: (id: string) => void; isDeploying: boolean;
@@ -152,6 +231,9 @@ function BotCard({ bot, onDeploy, onDelete, isDeploying }: {
   const status = STATUS_META[bot.status] || STATUS_META.pending;
   const StatusIcon = status.Icon;
   const [showDetails, setShowDetails] = useState(false);
+
+  // Poll status while bot is in a transient/building state
+  useBotStatusPoller(bot.id, TRANSIENT_STATUSES.has(bot.status));
 
   return (
     <div className={cn("rounded-2xl border bg-card/40 p-4 space-y-3 transition-all duration-200 animate-slide-up hover:border-border hover:bg-card/60", status.border)}>
@@ -229,38 +311,198 @@ function BotCard({ bot, onDeploy, onDelete, isDeploying }: {
   );
 }
 
+// ── 2-step New Bot Dialog ─────────────────────────────────────────────────────
+type ProvisionResult = {
+  bot_id: string;
+  suggested_name: string;
+  suggested_username: string;
+  botfather_steps?: string[];
+  message?: string;
+};
+
+function NewBotDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { provision, linkToken, deploy } = useBotMutations();
+  const { toast } = useToast();
+
+  // Step: 1 = provision form, 2 = link token
+  const [dialogStep, setDialogStep] = useState<1 | 2>(1);
+  const [provisioned, setProvisioned] = useState<ProvisionResult | null>(null);
+
+  const provisionForm = useForm<ProvisionFormData>({
+    resolver: zodResolver(provisionSchema),
+    defaultValues: { name: "", description: "", purpose: "" },
+  });
+
+  const linkForm = useForm<LinkTokenFormData>({
+    resolver: zodResolver(linkTokenSchema),
+    defaultValues: { token: "" },
+  });
+
+  function handleClose() {
+    setDialogStep(1);
+    setProvisioned(null);
+    provisionForm.reset();
+    linkForm.reset();
+    onClose();
+  }
+
+  async function onProvision(data: ProvisionFormData) {
+    try {
+      const result: ProvisionResult = await provision.mutateAsync(data);
+      setProvisioned(result);
+      setDialogStep(2);
+      toast({ title: "✅ Bot slot reserved", description: result.message || "Now follow the BotFather steps to create it on Telegram." });
+    } catch (e: any) {
+      toast({ title: "Provision failed", description: e.message || "Could not provision bot", variant: "destructive" });
+    }
+  }
+
+  async function onLinkToken(data: LinkTokenFormData) {
+    if (!provisioned) return;
+    try {
+      await linkToken.mutateAsync({ id: provisioned.bot_id, token: data.token });
+      // Immediately trigger deploy after linking
+      try {
+        await deploy(provisioned.bot_id);
+        toast({ title: "🚀 Bot linked & deploying", description: `@${provisioned.suggested_username} is being deployed.` });
+      } catch {
+        toast({ title: "✅ Token linked", description: "Deploy it manually from your bot list." });
+      }
+      handleClose();
+    } catch (e: any) {
+      toast({ title: "Link failed", description: e.message || "Could not link token", variant: "destructive" });
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && handleClose()}>
+      <DialogContent className="bg-card border-border/60 rounded-2xl max-w-sm mx-auto">
+        {/* Step indicator */}
+        <div className="flex items-center gap-2 mb-1">
+          {[1, 2].map(s => (
+            <div key={s} className={cn(
+              "flex items-center gap-1.5 text-[10px] font-medium transition-all",
+              s === dialogStep ? "text-primary" : s < dialogStep ? "text-emerald-400" : "text-muted-foreground/40"
+            )}>
+              <div className={cn(
+                "h-4 w-4 rounded-full flex items-center justify-center text-[9px] font-bold border",
+                s === dialogStep ? "bg-primary/20 border-primary/40 text-primary" :
+                s < dialogStep ? "bg-emerald-400/20 border-emerald-400/40 text-emerald-400" :
+                "bg-muted/20 border-border/30"
+              )}>
+                {s < dialogStep ? "✓" : s}
+              </div>
+              {s === 1 ? "Provision" : "Link Token"}
+              {s < 2 && <ChevronRight className="h-2.5 w-2.5 text-muted-foreground/30" />}
+            </div>
+          ))}
+        </div>
+
+        {dialogStep === 1 && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="text-base flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />New Managed Bot
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Tell the agent what your bot should do — it'll suggest a name and guide you through BotFather.
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...provisionForm}>
+              <form onSubmit={provisionForm.handleSubmit(onProvision)} className="space-y-4 pt-1">
+                <FormField control={provisionForm.control} name="name" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Bot Name</FormLabel>
+                    <FormControl><Input placeholder="My Support Bot" {...field} className="text-sm" /></FormControl>
+                    <FormMessage className="text-xs" />
+                  </FormItem>
+                )} />
+                <FormField control={provisionForm.control} name="purpose" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Purpose <span className="text-muted-foreground/40">(optional)</span></FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Answer customer questions about my store" {...field} className="text-sm" />
+                    </FormControl>
+                    <FormDescription className="text-[10px] text-muted-foreground/50">Agent uses this to configure the bot</FormDescription>
+                  </FormItem>
+                )} />
+                <FormField control={provisionForm.control} name="description" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Short description <span className="text-muted-foreground/40">(optional)</span></FormLabel>
+                    <FormControl>
+                      <Input placeholder="Customer support bot for Acme Corp" {...field} className="text-sm" />
+                    </FormControl>
+                  </FormItem>
+                )} />
+                <DialogFooter className="pt-2 gap-2">
+                  <Button type="button" variant="ghost" size="sm" onClick={handleClose}>Cancel</Button>
+                  <Button type="submit" size="sm" disabled={provision.isPending} className="gap-2">
+                    {provision.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    <Rocket className="h-3.5 w-3.5" />Provision Bot
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </>
+        )}
+
+        {dialogStep === 2 && provisioned && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="text-base flex items-center gap-2">
+                <Link2 className="h-4 w-4 text-primary" />Link BotFather Token
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Create the bot on Telegram using the details below, then paste your token here.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 pt-1">
+              <ProvisionedSteps
+                suggestedName={provisioned.suggested_name}
+                suggestedUsername={provisioned.suggested_username}
+                botfatherSteps={provisioned.botfather_steps}
+              />
+              <Form {...linkForm}>
+                <form onSubmit={linkForm.handleSubmit(onLinkToken)} className="space-y-4">
+                  <FormField control={linkForm.control} name="token" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs flex items-center gap-1.5">
+                        <Key className="h-3 w-3 text-primary/60" />Paste your BotFather token
+                      </FormLabel>
+                      <FormControl>
+                        <Input placeholder="123456789:AAF…" {...field} className="text-sm font-mono" type="password" />
+                      </FormControl>
+                      <FormDescription className="text-[10px] flex items-center gap-1 text-muted-foreground/50">
+                        <Shield className="h-2.5 w-2.5" />Stored encrypted · never shared
+                      </FormDescription>
+                      <FormMessage className="text-xs" />
+                    </FormItem>
+                  )} />
+                  <DialogFooter className="gap-2">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setDialogStep(1)}>← Back</Button>
+                    <Button type="submit" size="sm" disabled={linkToken.isPending} className="gap-2">
+                      {linkToken.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      <Rocket className="h-3.5 w-3.5" />Link & Deploy
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function BotsPage() {
   const { data: bots = [], isLoading } = useBots();
-  const { create, deploy, remove, isCreating } = useBotMutations();
+  const { deploy, remove } = useBotMutations();
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deployingId, setDeployingId] = useState<string | null>(null);
   const [showGuide, setShowGuide] = useState(false);
-
-  const form = useForm<BotFormData>({
-    resolver: zodResolver(botSchema),
-    defaultValues: { name: "", token: "", description: "", purpose: "" },
-  });
-
-  async function onSubmit(data: BotFormData) {
-    // Auto-derive username from name if not explicitly provided
-    const autoUsername = data.name.toLowerCase().replace(/[^a-z0-9]/g, "_") + "_bot";
-
-    try {
-      await create({
-        name: data.name,
-        username: autoUsername,
-        description: data.description || data.purpose,
-        bot_token: data.token,  // Pass token to backend for storage
-      });
-      toast({ title: "✅ Bot registered", description: `@${autoUsername} is ready to deploy.` });
-      form.reset();
-      setIsDialogOpen(false);
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message || "Failed to create bot", variant: "destructive" });
-    }
-  }
 
   async function handleDeploy(id: string) {
     setDeployingId(id);
@@ -274,7 +516,6 @@ export default function BotsPage() {
   }
 
   async function handleDelete(id: string) {
-    // Use toast-confirm pattern (confirm() is blocked in Telegram WebApp)
     try {
       await remove(id);
       toast({ title: "Bot deleted" });
@@ -308,10 +549,10 @@ export default function BotsPage() {
               <Key className="h-3.5 w-3.5" />
               <span>How to get a Bot Token from Telegram</span>
             </div>
-            <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", showGuide && "rotate-90")} />
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showGuide && "rotate-180")} />
           </button>
 
-          {showGuide && <ManagedBotGuide />}
+          {showGuide && <BotFatherGuide />}
 
           {/* Bot list */}
           {isLoading ? (
@@ -327,7 +568,7 @@ export default function BotsPage() {
               </div>
               <button onClick={() => setIsDialogOpen(true)}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl border border-primary/30 text-primary text-xs hover:bg-primary/5 transition-all">
-                <Plus className="h-3.5 w-3.5" />Register First Bot
+                <Plus className="h-3.5 w-3.5" />Create First Bot
               </button>
             </div>
           ) : (
@@ -340,68 +581,7 @@ export default function BotsPage() {
         </div>
       </div>
 
-      {/* Register bot dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="bg-card border-border/60 rounded-2xl max-w-sm mx-auto">
-          <DialogHeader>
-            <DialogTitle className="text-base flex items-center gap-2">
-              <Bot className="h-4 w-4 text-primary" />Register Bot
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Connect a Telegram bot token and deploy it automatically.
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-1">
-              <FormField control={form.control} name="name" render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs">Bot Name</FormLabel>
-                  <FormControl><Input placeholder="My Rust Bot" {...field} className="text-sm" /></FormControl>
-                  <FormMessage className="text-xs" />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="token" render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs flex items-center gap-1.5">
-                    <Key className="h-3 w-3 text-primary/60" />Bot Token <span className="text-rose-400">*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Input placeholder="123456789:AAF…" {...field} className="text-sm font-mono" type="password" />
-                  </FormControl>
-                  <FormDescription className="text-[10px] flex items-center gap-1 text-muted-foreground/50">
-                    <Shield className="h-2.5 w-2.5" />Get from @BotFather · stored encrypted
-                  </FormDescription>
-                  <FormMessage className="text-xs" />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="purpose" render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs">What should this bot do? <span className="text-muted-foreground/40">(optional)</span></FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g. Answer customer questions about my store" {...field} className="text-sm" />
-                  </FormControl>
-                  <FormDescription className="text-[10px] text-muted-foreground/50">The agent will use this to configure your bot</FormDescription>
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="description" render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs">Short description <span className="text-muted-foreground/40">(optional)</span></FormLabel>
-                  <FormControl>
-                    <Input placeholder="Customer support bot for Acme Corp" {...field} className="text-sm" />
-                  </FormControl>
-                </FormItem>
-              )} />
-              <DialogFooter className="pt-2 gap-2">
-                <Button type="button" variant="ghost" size="sm" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                <Button type="submit" size="sm" disabled={isCreating} className="gap-2">
-                  {isCreating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  Register Bot
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+      <NewBotDialog open={isDialogOpen} onClose={() => setIsDialogOpen(false)} />
     </AppLayout>
   );
 }

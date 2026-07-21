@@ -31,6 +31,8 @@ export function useMessages(sessionId: string) {
   return useListMessages(sessionId, {
     query: {
       enabled: !!sessionId,
+      staleTime: 30_000,       // 30 s — avoids aggressive re-fetch while streaming
+      refetchOnWindowFocus: false,
     }
   });
 }
@@ -74,15 +76,29 @@ export function useMessageMutations(sessionId: string) {
   const queryClient = useQueryClient();
   const addMutation = useAddMessage();
 
-  const add = async (data: MessageInput) => {
+  /**
+   * Add a message.
+   * @param data - MessageInput payload
+   * @param skipInvalidate - When true the caller owns invalidation timing
+   *   (use this while streaming to avoid re-fetching mid-stream).
+   */
+  const add = async (data: MessageInput, skipInvalidate = false) => {
     const result = await addMutation.mutateAsync({ id: sessionId, data });
+    if (!skipInvalidate) {
+      queryClient.invalidateQueries({ queryKey: getListMessagesQueryKey(sessionId) });
+      queryClient.invalidateQueries({ queryKey: getGetSessionQueryKey(sessionId) });
+    }
+    return result;
+  };
+
+  const invalidateMessages = () => {
     queryClient.invalidateQueries({ queryKey: getListMessagesQueryKey(sessionId) });
     queryClient.invalidateQueries({ queryKey: getGetSessionQueryKey(sessionId) });
-    return result;
   };
 
   return {
     add,
+    invalidateMessages,
     isAdding: addMutation.isPending,
   };
 }

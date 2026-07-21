@@ -50,12 +50,12 @@ const TOOL_BORDER: Record<string, string> = {
   ws_bash:   "border-pink-500/20 bg-pink-500/5",
 };
 
-function ToolUseCard({ event }: { event: AgentChatEvent }) {
+function ToolUseCard({ event, isStreaming: streamActive = false }: { event: AgentChatEvent; isStreaming?: boolean }) {
   const [open, setOpen] = useState(false);
 
   if (event.type === "thinking") {
     // Sanitize: remove any model names that might appear
-    const thinkingText = (event.content ?? "")
+    const raw = (event.content ?? "")
       .replace(/deepseek[^\s,]*/gi, "")
       .replace(/mimo[^\s,]*/gi, "")
       .replace(/hy3[^\s,]*/gi, "")
@@ -66,10 +66,12 @@ function ToolUseCard({ event }: { event: AgentChatEvent }) {
       .replace(/claude[^\s,]*/gi, "")
       .replace(/\s{2,}/g, " ")
       .trim();
+    // Truncate long thinking text at 80 chars
+    const thinkingText = raw.length > 80 ? raw.slice(0, 80) + "…" : (raw || "processing…");
     return (
-      <div className="flex items-center gap-2 py-1.5 px-3 rounded-xl bg-violet-500/8 border border-violet-500/20 text-xs font-mono text-violet-400 animate-fade-in">
+      <div className="thinking-box flex items-center gap-2 py-1.5 px-3 rounded-xl bg-violet-500/8 border border-violet-500/20 text-xs font-mono text-violet-400 animate-fade-in">
         <BrainCircuit className="h-3 w-3 shrink-0 animate-pulse" />
-        <span className="truncate">{thinkingText || "processing…"}</span>
+        <span className="truncate">{thinkingText}</span>
       </div>
     );
   }
@@ -84,18 +86,33 @@ function ToolUseCard({ event }: { event: AgentChatEvent }) {
     </div>
   );
 
+  if (event.type === "file_written") {
+    const filename = (event as any).filename ?? (event as any).path ?? "file";
+    return (
+      <div className="flex items-center gap-2 py-1.5 px-3 rounded-xl border border-emerald-500/25 bg-emerald-500/8 text-xs font-mono animate-fade-in">
+        <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-400" />
+        <span className="text-emerald-400 font-semibold">Written</span>
+        <span className="text-muted-foreground/70 truncate">{String(filename)}</span>
+      </div>
+    );
+  }
+
   if (event.type === "tool_use") {
     const tool = event.tool ?? "";
     const colorCls  = TOOL_COLORS[tool]  ?? "text-cyan-400";
     const borderCls = TOOL_BORDER[tool]  ?? "border-cyan-500/20 bg-cyan-500/5";
     const detail = event.input?.path ?? event.input?.command ?? event.input?.pattern ?? "";
+    // Truncate detail preview
+    const detailPreview = detail ? String(detail).slice(0, 45) + (String(detail).length > 45 ? "…" : "") : "";
     return (
-      <div className={cn("rounded-xl border overflow-hidden animate-fade-in", borderCls)}>
+      <div className={cn("rounded-xl border overflow-hidden animate-fade-in", borderCls, streamActive && "tool-active")}>
         <button onClick={() => setOpen(o => !o)}
           className="w-full flex items-center gap-2 px-3 py-2 text-xs font-mono text-left hover:bg-white/[0.03] transition-colors">
           <Wrench className={cn("h-3 w-3 shrink-0", colorCls)} />
           <span className={cn("font-bold", colorCls)}>{tool}</span>
-          {detail && <span className="text-muted-foreground/50 truncate ml-1 max-w-[140px]">{String(detail)}</span>}
+          {detailPreview && (
+            <span className="text-muted-foreground/50 truncate ml-1 max-w-[140px]">{detailPreview}</span>
+          )}
           <ChevronRight className={cn("h-3 w-3 text-muted-foreground/30 ml-auto shrink-0 transition-transform", open && "rotate-90")} />
         </button>
         {open && (
@@ -151,27 +168,33 @@ function MiniTree({ nodes, depth = 0 }: { nodes: TreeNode[]; depth?: number }) {
 }
 
 // ── Agent event stream — collapsible per-turn tool trace ─────────────────────
-function AgentEventStream({ events }: { events: AgentChatEvent[] }) {
-  const [collapsed, setCollapsed] = useState(false);
+function AgentEventStream({ events, isStreaming: streamActive = false }: { events: AgentChatEvent[]; isStreaming?: boolean }) {
   const toolCount = events.filter(e => e.type === "tool_use").length;
+  // Default expanded (not collapsed) when there are more than 3 events
+  const [collapsed, setCollapsed] = useState(events.length <= 3);
   return (
     <div className="rounded-xl border border-violet-500/15 bg-violet-500/4 overflow-hidden animate-fade-in">
       <button
         onClick={() => setCollapsed(c => !c)}
         className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-white/[0.02] transition-colors"
       >
-        <BrainCircuit className="h-3 w-3 text-violet-400 shrink-0 animate-pulse" />
+        <BrainCircuit className={cn("h-3 w-3 text-violet-400 shrink-0", streamActive && "animate-pulse")} />
         <span className="text-violet-400 font-medium">Agent thinking</span>
         {toolCount > 0 && (
           <span className="ml-1 px-1.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 text-[9px] font-mono">
             {toolCount} tool{toolCount !== 1 ? "s" : ""}
           </span>
         )}
+        {!streamActive && (
+          <span className="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[9px] font-mono">
+            done
+          </span>
+        )}
         <ChevronRight className={cn("h-3 w-3 text-muted-foreground/30 ml-auto transition-transform", !collapsed && "rotate-90")} />
       </button>
       {!collapsed && (
         <div className="px-3 pb-2 space-y-1.5 max-h-48 overflow-y-auto">
-          {events.map((ev, i) => <ToolUseCard key={i} event={ev} />)}
+          {events.map((ev, i) => <ToolUseCard key={i} event={ev} isStreaming={streamActive} />)}
         </div>
       )}
     </div>
@@ -681,15 +704,17 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
   sessionId: string; mode: string; effort: string; workspaceId?: string;
 }) {
   const { data: messages = [], isLoading } = useMessages(sessionId);
-  const { add: addMessage } = useMessageMutations(sessionId);
+  const { add: addMessage, invalidateMessages } = useMessageMutations(sessionId);
   const { toast } = useToast();
 
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamContent, setStreamContent] = useState("");
   const [streamThinking, setStreamThinking] = useState("");
-  // Tool-use events during agent loop
+  // Tool-use events during agent loop — persist after streaming ends
   const [agentEvents, setAgentEvents] = useState<AgentChatEvent[]>([]);
+  // Last completed stream content — held until confirmed in messages[] (prevents flicker)
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -719,10 +744,11 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
     setStreamContent("");
     setStreamThinking("");
     setAgentEvents([]);
+    setPendingMessage(null);
 
     try {
-      // 1. Save user message
-      const userMsg = await addMessage({ role: "user", content: text });
+      // 1. Save user message — skip invalidate to avoid a re-fetch mid-stream
+      const userMsg = await addMessage({ role: "user", content: text }, true);
       setNewIds(prev => new Set([...prev, userMsg.id]));
 
       abortRef.current = new AbortController();
@@ -780,15 +806,26 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
           .replace(/\\n/g, "\n").replace(/\\t/g, "\t");
       }
 
-      // 2. Save assistant message
+      // 2. Streaming done — transition: hold content in pendingMessage, clear stream UI
+      setIsStreaming(false);
+      setStreamContent("");
+      setStreamThinking("");
+      setPendingMessage(cleanFull);
+
+      // 3. Save assistant message — skip invalidate until AFTER we verify it's in the list
       const assistantMsg = await addMessage({
         role: "assistant",
         content: cleanFull,
         modelUsed: modelId,
-      } as any);
+      } as any, true);
       setNewIds(prev => new Set([...prev, assistantMsg.id]));
 
-      // 3. Auto-store to RAG
+      // 4. NOW invalidate — message is persisted, re-fetch will include it
+      invalidateMessages();
+      // Clear pending only after invalidation is fired (messages will re-fetch)
+      setPendingMessage(null);
+
+      // 5. Auto-store to RAG
       autoStoreMemory(text, cleanFull, sessionId).catch(() => {});
 
     } catch (err: any) {
@@ -799,10 +836,10 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
           variant: "destructive",
         });
       }
-    } finally {
       setIsStreaming(false);
       setStreamContent("");
       setStreamThinking("");
+      setPendingMessage(null);
     }
   }
 
@@ -811,7 +848,8 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
     setIsStreaming(false);
     setStreamContent("");
     setStreamThinking("");
-    setAgentEvents([]);
+    // Keep agentEvents visible; don't clear them on abort
+    setPendingMessage(null);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -834,12 +872,12 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
               <MessageBubble key={m.id} message={m} isNew={newIds.has(m.id)} />
             ))}
 
-            {/* Agent tool-use events — only show while streaming or just finished */}
-            {agentEvents.length > 0 && isStreaming && (
-              <AgentEventStream events={agentEvents} />
+            {/* Agent tool-use events — show while streaming AND persist after (collapsed "done" state) */}
+            {agentEvents.length > 0 && (
+              <AgentEventStream events={agentEvents} isStreaming={isStreaming} />
             )}
 
-            {/* Streaming message */}
+            {/* Streaming message — visible only while actively streaming */}
             {isStreaming && (
               <div className="flex justify-start animate-fade-in">
                 <div className="w-full max-w-full space-y-2">
@@ -862,6 +900,24 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
                   ) : (
                     <ThinkingIndicator mode={mode} />
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Pending message — bridges the gap between stream end and DB re-fetch */}
+            {!isStreaming && pendingMessage &&
+              !messages.find((m: any) => m.content === pendingMessage) && (
+              <div className="flex justify-start msg-appear">
+                <div className="w-full">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <div className="h-4 w-4 rounded bg-primary/10 flex items-center justify-center">
+                      <Bot className="h-2.5 w-2.5 text-primary" />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground/50 font-mono">Requiem Agent 1</span>
+                  </div>
+                  <div className="msg-assistant border rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed message-content">
+                    <FormattedMessage content={pendingMessage} />
+                  </div>
                 </div>
               </div>
             )}

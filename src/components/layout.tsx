@@ -89,7 +89,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           When topInset > 0 (JS measured), use it directly.
           Otherwise rely on CSS env(safe-area-inset-top) via paddingTop. */}
       <div
-        className="shrink-0 w-full"
+        className="shrink-0 w-full relative flex items-center justify-end px-3"
         style={{
           background: "hsl(var(--background))",
           // If JS measured a value, use it; otherwise use CSS env() with 44px min
@@ -97,8 +97,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             ? `${topInset}px`
             : "max(env(safe-area-inset-top, 0px), 44px)",
         }}
-        aria-hidden="true"
-      />
+      >
+        {/* Version badge — top-right of safe area */}
+        <span
+          className="text-[9px] font-semibold tracking-wide px-2 py-0.5 rounded-full select-none"
+          style={{
+            background: "hsl(262 83% 62% / 0.15)",
+            color:      "hsl(262 83% 75%)",
+            border:     "1px solid hsl(262 83% 62% / 0.25)",
+          }}
+        >
+          Requiem Agent 1.2
+        </span>
+      </div>
 
       {/* Page content */}
       <main className="flex-1 overflow-hidden min-h-0 relative">
