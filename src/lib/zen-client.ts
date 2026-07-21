@@ -20,9 +20,15 @@ export function hasApiKey(): boolean { return getApiKey() !== null; }
 
 // ─── استخراج النص من أي تنسيق JSON ────────────────────────────
 export function extractTextFromJson(raw: string): string | null {
-  if (!raw.trim().startsWith("{") && !raw.trim().startsWith("[")) return null;
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+    // Also handle markdown-wrapped JSON (```json\n{...}\n```)
+    const mdMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (mdMatch) return extractTextFromJson(mdMatch[1]);
+    return null;
+  }
   try {
-    const json = JSON.parse(raw);
+    const json = JSON.parse(trimmed);
     // OpenAI streaming delta
     if (json.choices?.[0]?.delta?.content) return json.choices[0].delta.content;
     // OpenAI non-streaming message
@@ -39,8 +45,27 @@ export function extractTextFromJson(raw: string): string | null {
     if (typeof json.message === "string") return json.message;
     // Nested {"data": {"response": "..."}}
     if (typeof json.data?.response === "string") return json.data.response;
+    if (typeof json.data?.content === "string") return json.data.content;
     return null;
   } catch {
+    // Partial JSON — try to extract content field with regex
+    const contentMatch = trimmed.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (contentMatch) {
+      try {
+        // Unescape the JSON string
+        return JSON.parse(`"${contentMatch[1]}"`);
+      } catch {
+        return contentMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+      }
+    }
+    const textMatch = trimmed.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (textMatch) {
+      try { return JSON.parse(`"${textMatch[1]}"`); } catch { return textMatch[1]; }
+    }
+    const responseMatch = trimmed.match(/"response"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (responseMatch) {
+      try { return JSON.parse(`"${responseMatch[1]}"`); } catch { return responseMatch[1]; }
+    }
     return null;
   }
 }
@@ -144,18 +169,30 @@ export async function* streamZenChat(
         const chunk = d.choices?.[0]?.delta?.content;
         if (chunk) yield chunk;
       } catch {
-        // ignore malformed SSE lines
+        // Not valid SSE JSON — try to extract content from a plain JSON object
+        // (handles cases where upstream returns non-SSE JSON chunks)
+        const extracted = extractTextFromJson(trimmed);
+        if (extracted) yield extracted;
       }
     }
   }
 
   // Process any remaining data in the buffer after stream ends
   const trimmed = buf.trim();
-  if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
-    try {
-      const d = JSON.parse(trimmed.slice(6));
-      const chunk = d.choices?.[0]?.delta?.content;
-      if (chunk) yield chunk;
-    } catch {}
+  if (trimmed && trimmed !== "data: [DONE]") {
+    if (trimmed.startsWith("data: ")) {
+      try {
+        const d = JSON.parse(trimmed.slice(6));
+        const chunk = d.choices?.[0]?.delta?.content;
+        if (chunk) yield chunk;
+      } catch {
+        const extracted = extractTextFromJson(trimmed.slice(6));
+        if (extracted) yield extracted;
+      }
+    } else {
+      // Try extracting from raw JSON
+      const extracted = extractTextFromJson(trimmed);
+      if (extracted) yield extracted;
+    }
   }
 }

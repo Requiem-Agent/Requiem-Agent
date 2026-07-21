@@ -99,7 +99,12 @@ function MessageBubble({ message, isNew }: {
 
   // Assistant — extract clean text from any JSON-wrapped content
   const rawContent = message.content || "";
-  const displayContent = extractTextFromJson(rawContent) ?? rawContent;
+  let displayContent = extractTextFromJson(rawContent) ?? rawContent;
+  // Safety net: if displayContent still looks like JSON, try once more
+  if (displayContent.trim().startsWith("{") || displayContent.trim().startsWith("[")) {
+    const inner = extractTextFromJson(displayContent);
+    if (inner) displayContent = inner;
+  }
 
   return (
     <div className={cn("flex justify-start", isNew && "animate-slide-up")}>
@@ -113,7 +118,7 @@ function MessageBubble({ message, isNew }: {
             <span className="text-[9px] text-muted-foreground/30 font-mono ml-1">· {message.modelUsed.split("/").pop()}</span>
           )}
         </div>
-        <div className="msg-assistant border rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed">
+        <div className="msg-assistant border rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed message-content">
           <FormattedMessage content={displayContent} />
         </div>
         {message.codeChanges && (
@@ -325,7 +330,7 @@ export default function WorkspacePage() {
 
         {/* ── Mode / Effort toolbar ── */}
         {activeSession && (
-          <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-border/30">
+          <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-border/30 relative z-30">
             {/* Mode */}
             <div className="relative" onClick={e => e.stopPropagation()}>
               <button onClick={() => { setShowModePanel(p => !p); setShowEffortPanel(false); }}
@@ -336,16 +341,20 @@ export default function WorkspacePage() {
                 <ChevronDown className="h-2.5 w-2.5" />
               </button>
               {showModePanel && (
-                <div className="absolute top-full left-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 p-1.5 grid grid-cols-2 gap-0.5 w-56 animate-scale-in">
-                  {Object.entries(MODE_META).map(([key, { Icon, label, color }]) => (
-                    <button key={key} onClick={() => handleChangeMode(key as SessionMode)}
-                      className={cn("flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs transition-all",
-                        activeSession.mode === key ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground")}>
-                      <Icon className={cn("h-3 w-3 shrink-0", color)} />
-                      <span className="font-medium">{label}</span>
-                    </button>
-                  ))}
-                </div>
+                <>
+                  {/* Backdrop to close dropdown when clicking outside */}
+                  <div className="fixed inset-0 z-40" onClick={() => setShowModePanel(false)} />
+                  <div className="absolute top-full left-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 p-1.5 grid grid-cols-2 gap-0.5 w-56 animate-scale-in">
+                    {Object.entries(MODE_META).map(([key, { Icon, label, color }]) => (
+                      <button key={key} onClick={() => handleChangeMode(key as SessionMode)}
+                        className={cn("flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs transition-all",
+                          activeSession.mode === key ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground")}>
+                        <Icon className={cn("h-3 w-3 shrink-0", color)} />
+                        <span className="font-medium">{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
 
@@ -359,15 +368,18 @@ export default function WorkspacePage() {
                 <ChevronDown className="h-2.5 w-2.5" />
               </button>
               {showEffortPanel && (
-                <div className="absolute top-full left-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 p-1.5 w-40 animate-scale-in">
-                  {Object.entries(EFFORT_META).map(([key, { label, color }]) => (
-                    <button key={key} onClick={() => handleChangeEffort(key as SessionEffort)}
-                      className={cn("flex items-center justify-between w-full px-2.5 py-2 rounded-lg text-xs transition-all",
-                        activeSession.effort === key ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground")}>
-                      <span className={cn("font-medium", color)}>{label}</span>
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowEffortPanel(false)} />
+                  <div className="absolute top-full left-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 p-1.5 w-40 animate-scale-in">
+                    {Object.entries(EFFORT_META).map(([key, { label, color }]) => (
+                      <button key={key} onClick={() => handleChangeEffort(key as SessionEffort)}
+                        className={cn("flex items-center justify-between w-full px-2.5 py-2 rounded-lg text-xs transition-all",
+                          activeSession.effort === key ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground")}>
+                        <span className={cn("font-medium", color)}>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
 
@@ -530,7 +542,7 @@ function ChatPanel({ sessionId, mode, effort }: {
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
       {/* Messages — flex-1 + min-h-0 prevents overlap with prompt */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-3 py-3 space-y-3">
+      <div className="flex-1 overflow-y-auto min-h-0 px-3 py-3 space-y-3 chat-scroll-area">
         {isLoading ? (
           <div className="flex items-center justify-center py-10">
             <Loader2 className="h-5 w-5 animate-spin text-primary/60" />
@@ -548,7 +560,7 @@ function ChatPanel({ sessionId, mode, effort }: {
               <div className="flex justify-start animate-fade-in">
                 <div className="w-full max-w-full space-y-2">
                   {streamContent ? (
-                    <div className="msg-assistant border rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed">
+                    <div className="msg-assistant border rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed message-content stream-container">
                       <div className="flex items-center gap-1.5 mb-1.5">
                         <div className="h-4 w-4 rounded bg-primary/10 flex items-center justify-center">
                           <Bot className="h-2.5 w-2.5 text-primary" />

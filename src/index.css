@@ -291,6 +291,41 @@ button:active:not(:disabled) {
   border-color: hsl(var(--border));
 }
 
+/* ── Streaming container — prevent overflow during stream ── */
+.stream-container {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* ── Dropdown panels — ensure they render above all content ── */
+.dropdown-panel {
+  z-index: 100;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* ── Chat scroll area — prevent horizontal scroll ── */
+.chat-scroll-area {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Message content — break long words/URLs ── */
+.message-content {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+
+/* ── Code blocks in messages — prevent expansion ── */
+.message-content pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 /* ── Progress bar ──────────────────────────────────── */
 .progress-indeterminate {
   animation: progress-bar 2.5s ease-in-out infinite;
