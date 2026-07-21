@@ -499,8 +499,9 @@ pub async fn chat_handler(
         // Return parallel result as SSE with proper JSON escaping
         let escaped_content = serde_json::to_string(&final_text)
             .unwrap_or_else(|_| String::from("\"\""));
+        // Build SSE manually to avoid format-string brace counting issues
         let sse_parallel = format!(
-            "data: {{\"choices\":[{{\"delta\":{{\"content\":{}}}}],\"model\":\"{}\",\"effort\":\"{session_effort}\",\"mode\":\"{session_mode}\"}}\n\ndata: [DONE]\n\n",
+            "data: {{\"choices\":[{{\"delta\":{{\"content\":{}}}}}],\"model\":\"{}\",\"effort\":\"{session_effort}\",\"mode\":\"{session_mode}\"}}\n\ndata: [DONE]\n\n",
             escaped_content,
             selected_model,
         );
