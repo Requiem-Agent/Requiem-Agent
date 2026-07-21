@@ -21,16 +21,23 @@ jobs:
         with:
           node-version: 22
       - run: npm install -g pnpm
-      # Remove @replit/* packages that only exist inside Replit environment
-      - name: Strip Replit-only devDeps
+      # Remove @replit/* packages and rebuild lock for CI
+      - name: Prepare CI package.json
         run: |
           node -e "
             const fs=require('fs');
             const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
-            Object.keys(pkg.devDependencies||{}).forEach(k=>{if(k.startsWith('@replit/'))delete pkg.devDependencies[k];});
-            fs.writeFileSync('package.json',JSON.stringify(pkg,null,2));
+            // Remove Replit-only packages
+            const devDeps = pkg.devDependencies || {};
+            Object.keys(devDeps).forEach(k => { if(k.startsWith('@replit/')) delete devDeps[k]; });
+            // Pin workspace:* deps
+            const deps = pkg.dependencies || {};
+            Object.keys(deps).forEach(k => { if(deps[k]==='*') deps[k]='^1.0.0'; });
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
           "
-      - run: pnpm install --no-frozen-lockfile --ignore-scripts
+          # Remove old lock file to avoid conflicts with modified package.json
+          rm -f pnpm-lock.yaml
+      - run: pnpm install --ignore-scripts
       - run: npx --yes vite build
         env:
           VITE_API_URL: https://rayig-dev.hf.space
