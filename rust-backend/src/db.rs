@@ -186,3 +186,20 @@ fn rand_u64() -> u64 {
     std::time::SystemTime::now().hash(&mut h);
     h.finish()
 }
+
+// S4-03: WebSocket config — AppState implements HasWsConfig with production defaults
+impl crate::routes::ws_agent::HasWsConfig for AppState {
+    fn ws_max_message_size(&self) -> usize {
+        std::env::var("WS_MAX_MESSAGE_SIZE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(64 * 1024) // 64 KB
+    }
+
+    fn ws_timeout_secs(&self) -> u64 {
+        std::env::var("WS_TIMEOUT_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(300) // 5 minutes
+    }
+}

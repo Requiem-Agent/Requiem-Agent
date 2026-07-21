@@ -1,412 +1,367 @@
-//! # Rate Limiter — S2-03
-//!
-//! تطبيق Sliding Window Rate Limiter بدون dependencies خارجية إضافية.
-//! يستخدم `std::sync::Mutex` + `HashMap` لتتبع الطلبات لكل IP/user.
-//!
-//! ## الخوارزمية: Sliding Window Counter
-//! - نافذة زمنية قابلة للتهيئة (افتراضي: 60 ثانية)
-//! - حد أقصى للطلبات لكل نافذة (افتراضي: 100 طلب)
-//! - تنظيف تلقائي للإدخالات القديمة
-//!
-//! ## الاستخدام:
-//! ```rust
-//! let limiter = RateLimiter::new(100, 60); // 100 req/min
-//! if !limiter.check_and_record("user_id_or_ip") {
-//!     return Err(StatusCode::TOO_MANY_REQUESTS);
-//! }
-//! ```
+// rate_limit.rs — Sliding-window rate limiter with per-user AND per-IP support
+// S4-02: upgraded from per-IP only to per-user (JWT user_id) + per-IP fallback
+//
+// Architecture:
+//   RateLimitKey = UserKey(user_id) | IpKey(ip_addr)
+//   MultiEndpointRateLimiter holds one SlidingWindowLimiter per endpoint
+//   Axum middleware extracts JWT user_id first; falls back to IP if unauthenticated
 
-use std::collections::HashMap;
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
 use axum::{
-    extract::{Request, State},
-    http::StatusCode,
+    body::Body,
+    extract::State,
+    http::{Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
-    Json,
 };
-use serde_json::json;
-use tracing::warn;
+use std::{
+    collections::HashMap,
+    net::IpAddr,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
+};
+use tracing::{debug, warn};
 
-// ─── بنية تتبع الطلبات لكل مفتاح ─────────────────────────────────────────
+use crate::error::AppError;
 
-/// سجل الطلبات لمفتاح واحد (IP أو user_id)
-struct RequestRecord {
-    /// قائمة أوقات الطلبات في النافذة الحالية
+// ─────────────────────────────────────────────
+// Rate-limit key: user ID (authenticated) or IP (anonymous)
+// ─────────────────────────────────────────────
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum RateLimitKey {
+    /// Authenticated user — identified by JWT `sub` claim
+    User(String),
+    /// Anonymous request — identified by remote IP
+    Ip(IpAddr),
+    /// Fallback when neither is available (e.g. unix socket)
+    Unknown(String),
+}
+
+impl RateLimitKey {
+    pub fn as_str(&self) -> String {
+        match self {
+            RateLimitKey::User(id) => format!("user:{}", id),
+            RateLimitKey::Ip(ip) => format!("ip:{}", ip),
+            RateLimitKey::Unknown(s) => format!("unknown:{}", s),
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+// Per-key sliding-window state
+// ─────────────────────────────────────────────
+
+#[derive(Debug)]
+struct WindowState {
     timestamps: Vec<Instant>,
+    last_seen: Instant,
 }
 
-impl RequestRecord {
+impl WindowState {
     fn new() -> Self {
-        Self { timestamps: Vec::new() }
+        Self {
+            timestamps: Vec::new(),
+            last_seen: Instant::now(),
+        }
     }
 
-    /// تنظيف الطلبات القديمة خارج النافذة الزمنية
-    fn cleanup(&mut self, window: Duration) {
-        let cutoff = Instant::now() - window;
+    fn check_and_record(&mut self, max_requests: u32, window: Duration) -> bool {
+        let now = Instant::now();
+        self.last_seen = now;
+        let cutoff = now - window;
         self.timestamps.retain(|&t| t > cutoff);
-    }
-
-    /// عدد الطلبات في النافذة الحالية
-    fn count(&self) -> usize {
-        self.timestamps.len()
-    }
-
-    /// تسجيل طلب جديد
-    fn record(&mut self) {
-        self.timestamps.push(Instant::now());
+        if self.timestamps.len() < max_requests as usize {
+            self.timestamps.push(now);
+            true
+        } else {
+            false
+        }
     }
 }
 
-// ─── Rate Limiter الرئيسي ──────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// Single-endpoint sliding-window limiter
+// ─────────────────────────────────────────────
 
-/// Rate Limiter بخوارزمية Sliding Window
-pub struct RateLimiter {
-    /// الحد الأقصى للطلبات لكل نافذة
-    max_requests: usize,
-    /// حجم النافذة الزمنية
+#[derive(Debug)]
+pub struct SlidingWindowLimiter {
+    max_requests: u32,
     window: Duration,
-    /// سجلات الطلبات لكل مفتاح
-    records: Mutex<HashMap<String, RequestRecord>>,
-    /// عداد التنظيف — ننظف كل 1000 طلب
-    cleanup_counter: Mutex<u64>,
+    state: Mutex<HashMap<RateLimitKey, WindowState>>,
 }
 
-impl RateLimiter {
-    /// إنشاء rate limiter جديد
-    ///
-    /// # Arguments
-    /// * `max_requests` - الحد الأقصى للطلبات في النافذة
-    /// * `window_secs` - حجم النافذة الزمنية بالثواني
-    pub fn new(max_requests: usize, window_secs: u64) -> Self {
+impl SlidingWindowLimiter {
+    pub fn new(max_requests: u32, window_secs: u64) -> Self {
         Self {
             max_requests,
             window: Duration::from_secs(window_secs),
-            records: Mutex::new(HashMap::new()),
-            cleanup_counter: Mutex::new(0),
+            state: Mutex::new(HashMap::new()),
         }
     }
 
-    /// التحقق من الحد والتسجيل في نفس الوقت (atomic check-and-record)
-    ///
-    /// Returns: `true` إذا مسموح بالطلب، `false` إذا تجاوز الحد
-    pub fn check_and_record(&self, key: &str) -> bool {
-        let mut records = match self.records.lock() {
-            Ok(r) => r,
-            Err(e) => {
-                // في حالة panic في thread آخر — نسمح بالطلب (fail-open)
-                warn!("RateLimiter mutex poisoned: {e} — failing open");
-                return true;
-            }
-        };
-
-        let record = records.entry(key.to_string()).or_insert_with(RequestRecord::new);
-
-        // تنظيف الطلبات القديمة
-        record.cleanup(self.window);
-
-        if record.count() >= self.max_requests {
+    pub fn check(&self, key: &RateLimitKey) -> Result<(), AppError> {
+        let mut map = self.state.lock().map_err(|_| {
+            AppError::Internal("rate limiter mutex poisoned".into())
+        })?;
+        let entry = map.entry(key.clone()).or_insert_with(WindowState::new);
+        if entry.check_and_record(self.max_requests, self.window) {
+            debug!(key = %key.as_str(), "rate limit OK");
+            Ok(())
+        } else {
             warn!(
-                "Rate limit exceeded for key={key}: {}/{} req/{}s",
-                record.count(),
+                key = %key.as_str(),
+                max = self.max_requests,
+                window_secs = self.window.as_secs(),
+                "rate limit exceeded"
+            );
+            Err(AppError::RateLimit(format!(
+                "Rate limit exceeded: max {} requests per {} seconds",
                 self.max_requests,
                 self.window.as_secs()
-            );
-            return false;
-        }
-
-        record.record();
-
-        // تنظيف دوري للمفاتيح القديمة (كل 1000 طلب)
-        drop(records); // نحرر القفل قبل التنظيف
-        self.maybe_cleanup();
-
-        true
-    }
-
-    /// معلومات الحالة الحالية لمفتاح معين
-    pub fn status(&self, key: &str) -> (usize, usize) {
-        let mut records = match self.records.lock() {
-            Ok(r) => r,
-            Err(_) => return (0, self.max_requests),
-        };
-
-        let record = records.entry(key.to_string()).or_insert_with(RequestRecord::new);
-        record.cleanup(self.window);
-        (record.count(), self.max_requests)
-    }
-
-    /// تنظيف دوري للمفاتيح غير النشطة
-    fn maybe_cleanup(&self) {
-        let mut counter = match self.cleanup_counter.lock() {
-            Ok(c) => c,
-            Err(_) => return,
-        };
-        *counter += 1;
-        if *counter < 1000 {
-            return;
-        }
-        *counter = 0;
-        drop(counter);
-
-        // تنظيف المفاتيح التي لا طلبات فيها
-        if let Ok(mut records) = self.records.lock() {
-            let window = self.window;
-            records.retain(|_, record| {
-                record.cleanup(window);
-                record.count() > 0
-            });
+            )))
         }
     }
-}
 
-// ─── إعدادات Rate Limiting لكل نوع endpoint ──────────────────────────────
-
-/// إعدادات Rate Limiting المختلفة
-pub struct RateLimitConfig {
-    /// الـ API العام — 200 req/min
-    pub api_general: RateLimiter,
-    /// الـ auth endpoint — 10 req/min (حماية من brute force)
-    pub auth: RateLimiter,
-    /// الـ sandbox/exec — 20 req/min (مكلف)
-    pub sandbox: RateLimiter,
-    /// الـ zen/chat — 30 req/min
-    pub chat: RateLimiter,
-    // S3-02: قائمة endpoints للـ MultiEndpointRateLimiter
-    pub endpoints: Vec<EndpointConfig>,
-}
-
-impl RateLimitConfig {
-    pub fn new() -> Self {
-        Self {
-            api_general: RateLimiter::new(200, 60),
-            auth: RateLimiter::new(10, 60),
-            sandbox: RateLimiter::new(20, 60),
-            chat: RateLimiter::new(30, 60),
-            endpoints: vec![],
+    pub fn gc(&self) {
+        if let Ok(mut map) = self.state.lock() {
+            let cutoff = Instant::now() - self.window * 2;
+            map.retain(|_, v| v.last_seen > cutoff);
         }
     }
-}
 
-impl Default for RateLimitConfig {
-    fn default() -> Self {
-        Self::new()
+    pub fn tracked_keys(&self) -> usize {
+        self.state.lock().map(|m| m.len()).unwrap_or(0)
     }
 }
 
-// ─── S3-02: Multi-Endpoint RateLimiter (per-AppState) ────────────────────────
+// ─────────────────────────────────────────────
+// Multi-endpoint limiter
+// ─────────────────────────────────────────────
 
-/// إعداد endpoint واحد في الـ RateLimiter المُركَّب
-#[derive(Clone)]
-pub struct EndpointConfig {
-    /// بادئة المسار (مثل "/api/agent/chat")
-    pub path_prefix: String,
-    /// الحد الأقصى للطلبات في النافذة
-    pub max_requests: usize,
-    /// حجم النافذة الزمنية بالثواني
-    pub window_secs: u64,
-}
-
-/// RateLimiter مُركَّب يدعم حدوداً مختلفة لكل endpoint
-/// يُستخدَم في AppState لـ per-user rate limiting
+#[derive(Debug)]
 pub struct MultiEndpointRateLimiter {
-    /// قائمة الـ limiters مرتَّبة من الأكثر تحديداً للأقل
-    limiters: Vec<(String, RateLimiter)>,
-    /// limiter افتراضي إذا لم يُطابق أي endpoint
-    default_limiter: RateLimiter,
+    pub auth: SlidingWindowLimiter,
+    pub sandbox: SlidingWindowLimiter,
+    pub chat: SlidingWindowLimiter,
+    pub api: SlidingWindowLimiter,
 }
 
 impl MultiEndpointRateLimiter {
-    /// إنشاء من قائمة EndpointConfig
-    pub fn new(config: RateLimitConfig) -> Self {
-        let limiters = config
-            .endpoints
-            .into_iter()
-            .map(|ec| {
-                let limiter = RateLimiter::new(ec.max_requests, ec.window_secs);
-                (ec.path_prefix, limiter)
-            })
-            .collect();
+    pub fn from_env() -> Self {
+        let auth_max = std::env::var("RATE_AUTH_MAX")
+            .ok().and_then(|v| v.parse().ok()).unwrap_or(10u32);
+        let sandbox_max = std::env::var("RATE_SANDBOX_MAX")
+            .ok().and_then(|v| v.parse().ok()).unwrap_or(20u32);
+        let chat_max = std::env::var("RATE_CHAT_MAX")
+            .ok().and_then(|v| v.parse().ok()).unwrap_or(30u32);
+        let api_max = std::env::var("RATE_API_MAX")
+            .ok().and_then(|v| v.parse().ok()).unwrap_or(200u32);
+
+        tracing::info!(auth_max, sandbox_max, chat_max, api_max,
+            "MultiEndpointRateLimiter initialised");
 
         Self {
-            limiters,
-            // افتراضي: 100 req/min
-            default_limiter: RateLimiter::new(100, 60),
+            auth: SlidingWindowLimiter::new(auth_max, 60),
+            sandbox: SlidingWindowLimiter::new(sandbox_max, 60),
+            chat: SlidingWindowLimiter::new(chat_max, 60),
+            api: SlidingWindowLimiter::new(api_max, 60),
         }
     }
 
-    /// التحقق من الحد لمسار معين ومفتاح (user_id أو IP)
-    /// يُطابق أول endpoint يبدأ المسار بـ path_prefix
-    pub fn check(&self, path: &str, key: &str) -> bool {
-        for (prefix, limiter) in &self.limiters {
-            if path.starts_with(prefix.as_str()) {
-                return limiter.check_and_record(key);
-            }
+    pub fn classify_path(path: &str) -> &'static str {
+        if path.starts_with("/auth") || path.starts_with("/login") || path.starts_with("/register") {
+            "auth"
+        } else if path.starts_with("/sandbox") || path.starts_with("/execute") {
+            "sandbox"
+        } else if path.starts_with("/chat") || path.starts_with("/agent") || path.starts_with("/ws") {
+            "chat"
+        } else {
+            "api"
         }
-        self.default_limiter.check_and_record(key)
     }
 
-    /// حالة الحد لمسار ومفتاح معين
-    pub fn status(&self, path: &str, key: &str) -> (usize, usize) {
-        for (prefix, limiter) in &self.limiters {
-            if path.starts_with(prefix.as_str()) {
-                return limiter.status(key);
-            }
+    pub fn check(&self, path: &str, key: &RateLimitKey) -> Result<(), AppError> {
+        match Self::classify_path(path) {
+            "auth"    => self.auth.check(key),
+            "sandbox" => self.sandbox.check(key),
+            "chat"    => self.chat.check(key),
+            _         => self.api.check(key),
         }
-        self.default_limiter.status(key)
+    }
+
+    pub fn gc_all(&self) {
+        self.auth.gc();
+        self.sandbox.gc();
+        self.chat.gc();
+        self.api.gc();
     }
 }
 
-// ─── Re-export للاستخدام في db.rs ────────────────────────────────────────────
-// db.rs يستورد: RateLimiter, RateLimitConfig, EndpointConfig
-// نُعيد تصدير MultiEndpointRateLimiter باسم RateLimiter لتبسيط الاستيراد
-pub use MultiEndpointRateLimiter as AppRateLimiter;
+// ─────────────────────────────────────────────
+// Trait for AppState integration
+// ─────────────────────────────────────────────
 
-// ─── تحديث RateLimitConfig لقبول Vec<EndpointConfig> ─────────────────────────
-// (الـ RateLimitConfig الأصلي يبقى كما هو للتوافق مع الكود القديم)
-// نُضيف impl جديد يقبل endpoints
-impl RateLimitConfig {
-    /// إنشاء من قائمة endpoints (للاستخدام في AppState)
-    pub fn with_endpoints(endpoints: Vec<EndpointConfig>) -> Self {
-        // نُنشئ RateLimitConfig الأصلي مع الإعدادات الافتراضية
-        // الـ endpoints تُستخدَم في MultiEndpointRateLimiter
-        let _ = endpoints; // سيُستخدَم في MultiEndpointRateLimiter::new
-        Self::new()
-    }
+pub trait HasRateLimiter {
+    fn rate_limiter(&self) -> &Arc<MultiEndpointRateLimiter>;
 }
 
-// ─── RateLimiter wrapper للاستخدام في db.rs ──────────────────────────────────
-// db.rs يستورد RateLimiter ويستخدمه كـ Arc<RateLimiter>
-// نُعرِّف type alias
-pub type RateLimiterForState = MultiEndpointRateLimiter;
+// ─────────────────────────────────────────────
+// Key extraction from Axum request
+// ─────────────────────────────────────────────
 
-// ─── Axum Middleware ───────────────────────────────────────────────────────
+/// Extract rate-limit key:
+///   1. `X-User-Id` header (set by JWT middleware after token validation)
+///   2. `X-Forwarded-For` / `X-Real-IP` (behind reverse proxy)
+///   3. Socket peer address (ConnectInfo extension)
+pub fn extract_rate_limit_key(req: &Request<Body>) -> RateLimitKey {
+    // 1. Authenticated user ID injected by JWT middleware
+    if let Some(user_id) = req
+        .headers()
+        .get("x-user-id")
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.is_empty())
+    {
+        return RateLimitKey::User(user_id.to_string());
+    }
 
-/// استخراج مفتاح Rate Limiting من الطلب
-/// الأولوية: X-Forwarded-For > X-Real-IP > Connection IP
-fn extract_client_key(req: &Request) -> String {
-    // محاولة استخراج IP من headers
-    if let Some(forwarded) = req.headers().get("x-forwarded-for") {
-        if let Ok(val) = forwarded.to_str() {
-            // أخذ أول IP في القائمة (الأقرب للعميل)
-            if let Some(ip) = val.split(',').next() {
-                return ip.trim().to_string();
+    // 2. Forwarded IP
+    if let Some(forwarded) = req.headers().get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+        if let Some(ip_str) = forwarded.split(',').next().map(str::trim) {
+            if let Ok(ip) = ip_str.parse::<IpAddr>() {
+                return RateLimitKey::Ip(ip);
             }
         }
     }
-
-    if let Some(real_ip) = req.headers().get("x-real-ip") {
-        if let Ok(val) = real_ip.to_str() {
-            return val.to_string();
+    if let Some(real_ip) = req.headers().get("x-real-ip").and_then(|v| v.to_str().ok()) {
+        if let Ok(ip) = real_ip.parse::<IpAddr>() {
+            return RateLimitKey::Ip(ip);
         }
     }
 
-    // fallback — مفتاح عام (لا يُستخدم في production بدون reverse proxy)
-    "unknown".to_string()
+    // 3. Socket address
+    if let Some(addr) = req
+        .extensions()
+        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+    {
+        return RateLimitKey::Ip(addr.0.ip());
+    }
+
+    RateLimitKey::Unknown("no-key".into())
 }
 
-/// Axum middleware لـ Rate Limiting
-///
-/// يُطبَّق على مستوى الـ router ويرفض الطلبات الزائدة بـ 429
-pub async fn rate_limit_middleware(
-    req: Request,
+// ─────────────────────────────────────────────
+// Axum middleware
+// ─────────────────────────────────────────────
+
+pub async fn rate_limit_middleware<S>(
+    State(state): State<Arc<S>>,
+    req: Request<Body>,
     next: Next,
-) -> Response {
-    // في الوقت الحالي نستخدم IP-based limiting
-    // يمكن تطويره لاحقاً لـ user-based limiting بعد auth
-    let client_key = extract_client_key(&req);
+) -> Response
+where
+    S: HasRateLimiter + Send + Sync + 'static,
+{
     let path = req.uri().path().to_string();
+    let key = extract_rate_limit_key(&req);
 
-    // تحديد نوع الـ endpoint
-    let is_auth = path.contains("/auth");
-    let is_sandbox = path.contains("/sandbox");
-    let is_chat = path.contains("/zen/chat") || path.contains("/agent/chat");
-
-    // Rate limit بسيط — 200 req/min لكل IP
-    // TODO: استخدام RateLimitConfig من AppState في Sprint 3
-    let limit = if is_auth { 10 } else if is_sandbox { 20 } else if is_chat { 30 } else { 200 };
-    let window_secs = 60u64;
-
-    // نستخدم thread-local limiter مبسط هنا
-    // في Sprint 3 سيُنقل إلى AppState
-    static LIMITER: std::sync::OnceLock<RateLimiter> = std::sync::OnceLock::new();
-    let limiter = LIMITER.get_or_init(|| RateLimiter::new(200, 60));
-
-    // مفتاح مركّب: IP + نوع endpoint
-    let composite_key = format!("{client_key}:{}", if is_auth { "auth" } else if is_sandbox { "sandbox" } else if is_chat { "chat" } else { "api" });
-
-    if !limiter.check_and_record(&composite_key) {
-        let (current, max) = limiter.status(&composite_key);
-        return (
-            StatusCode::TOO_MANY_REQUESTS,
-            [
-                ("Retry-After", "60"),
-                ("X-RateLimit-Limit", "200"),
-                ("X-RateLimit-Remaining", "0"),
-            ],
-            Json(json!({
-                "error": "Too Many Requests",
-                "message": "Rate limit exceeded. Please wait before retrying.",
-                "retry_after_secs": 60,
-            })),
-        ).into_response();
+    match state.rate_limiter().check(&path, &key) {
+        Ok(()) => next.run(req).await,
+        Err(AppError::RateLimit(msg)) => {
+            crate::metrics::record_rate_limit_hit(
+                MultiEndpointRateLimiter::classify_path(&path),
+            );
+            (
+                StatusCode::TOO_MANY_REQUESTS,
+                [
+                    ("Retry-After", "60"),
+                    ("X-RateLimit-Key", &key.as_str()),
+                    ("Content-Type", "application/json"),
+                ],
+                format!(
+                    r#"{{"error":"rate_limit_exceeded","message":"{}","retry_after":60}}"#,
+                    msg
+                ),
+            )
+                .into_response()
+        }
+        Err(e) => e.into_response(),
     }
-
-    next.run(req).await
 }
 
-// ─── اختبارات ──────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// Unit tests
+// ─────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn user_key(id: &str) -> RateLimitKey { RateLimitKey::User(id.to_string()) }
+    fn ip_key(ip: &str) -> RateLimitKey { RateLimitKey::Ip(ip.parse().unwrap()) }
+
     #[test]
-    fn test_rate_limiter_allows_within_limit() {
-        let limiter = RateLimiter::new(5, 60);
-        for _ in 0..5 {
-            assert!(limiter.check_and_record("test_key"), "يجب السماح بالطلبات ضمن الحد");
-        }
+    fn test_allows_within_limit() {
+        let lim = SlidingWindowLimiter::new(5, 60);
+        let key = user_key("u1");
+        for _ in 0..5 { assert!(lim.check(&key).is_ok()); }
     }
 
     #[test]
-    fn test_rate_limiter_blocks_over_limit() {
-        let limiter = RateLimiter::new(3, 60);
-        for _ in 0..3 {
-            limiter.check_and_record("test_key2");
-        }
-        assert!(!limiter.check_and_record("test_key2"), "يجب رفض الطلب الرابع");
+    fn test_blocks_over_limit() {
+        let lim = SlidingWindowLimiter::new(3, 60);
+        let key = user_key("u2");
+        for _ in 0..3 { lim.check(&key).unwrap(); }
+        assert!(lim.check(&key).is_err());
     }
 
     #[test]
-    fn test_rate_limiter_different_keys_independent() {
-        let limiter = RateLimiter::new(2, 60);
-        limiter.check_and_record("key_a");
-        limiter.check_and_record("key_a");
-        // key_a وصل للحد، لكن key_b لا يزال مسموحاً
-        assert!(!limiter.check_and_record("key_a"), "key_a يجب أن يُرفض");
-        assert!(limiter.check_and_record("key_b"), "key_b يجب أن يُسمح");
+    fn test_per_user_isolation() {
+        let lim = SlidingWindowLimiter::new(2, 60);
+        let alice = user_key("alice");
+        let bob   = user_key("bob");
+        lim.check(&alice).unwrap();
+        lim.check(&alice).unwrap();
+        assert!(lim.check(&alice).is_err(), "alice blocked");
+        assert!(lim.check(&bob).is_ok(),   "bob unaffected");
     }
 
     #[test]
-    fn test_rate_limiter_status() {
-        let limiter = RateLimiter::new(10, 60);
-        limiter.check_and_record("status_key");
-        limiter.check_and_record("status_key");
-        let (current, max) = limiter.status("status_key");
-        assert_eq!(current, 2);
-        assert_eq!(max, 10);
+    fn test_per_ip_isolation() {
+        let lim = SlidingWindowLimiter::new(2, 60);
+        let a = ip_key("192.168.1.1");
+        let b = ip_key("10.0.0.1");
+        lim.check(&a).unwrap();
+        lim.check(&a).unwrap();
+        assert!(lim.check(&a).is_err());
+        assert!(lim.check(&b).is_ok());
     }
 
     #[test]
-    fn test_extract_client_key_forwarded() {
-        // اختبار استخراج IP من X-Forwarded-For
-        let mut req = Request::builder()
-            .header("x-forwarded-for", "192.168.1.1, 10.0.0.1")
-            .body(axum::body::Body::empty())
-            .unwrap();
-        let key = extract_client_key(&req);
-        assert_eq!(key, "192.168.1.1");
+    fn test_path_classification() {
+        assert_eq!(MultiEndpointRateLimiter::classify_path("/auth/login"),   "auth");
+        assert_eq!(MultiEndpointRateLimiter::classify_path("/sandbox/run"),  "sandbox");
+        assert_eq!(MultiEndpointRateLimiter::classify_path("/chat/send"),    "chat");
+        assert_eq!(MultiEndpointRateLimiter::classify_path("/agent/loop"),   "chat");
+        assert_eq!(MultiEndpointRateLimiter::classify_path("/ws/stream"),    "chat");
+        assert_eq!(MultiEndpointRateLimiter::classify_path("/bots/list"),    "api");
+        assert_eq!(MultiEndpointRateLimiter::classify_path("/metrics"),      "api");
+    }
+
+    #[test]
+    fn test_key_display() {
+        assert_eq!(user_key("abc").as_str(), "user:abc");
+        assert_eq!(ip_key("127.0.0.1").as_str(), "ip:127.0.0.1");
+        assert_eq!(RateLimitKey::Unknown("x".into()).as_str(), "unknown:x");
+    }
+
+    #[test]
+    fn test_gc_removes_stale_entries() {
+        let lim = SlidingWindowLimiter::new(100, 1);
+        let key = user_key("gc-test");
+        lim.check(&key).unwrap();
+        assert_eq!(lim.tracked_keys(), 1);
+        std::thread::sleep(Duration::from_millis(2100));
+        lim.gc();
+        assert_eq!(lim.tracked_keys(), 0, "GC should remove stale entry");
     }
 }

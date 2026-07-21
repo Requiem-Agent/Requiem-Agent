@@ -18,6 +18,8 @@ pub mod agent_env;
 pub mod anti_printer;
 pub mod synergy;
 pub mod rag;
+// S4-03: WebSocket agent streaming
+pub mod ws_agent;
 pub mod strict_locks;
 pub mod identity_shield;
 pub mod workspaces;

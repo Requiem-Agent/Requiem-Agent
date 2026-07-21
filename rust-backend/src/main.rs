@@ -311,6 +311,8 @@ async fn main() -> Result<()> {
         .route("/identity/developer", get(routes::identity_shield::get_developer_info))
         // ─── Agent Chat (tool-use loop) ────────────────────────────────────────
         .route("/agent/chat", post(routes::agent_chat::agent_chat_handler))
+        // S4-03: WebSocket real-time agent streaming
+        .route("/ws/agent", get(routes::ws_agent::ws_handler::<AppState>))
          // ─── Workspace Routes ─────────────────────────────────────────────────
          // Axum 0.8: same path must chain methods — separate .route() on same path panics at runtime
          .route("/workspaces",
