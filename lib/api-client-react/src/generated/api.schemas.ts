@@ -270,6 +270,8 @@ export interface BotInput {
   username: string;
   /** @nullable */
   description?: string | null;
+  /** Telegram bot token from @BotFather — stored server-side, used at deploy time @nullable */
+  bot_token?: string | null;
 }
 
 export interface DeployResult {
@@ -277,6 +279,13 @@ export interface DeployResult {
   message: string;
   /** @nullable */
   hfSpaceUrl?: string | null;
+  /** @nullable */
+  prdcnUrl?: string | null;
+  /** @nullable */
+  logUrl?: string | null;
+  /** @nullable */
+  botId?: string | null;
+  status?: string;
 }
 
 export interface UsageStats {

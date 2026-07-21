@@ -11,4 +11,6 @@ export interface BotInput {
   username: string;
   /** @nullable */
   description?: string | null;
+  /** Telegram bot token from @BotFather @nullable */
+  bot_token?: string | null;
 }

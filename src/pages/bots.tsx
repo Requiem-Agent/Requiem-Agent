@@ -192,11 +192,20 @@ function BotCard({ bot, onDeploy, onDelete, isDeploying }: {
       )}
 
       {(bot.hfSpaceUrl || bot.hf_space_url) && (
-        <a href={bot.hfSpaceUrl || bot.hf_space_url} target="_blank" rel="noopener noreferrer"
-          className="flex items-center gap-1.5 text-[10px] text-primary/70 hover:text-primary font-mono transition-colors">
-          <Globe className="h-3 w-3" />
-          {(bot.hfSpaceUrl || bot.hf_space_url).replace("https://", "")}
-        </a>
+        <div className="flex flex-col gap-1">
+          <a href={bot.hfSpaceUrl || bot.hf_space_url} target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-[10px] text-primary/70 hover:text-primary font-mono transition-colors">
+            <Globe className="h-3 w-3" />
+            {(bot.hfSpaceUrl || bot.hf_space_url).replace("https://", "")}
+          </a>
+          {/* Log URL: replace /bots/ with /logs/ to deep-link to prdcn logs */}
+          {(bot.hfSpaceUrl || bot.hf_space_url)?.includes("prdcn") && (
+            <a href={(bot.hfSpaceUrl || bot.hf_space_url).replace("/bots/", "/logs/")} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-[10px] text-muted-foreground/60 hover:text-foreground font-mono transition-colors">
+              <Terminal className="h-3 w-3" />View logs
+            </a>
+          )}
+        </div>
       )}
 
       <div className="flex items-center gap-2 pt-1 border-t border-border/30">
@@ -235,9 +244,7 @@ export default function BotsPage() {
   });
 
   async function onSubmit(data: BotFormData) {
-    // Extract username from token prefix (digits before :)
-    const tokenParts = data.token.split(":");
-    const botId = tokenParts[0] || "unknown";
+    // Auto-derive username from name if not explicitly provided
     const autoUsername = data.name.toLowerCase().replace(/[^a-z0-9]/g, "_") + "_bot";
 
     try {
@@ -245,6 +252,7 @@ export default function BotsPage() {
         name: data.name,
         username: autoUsername,
         description: data.description || data.purpose,
+        bot_token: data.token,  // Pass token to backend for storage
       });
       toast({ title: "✅ Bot registered", description: `@${autoUsername} is ready to deploy.` });
       form.reset();
@@ -257,8 +265,9 @@ export default function BotsPage() {
   async function handleDeploy(id: string) {
     setDeployingId(id);
     try {
-      await deploy(id);
-      toast({ title: "🚀 Deploying", description: "Bot is being deployed to HF Spaces." });
+      const result: any = await deploy(id);
+      const msg = result?.message || "Bot queued for deployment — will be live in ~5s";
+      toast({ title: "🚀 Deploying", description: msg });
     } catch (e: any) {
       toast({ title: "Deploy failed", description: e.message || "Failed to deploy", variant: "destructive" });
     } finally { setDeployingId(null); }
