@@ -354,7 +354,7 @@ async fn run_agent_loop(
     // ── 1. RAG retrieval — inject relevant memories ────────────────────────
     let rag_context = {
         let rag = RagEngine::new(conn.clone(), user_id);
-        match rag.build_context(user_message, session_id, 1200).await {
+        match rag.build_context(user_message, Some(session_id), 1200).await {
             Ok(r) if r.memories_used > 0 => {
                 emit!(AgentEvent::MemoryHit {
                     count:   r.memories_used,
