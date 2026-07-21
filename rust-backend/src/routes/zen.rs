@@ -458,7 +458,25 @@ pub async fn chat_handler(
             "mode": session_mode,
         });
 
-        return (StatusCode::OK, [("Content-Type", "application/json")], envelope.to_string()).into_response();
+        // Return parallel result as SSE so the frontend parser handles it uniformly
+        let escaped_content = best_text
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r");
+        let sse_parallel = format!(
+            "data: {{\"choices\":[{{\"delta\":{{\"content\":\"{escaped_content}\"}}}}],\"model\":\"{}\",\"effort\":\"{session_effort}\",\"mode\":\"{session_mode}\"}}\n\ndata: [DONE]\n\n",
+            selected_model,
+        );
+        return (
+            StatusCode::OK,
+            [
+                ("Content-Type", "text/event-stream; charset=utf-8"),
+                ("Cache-Control", "no-cache, no-store"),
+                ("X-Accel-Buffering", "no"),
+            ],
+            sse_parallel,
+        ).into_response();
     }
 
     // ── Single-model path (lite/medium effort or streaming) ────────────────────
@@ -523,7 +541,37 @@ pub async fn chat_handler(
                     }
                 }
 
-                (StatusCode::OK, [("Content-Type", "application/json")], text).into_response()
+                // Extract clean text content from Zen API non-streaming JSON response
+                // The Zen API returns standard OpenAI format: {"choices":[{"message":{"content":"..."}}]}
+                let content = if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&text) {
+                    json_val["choices"][0]["message"]["content"]
+                        .as_str()
+                        .map(|s| s.to_string())
+                        .or_else(|| json_val["choices"][0]["text"].as_str().map(|s| s.to_string()))
+                        .or_else(|| json_val["response"].as_str().map(|s| s.to_string()))
+                        .unwrap_or(text)
+                } else {
+                    text
+                };
+
+                // Return as fake SSE so the frontend parser handles it uniformly
+                let escaped = content
+                    .replace('\\', "\\\\")
+                    .replace('"', "\\\"")
+                    .replace('\n', "\\n")
+                    .replace('\r', "\\r");
+                let sse = format!(
+                    "data: {{\"choices\":[{{\"delta\":{{\"content\":\"{escaped}\"}}}}]}}\n\ndata: [DONE]\n\n"
+                );
+                (
+                    StatusCode::OK,
+                    [
+                        ("Content-Type", "text/event-stream; charset=utf-8"),
+                        ("Cache-Control", "no-cache, no-store"),
+                        ("X-Accel-Buffering", "no"),
+                    ],
+                    sse,
+                ).into_response()
             }
         }
         Err(e) => {

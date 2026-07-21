@@ -8,7 +8,7 @@ import {
 } from "@/hooks/use-sessions";
 import { ROLE_MODEL_MAP, FREE_ZEN_MODELS } from "@/hooks/use-system";
 import { FormattedMessage } from "@/components/message-formatter";
-import { streamZenChat } from "@/lib/zen-client";
+import { streamZenChat, extractTextFromJson } from "@/lib/zen-client";
 import { Textarea } from "@/components/ui/textarea";
 import { SessionMode, SessionEffort } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -97,7 +97,10 @@ function MessageBubble({ message, isNew }: {
     </div>
   );
 
-  // Assistant
+  // Assistant — extract clean text from any JSON-wrapped content
+  const rawContent = message.content || "";
+  const displayContent = extractTextFromJson(rawContent) ?? rawContent;
+
   return (
     <div className={cn("flex justify-start", isNew && "animate-slide-up")}>
       <div className="w-full">
@@ -106,9 +109,12 @@ function MessageBubble({ message, isNew }: {
             <Bot className="h-2.5 w-2.5 text-primary" />
           </div>
           <span className="text-[10px] text-muted-foreground/50 font-mono">Requiem Agent 1</span>
+          {message.modelUsed && (
+            <span className="text-[9px] text-muted-foreground/30 font-mono ml-1">· {message.modelUsed.split("/").pop()}</span>
+          )}
         </div>
         <div className="msg-assistant border rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed">
-          <FormattedMessage content={message.content} />
+          <FormattedMessage content={displayContent} />
         </div>
         {message.codeChanges && (
           <div className="mt-2 bg-[#0a0c10] border border-border rounded-xl overflow-hidden">
@@ -481,16 +487,19 @@ function ChatPanel({ sessionId, mode, effort }: {
         setStreamContent(full);
       }
 
+      // Extract clean text if the full response ended up being JSON-wrapped
+      const cleanFull = extractTextFromJson(full) ?? full;
+
       // 5. Save assistant message to backend
       const assistantMsg = await addMessage({
         role: "assistant",
-        content: full,
+        content: cleanFull,
         modelUsed: modelId,
       } as any);
       setNewIds(prev => new Set([...prev, assistantMsg.id]));
 
       // 6. Auto-store to RAG memory (fire & forget)
-      autoStoreMemory(text, full, sessionId).catch(() => {});
+      autoStoreMemory(text, cleanFull, sessionId).catch(() => {});
 
     } catch (err: any) {
       if (err.name !== "AbortError") {
