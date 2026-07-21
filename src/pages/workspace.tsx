@@ -30,44 +30,88 @@ import {
 } from "@/hooks/use-workspaces";
 
 // ── Tool-Use Card ─────────────────────────────────────────────────────────────
+// Tool icon map
+const TOOL_COLORS: Record<string, string> = {
+  ws_read:   "text-cyan-400",   ws_write:  "text-emerald-400",
+  ws_edit:   "text-amber-400",  ws_delete: "text-rose-400",
+  ws_tree:   "text-violet-400", ws_glob:   "text-blue-400",
+  ws_grep:   "text-orange-400", ws_mkdir:  "text-teal-400",
+  ws_bash:   "text-pink-400",
+};
+const TOOL_BORDER: Record<string, string> = {
+  ws_read:   "border-cyan-500/20 bg-cyan-500/5",
+  ws_write:  "border-emerald-500/20 bg-emerald-500/5",
+  ws_edit:   "border-amber-500/20 bg-amber-500/5",
+  ws_delete: "border-rose-500/20 bg-rose-500/5",
+  ws_tree:   "border-violet-500/20 bg-violet-500/5",
+  ws_glob:   "border-blue-500/20 bg-blue-500/5",
+  ws_grep:   "border-orange-500/20 bg-orange-500/5",
+  ws_mkdir:  "border-teal-500/20 bg-teal-500/5",
+  ws_bash:   "border-pink-500/20 bg-pink-500/5",
+};
+
 function ToolUseCard({ event }: { event: AgentChatEvent }) {
   const [open, setOpen] = useState(false);
+
   if (event.type === "thinking") return (
     <div className="flex items-center gap-2 py-1.5 px-3 rounded-xl bg-violet-500/8 border border-violet-500/20 text-xs font-mono text-violet-400 animate-fade-in">
-      <BrainCircuit className="h-3 w-3 shrink-0" />
+      <BrainCircuit className="h-3 w-3 shrink-0 animate-pulse" />
       <span className="truncate">{event.content}</span>
     </div>
   );
-  if (event.type === "tool_use") return (
-    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 overflow-hidden animate-fade-in">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-mono text-left"
-      >
-        <Wrench className="h-3 w-3 text-cyan-400 shrink-0" />
-        <span className="text-cyan-400 font-semibold">{event.tool}</span>
-        {event.input?.path && (
-          <span className="text-muted-foreground/60 truncate ml-1">{String(event.input.path)}</span>
-        )}
-        <ChevronRight className={cn("h-3 w-3 text-muted-foreground/40 ml-auto shrink-0 transition-transform", open && "rotate-90")} />
-      </button>
-      {open && (
-        <pre className="px-3 pb-2 text-[10px] text-muted-foreground/70 font-mono whitespace-pre-wrap border-t border-cyan-500/10">
-          {JSON.stringify(event.input, null, 2)}
-        </pre>
-      )}
-    </div>
-  );
-  if (event.type === "tool_result") return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-xs font-mono text-emerald-400 animate-fade-in">
-      <CheckCircle2 className="h-3 w-3 shrink-0" />
-      <span className="text-muted-foreground/60 truncate">
-        {typeof event.result === "object"
-          ? JSON.stringify(event.result).slice(0, 80)
-          : String(event.result ?? "ok")}
+
+  if (event.type === "memory_hit") return (
+    <div className="flex items-center gap-2 py-1.5 px-3 rounded-xl bg-indigo-500/8 border border-indigo-500/20 text-xs font-mono text-indigo-400 animate-fade-in">
+      <BrainCircuit className="h-3 w-3 shrink-0" />
+      <span className="font-semibold">Memory</span>
+      <span className="text-muted-foreground/60">
+        {event.count} relevant memories injected
       </span>
     </div>
   );
+
+  if (event.type === "tool_use") {
+    const tool = event.tool ?? "";
+    const colorCls  = TOOL_COLORS[tool]  ?? "text-cyan-400";
+    const borderCls = TOOL_BORDER[tool]  ?? "border-cyan-500/20 bg-cyan-500/5";
+    const detail = event.input?.path ?? event.input?.command ?? event.input?.pattern ?? "";
+    return (
+      <div className={cn("rounded-xl border overflow-hidden animate-fade-in", borderCls)}>
+        <button onClick={() => setOpen(o => !o)}
+          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-mono text-left hover:bg-white/[0.03] transition-colors">
+          <Wrench className={cn("h-3 w-3 shrink-0", colorCls)} />
+          <span className={cn("font-bold", colorCls)}>{tool}</span>
+          {detail && <span className="text-muted-foreground/50 truncate ml-1 max-w-[140px]">{String(detail)}</span>}
+          <ChevronRight className={cn("h-3 w-3 text-muted-foreground/30 ml-auto shrink-0 transition-transform", open && "rotate-90")} />
+        </button>
+        {open && (
+          <pre className="px-3 pb-2 text-[10px] text-muted-foreground/60 font-mono whitespace-pre-wrap border-t border-white/[0.05] max-h-40 overflow-y-auto">
+            {JSON.stringify(event.input, null, 2)}
+          </pre>
+        )}
+      </div>
+    );
+  }
+
+  if (event.type === "tool_result") {
+    const res = event.result as any;
+    const isError = res?.error;
+    const preview = res?.output ?? res?.content ?? res?.tree ?? res?.files
+      ?? (typeof res === "string" ? res : JSON.stringify(res));
+    return (
+      <div className={cn(
+        "flex items-start gap-2 px-3 py-2 rounded-xl border text-xs font-mono animate-fade-in",
+        isError
+          ? "border-rose-500/20 bg-rose-500/5 text-rose-400"
+          : "border-emerald-500/20 bg-emerald-500/5 text-emerald-400"
+      )}>
+        <CheckCircle2 className="h-3 w-3 shrink-0 mt-0.5" />
+        <span className="text-muted-foreground/70 truncate leading-relaxed line-clamp-2">
+          {String(preview ?? "ok").slice(0, 120)}
+        </span>
+      </div>
+    );
+  }
   return null;
 }
 
@@ -644,10 +688,17 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
 
       // ── Path A: Workspace agent loop (tool-use) ───────────────────────────
       if (workspaceId) {
+        // Build history for context continuity (last 8 turns)
+        const history = messages
+          .slice(-8)
+          .filter((m: any) => m.role === "user" || m.role === "assistant")
+          .map((m: any) => ({ role: m.role, content: m.content }));
+
         for await (const event of streamAgentChat(
-          text, workspaceId, sessionId, mode, effort, abortRef.current.signal
+          text, workspaceId, sessionId, mode, effort, history, abortRef.current.signal
         )) {
-          if (event.type === "thinking" || event.type === "tool_use" || event.type === "tool_result") {
+          if (event.type === "thinking" || event.type === "tool_use"
+              || event.type === "tool_result" || event.type === "memory_hit") {
             setAgentEvents(prev => [...prev, event]);
           } else if (event.type === "text") {
             cleanFull = event.content ?? "";

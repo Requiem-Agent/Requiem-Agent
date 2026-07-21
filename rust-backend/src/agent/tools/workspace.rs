@@ -134,6 +134,21 @@ pub fn workspace_tools_schema() -> Vec<Value> {
                 }
             }
         }),
+        json!({
+            "type": "function",
+            "function": {
+                "name": "ws_bash",
+                "description": "Run a shell command inside the workspace directory (sandboxed). Use for build commands, tests, git status, npm install, cargo build, etc. Output is capped at 4000 chars.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "command": {"type": "string", "description": "Shell command to run (bash -c). Working directory is set to workspace root."},
+                        "timeout": {"type": "integer", "description": "Timeout in seconds (default 30, max 120)"}
+                    },
+                    "required": ["command"]
+                }
+            }
+        }),
     ]
 }
 
@@ -155,6 +170,7 @@ pub async fn execute_workspace_tool(
         "ws_glob"   => tool_glob(input, user_id, workspace_id).await,
         "ws_grep"   => tool_grep(input, user_id, workspace_id).await,
         "ws_mkdir"  => tool_mkdir(input, user_id, workspace_id).await,
+        "ws_bash"   => tool_bash(input, user_id, workspace_id).await,
         other       => Err(format!("Unknown workspace tool: {other}")),
     }
 }
@@ -473,4 +489,55 @@ async fn tool_mkdir(input: &Value, user_id: &str, workspace_id: &str) -> Result<
     let path = input["path"].as_str().ok_or("ws_mkdir: missing 'path'")?;
     ws::workspace_mkdir(user_id, workspace_id, path).await?;
     Ok(json!({ "path": path, "created": true }))
+}
+
+// ─── ws_bash ─────────────────────────────────────────────────────────────────
+
+async fn tool_bash(input: &Value, user_id: &str, workspace_id: &str) -> Result<Value, String> {
+    let command = input["command"].as_str().ok_or("ws_bash: missing 'command'")?;
+    let timeout_secs = input["timeout"].as_u64().unwrap_or(30).min(120);
+
+    // Reject dangerous patterns
+    let blocked = ["rm -rf /", ":(){ :|:& };:", "dd if=", "mkfs", "> /dev/",
+                   "chmod 777 /", "chown root", "/etc/passwd", "/etc/shadow"];
+    for pat in &blocked {
+        if command.contains(pat) {
+            return Err(format!("ws_bash: blocked dangerous pattern: {pat}"));
+        }
+    }
+
+    // Resolve workspace root path
+    let ws_root = ws::workspace_root_path(user_id, workspace_id);
+
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(timeout_secs),
+        tokio::process::Command::new("bash")
+            .arg("-c")
+            .arg(command)
+            .current_dir(&ws_root)
+            .env("HOME", &ws_root)
+            .env("WORKSPACE", &ws_root)
+            .env("USER_ID", user_id)
+            .kill_on_drop(true)
+            .output(),
+    )
+    .await
+    .map_err(|_| format!("ws_bash: timed out after {timeout_secs}s"))?
+    .map_err(|e| format!("ws_bash: spawn failed: {e}"))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let combined = format!("{stdout}{stderr}");
+    // Cap output to 4000 chars
+    let truncated = if combined.len() > 4000 {
+        format!("{}…[truncated {} chars]", &combined[..4000], combined.len() - 4000)
+    } else {
+        combined
+    };
+
+    Ok(json!({
+        "exit_code": output.status.code().unwrap_or(-1),
+        "output": truncated,
+        "success": output.status.success(),
+    }))
 }

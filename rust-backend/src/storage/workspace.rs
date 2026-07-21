@@ -44,6 +44,11 @@ fn workspace_root(user_id: &str, workspace_id: &str) -> PathBuf {
         .join(workspace_id)
 }
 
+/// Public accessor for ws_bash tool — returns root as String for Command::current_dir
+pub fn workspace_root_path(user_id: &str, workspace_id: &str) -> PathBuf {
+    workspace_root(user_id, workspace_id)
+}
+
 /// Absolute path to the workspace metadata file.
 fn meta_path(user_id: &str, workspace_id: &str) -> PathBuf {
     workspace_root(user_id, workspace_id)

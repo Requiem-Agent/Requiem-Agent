@@ -44,7 +44,7 @@ export interface WorkspaceTree {
 }
 
 export interface AgentChatEvent {
-  type: "thinking" | "tool_use" | "tool_result" | "text" | "error" | "done";
+  type: "thinking" | "tool_use" | "tool_result" | "memory_hit" | "text" | "error" | "done";
   content?: string;
   tool?: string;
   input?: Record<string, unknown>;
@@ -52,6 +52,9 @@ export interface AgentChatEvent {
   result?: unknown;
   message?: string;
   usage?: { steps: number };
+  // memory_hit specific
+  count?: number;
+  preview?: string;
 }
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
@@ -169,12 +172,13 @@ export function useWorkspaceMutations() {
 // ─── Agent Chat (SSE streaming) ───────────────────────────────────────────────
 
 export async function* streamAgentChat(
-  message: string,
+  message:     string,
   workspaceId: string,
-  sessionId: string,
-  mode = "coder",
-  effort = "medium",
-  signal?: AbortSignal,
+  sessionId:   string,
+  mode         = "coder",
+  effort       = "medium",
+  history:     Array<{role: string; content: string}> = [],
+  signal?:     AbortSignal,
 ): AsyncGenerator<AgentChatEvent> {
   const res = await fetch(`${API_BASE}/api/agent/chat`, {
     method: "POST",
@@ -182,7 +186,10 @@ export async function* streamAgentChat(
       "Content-Type": "application/json",
       Authorization: `Bearer ${getToken()}`,
     },
-    body: JSON.stringify({ message, workspace_id: workspaceId, session_id: sessionId, mode, effort }),
+    body: JSON.stringify({
+      message, workspace_id: workspaceId, session_id: sessionId,
+      mode, effort, history,
+    }),
     signal,
   });
 
