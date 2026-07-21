@@ -268,12 +268,14 @@ async fn main() -> Result<()> {
         .route("/identity/developer", get(routes::identity_shield::get_developer_info))
         // ─── Agent Chat (tool-use loop) ────────────────────────────────────────
         .route("/agent/chat", post(routes::agent_chat::agent_chat_handler))
-        // ─── Workspace Routes (Phase: Workspace Management) ───────────────────
-        .route("/workspaces",                        get(routes::workspaces::list_workspaces))
-        .route("/workspaces",                        post(routes::workspaces::create_workspace))
-        .route("/workspaces/{id}",                   get(routes::workspaces::get_workspace))
-        .route("/workspaces/{id}",                   patch(routes::workspaces::update_workspace))
-        .route("/workspaces/{id}",                   delete(routes::workspaces::delete_workspace))
+         // ─── Workspace Routes ─────────────────────────────────────────────────
+         // Axum 0.8: same path must chain methods — separate .route() on same path panics at runtime
+         .route("/workspaces",
+                get(routes::workspaces::list_workspaces).post(routes::workspaces::create_workspace))
+         .route("/workspaces/{id}",
+                get(routes::workspaces::get_workspace)
+                .patch(routes::workspaces::update_workspace)
+                .delete(routes::workspaces::delete_workspace))
         .route("/workspaces/{id}/tree",              get(routes::workspaces::get_tree))
         .route("/workspaces/{id}/files/*path",       get(routes::workspaces::read_file)
                                                         .put(routes::workspaces::write_file)
