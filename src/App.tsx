@@ -12,6 +12,7 @@ if (apiUrl) setBaseUrl(apiUrl);
 
 // Pages
 import WorkspacePage from '@/pages/workspace';
+import WorkspacesPage from '@/pages/workspaces';
 import FilesPage from '@/pages/files';
 import MemoryPage from '@/pages/memory';
 import TasksPage from '@/pages/tasks';
@@ -33,6 +34,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={WorkspacePage} />
+      <Route path="/workspaces" component={WorkspacesPage} />
       <Route path="/files" component={FilesPage} />
       <Route path="/memory" component={MemoryPage} />
       <Route path="/tasks" component={TasksPage} />

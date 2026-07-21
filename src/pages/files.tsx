@@ -1,11 +1,16 @@
 import { useState, useRef } from "react";
 import { AppLayout } from "@/components/layout";
 import { useFiles, useFileContent, useDeleteFile, useUploadFile } from "@/hooks/use-files";
+import {
+  useWorkspaces, useWorkspaceTree, useWorkspaceFile, useWorkspaceMutations,
+  type TreeNode,
+} from "@/hooks/use-workspaces";
 import { useToast } from "@/hooks/use-toast";
 import {
   Folder, FileText, FileCode, FileImage, Trash2, Eye,
   Download, RefreshCw, X, Copy, Check, Upload, HardDrive,
-  ChevronRight, FolderOpen,
+  ChevronRight, FolderOpen, FolderClosed, FileCode2,
+  ChevronDown, Layers, ArrowLeft, Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,12 +37,64 @@ function formatDate(iso: string) {
   } catch { return iso; }
 }
 
+// ── Recursive workspace tree ──────────────────────────────────────────────────
+function WsTreeNode({
+  node, wsId, depth = 0, onSelect,
+}: {
+  node: TreeNode; wsId: string; depth?: number;
+  onSelect: (path: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(depth < 2);
+  if (node.type === "dir") return (
+    <div>
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-center gap-1.5 py-0.5 px-1 rounded hover:bg-white/[0.04] text-xs text-muted-foreground transition-all"
+        style={{ paddingLeft: `${4 + depth * 14}px` }}
+      >
+        {expanded
+          ? <FolderOpen className="h-3 w-3 text-amber-400 shrink-0" />
+          : <FolderClosed className="h-3 w-3 text-amber-400/70 shrink-0" />}
+        <span className="truncate font-medium">{node.name}</span>
+        <ChevronDown className={cn("h-2.5 w-2.5 ml-auto shrink-0 text-muted-foreground/40 transition-transform", !expanded && "-rotate-90")} />
+      </button>
+      {expanded && node.children?.map(c => (
+        <WsTreeNode key={c.path} node={c} wsId={wsId} depth={depth + 1} onSelect={onSelect} />
+      ))}
+    </div>
+  );
+  return (
+    <button
+      onClick={() => onSelect(node.path)}
+      className="w-full flex items-center gap-1.5 py-0.5 px-1 rounded hover:bg-white/[0.04] text-xs text-muted-foreground/80 hover:text-foreground transition-all text-left"
+      style={{ paddingLeft: `${4 + depth * 14}px` }}
+    >
+      {(() => { const { Icon, color } = getFileIcon(node.name); return <Icon className={cn("h-3 w-3 shrink-0", color)} />; })()}
+      <span className="truncate">{node.name}</span>
+      {node.size !== undefined && (
+        <span className="ml-auto text-[9px] text-muted-foreground/30 shrink-0">{formatSize(node.size)}</span>
+      )}
+    </button>
+  );
+}
+
 export default function FilesPage() {
   const { data: files = [], isLoading, refetch, isFetching } = useFiles();
   const deleteMutation = useDeleteFile();
   const uploadMutation = useUploadFile();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Workspace browsing
+  const { data: workspaces = [] } = useWorkspaces();
+  const [activeWsId, setActiveWsId] = useState<string | null>(null);
+  const { data: wsTree, isLoading: treeLoading, refetch: refetchTree } = useWorkspaceTree(activeWsId ?? "");
+  const [wsSelectedPath, setWsSelectedPath] = useState<string | null>(null);
+  const { data: wsFileData, isLoading: wsFileLoading } = useWorkspaceFile(
+    activeWsId ?? "", wsSelectedPath ?? "", !!(activeWsId && wsSelectedPath)
+  );
+  const { deleteFile: deleteWsFile } = useWorkspaceMutations();
+  const [showWsPicker, setShowWsPicker] = useState(false);
 
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -94,7 +151,105 @@ export default function FilesPage() {
   return (
     <AppLayout>
       <div className="flex flex-col h-full overflow-hidden">
-        {selectedFile ? (
+        {/* ── Tab bar: Session Files | Workspaces ── */}
+        <div className="shrink-0 flex items-center gap-1 px-3 pt-2 pb-0 border-b border-border/40">
+          <button
+            onClick={() => { setActiveWsId(null); setWsSelectedPath(null); }}
+            className={cn(
+              "px-3 py-1.5 text-xs font-medium rounded-t-lg border-b-2 transition-all",
+              !activeWsId
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >Session Files</button>
+          {workspaces.map(w => (
+            <button
+              key={w.id}
+              onClick={() => { setActiveWsId(w.id); setWsSelectedPath(null); setSelectedFile(null); }}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded-t-lg border-b-2 transition-all truncate max-w-[100px]",
+                activeWsId === w.id
+                  ? "border-emerald-400 text-emerald-400"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <FolderOpen className="h-3 w-3 inline mr-1 -mt-0.5" />
+              {w.name}
+            </button>
+          ))}
+        </div>
+
+        {/* ── Workspace view ── */}
+        {activeWsId ? (
+          <div className="flex flex-1 min-h-0 overflow-hidden">
+            {/* File tree panel */}
+            <div className="w-44 shrink-0 border-r border-border/40 overflow-y-auto py-2 px-1">
+              <div className="flex items-center justify-between px-2 mb-1">
+                <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider font-mono">Files</span>
+                <button
+                  onClick={() => refetchTree()}
+                  className="p-0.5 rounded text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                >
+                  <RefreshCw className={cn("h-3 w-3", treeLoading && "animate-spin")} />
+                </button>
+              </div>
+              {treeLoading ? (
+                <div className="flex justify-center py-4"><RefreshCw className="h-4 w-4 animate-spin text-muted-foreground/40" /></div>
+              ) : wsTree?.tree?.length ? (
+                wsTree.tree.map(node => (
+                  <WsTreeNode key={node.path} node={node} wsId={activeWsId} onSelect={setWsSelectedPath} />
+                ))
+              ) : (
+                <p className="text-[10px] text-muted-foreground/40 text-center py-4">Empty workspace</p>
+              )}
+            </div>
+            {/* File content panel */}
+            <div className="flex-1 overflow-hidden flex flex-col min-w-0">
+              {wsSelectedPath ? (
+                <>
+                  <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-border/40 bg-card/30">
+                    <button onClick={() => setWsSelectedPath(null)} className="p-1 rounded text-muted-foreground/50 hover:text-foreground transition-colors">
+                      <ArrowLeft className="h-3.5 w-3.5" />
+                    </button>
+                    {(() => { const { Icon, color } = getFileIcon(wsSelectedPath.split("/").pop() ?? ""); return <Icon className={cn("h-3.5 w-3.5", color)} />; })()}
+                    <span className="text-xs font-mono truncate">{wsSelectedPath}</span>
+                    <div className="ml-auto flex gap-1.5">
+                      <button
+                        onClick={async () => {
+                          if (!wsFileData?.content) return;
+                          await navigator.clipboard.writeText(wsFileData.content).catch(() => {});
+                          toast({ title: "Copied" });
+                        }}
+                        className="px-2 py-1 rounded text-xs border border-border/40 text-muted-foreground hover:text-foreground transition-all"
+                      ><Check className="h-3 w-3 inline" /> Copy</button>
+                      <button
+                        onClick={() => {
+                          if (!confirm(`Delete ${wsSelectedPath}?`)) return;
+                          deleteWsFile.mutate({ wsId: activeWsId, path: wsSelectedPath });
+                          setWsSelectedPath(null);
+                        }}
+                        className="px-2 py-1 rounded text-xs border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 transition-all"
+                      ><Trash2 className="h-3 w-3 inline" /> Del</button>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-auto p-3">
+                    {wsFileLoading ? (
+                      <div className="flex justify-center py-8"><RefreshCw className="h-4 w-4 animate-spin text-muted-foreground/40" /></div>
+                    ) : (
+                      <pre className="text-[0.72rem] text-foreground/80 font-mono whitespace-pre-wrap break-words leading-relaxed">
+                        {wsFileData?.content ?? ""}
+                      </pre>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-center h-full text-xs text-muted-foreground/40">
+                  Select a file to view
+                </div>
+              )}
+            </div>
+          </div>
+        ) : selectedFile ? (
           /* ── File viewer ── */
           <div className="flex flex-col h-full">
             {/* Viewer header */}
@@ -234,7 +389,7 @@ export default function FilesPage() {
               )}
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </AppLayout>
   );

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { AppLayout } from "@/components/layout";
 import {
   useSessions,
@@ -16,10 +16,167 @@ import {
   Terminal, Plus, X, Command, Code2, Settings2, Palette,
   Bug, Search, Map, Shield, Loader2, BrainCircuit,
   Wrench, CheckCircle2, ChevronDown, Zap, RotateCcw,
-  Bot, Sparkles, ArrowUp,
+  Bot, Sparkles, ArrowUp, FolderOpen, FolderClosed,
+  ChevronRight, FileCode2, GitBranch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchRagContext, autoStoreMemory } from "@/hooks/use-memory";
+import {
+  useWorkspaces,
+  useWorkspaceTree,
+  streamAgentChat,
+  type AgentChatEvent,
+  type TreeNode,
+} from "@/hooks/use-workspaces";
+
+// ── Tool-Use Card ─────────────────────────────────────────────────────────────
+function ToolUseCard({ event }: { event: AgentChatEvent }) {
+  const [open, setOpen] = useState(false);
+  if (event.type === "thinking") return (
+    <div className="flex items-center gap-2 py-1.5 px-3 rounded-xl bg-violet-500/8 border border-violet-500/20 text-xs font-mono text-violet-400 animate-fade-in">
+      <BrainCircuit className="h-3 w-3 shrink-0" />
+      <span className="truncate">{event.content}</span>
+    </div>
+  );
+  if (event.type === "tool_use") return (
+    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 overflow-hidden animate-fade-in">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-mono text-left"
+      >
+        <Wrench className="h-3 w-3 text-cyan-400 shrink-0" />
+        <span className="text-cyan-400 font-semibold">{event.tool}</span>
+        {event.input?.path && (
+          <span className="text-muted-foreground/60 truncate ml-1">{String(event.input.path)}</span>
+        )}
+        <ChevronRight className={cn("h-3 w-3 text-muted-foreground/40 ml-auto shrink-0 transition-transform", open && "rotate-90")} />
+      </button>
+      {open && (
+        <pre className="px-3 pb-2 text-[10px] text-muted-foreground/70 font-mono whitespace-pre-wrap border-t border-cyan-500/10">
+          {JSON.stringify(event.input, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
+  if (event.type === "tool_result") return (
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/5 border border-emerald-500/20 text-xs font-mono text-emerald-400 animate-fade-in">
+      <CheckCircle2 className="h-3 w-3 shrink-0" />
+      <span className="text-muted-foreground/60 truncate">
+        {typeof event.result === "object"
+          ? JSON.stringify(event.result).slice(0, 80)
+          : String(event.result ?? "ok")}
+      </span>
+    </div>
+  );
+  return null;
+}
+
+// ── Mini file tree inside workspace selector ──────────────────────────────────
+function MiniTree({ nodes, depth = 0 }: { nodes: TreeNode[]; depth?: number }) {
+  return (
+    <>
+      {nodes.map(n => (
+        <div key={n.path} style={{ paddingLeft: `${depth * 12}px` }}>
+          <div className="flex items-center gap-1.5 py-0.5 text-[10px] text-muted-foreground/70 font-mono">
+            {n.type === "dir"
+              ? <FolderClosed className="h-3 w-3 text-amber-400/70 shrink-0" />
+              : <FileCode2  className="h-3 w-3 text-cyan-400/60 shrink-0" />}
+            <span className="truncate">{n.name}</span>
+          </div>
+          {n.type === "dir" && n.children && (
+            <MiniTree nodes={n.children} depth={depth + 1} />
+          )}
+        </div>
+      ))}
+    </>
+  );
+}
+
+// ── Workspace selector pill ───────────────────────────────────────────────────
+function WorkspaceSelector({
+  value, onChange,
+}: {
+  value: string | null;
+  onChange: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const { data: workspaces = [], isLoading } = useWorkspaces();
+  const { data: tree } = useWorkspaceTree(value ?? "");
+  const current = workspaces.find(w => w.id === value);
+
+  return (
+    <div className="relative" onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className={cn(
+          "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border transition-all",
+          value
+            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+            : "bg-card/40 border-border/50 text-muted-foreground hover:text-foreground",
+        )}
+      >
+        {value ? <FolderOpen className="h-3 w-3" /> : <FolderClosed className="h-3 w-3" />}
+        <span>{current?.name ?? "Workspace"}</span>
+        <ChevronDown className="h-2.5 w-2.5" />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute top-full left-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 w-64 animate-scale-in overflow-hidden">
+            {/* None option */}
+            <button
+              onClick={() => { onChange(null); setOpen(false); }}
+              className={cn(
+                "w-full flex items-center gap-2 px-3 py-2.5 text-xs transition-all hover:bg-white/[0.04]",
+                !value ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              <FolderClosed className="h-3.5 w-3.5 shrink-0" />
+              <span>No workspace (basic chat)</span>
+            </button>
+
+            {isLoading ? (
+              <div className="px-3 py-4 text-center text-xs text-muted-foreground/50">
+                <Loader2 className="h-4 w-4 animate-spin mx-auto mb-1" />
+              </div>
+            ) : workspaces.length === 0 ? (
+              <p className="px-3 py-3 text-xs text-muted-foreground/50 text-center">
+                No workspaces — create one in Projects tab.
+              </p>
+            ) : (
+              workspaces.map(w => (
+                <button
+                  key={w.id}
+                  onClick={() => { onChange(w.id); setOpen(false); }}
+                  className={cn(
+                    "w-full flex items-start gap-2 px-3 py-2.5 text-xs transition-all hover:bg-white/[0.04] text-left border-t border-border/30",
+                    value === w.id ? "bg-primary/8 text-primary" : "text-muted-foreground",
+                  )}
+                >
+                  <FolderOpen className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-400" />
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{w.name}</div>
+                    <div className="text-[10px] text-muted-foreground/50 mt-0.5">
+                      {w.file_count} files
+                    </div>
+                  </div>
+                </button>
+              ))
+            )}
+
+            {/* Tree preview for selected */}
+            {value && tree && tree.tree.length > 0 && (
+              <div className="border-t border-border/40 px-3 py-2 max-h-36 overflow-y-auto">
+                <MiniTree nodes={tree.tree} />
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 // ── Mode metadata ─────────────────────────────────────────────────────────────
 const MODE_META: Record<string, { Icon: React.ElementType; label: string; color: string; desc: string }> = {
@@ -244,6 +401,8 @@ export default function WorkspacePage() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [showModePanel, setShowModePanel] = useState(false);
   const [showEffortPanel, setShowEffortPanel] = useState(false);
+  // ── Workspace context for agent tool-use ───────────────────────────────────
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
 
   // Set initial session once loaded
   useEffect(() => {
@@ -387,6 +546,12 @@ export default function WorkspacePage() {
               )}
             </div>
 
+            {/* Workspace selector */}
+            <WorkspaceSelector
+              value={activeWorkspaceId}
+              onChange={setActiveWorkspaceId}
+            />
+
             <div className="ml-auto flex items-center gap-1.5 text-[10px] text-muted-foreground/40 font-mono">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/60" />
               online
@@ -401,6 +566,7 @@ export default function WorkspacePage() {
             sessionId={activeSessionId}
             mode={activeSession?.mode || SessionMode.orchestrator}
             effort={activeSession?.effort || SessionEffort.medium}
+            workspaceId={activeWorkspaceId ?? undefined}
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6 text-center animate-fade-in">
@@ -425,11 +591,10 @@ export default function WorkspacePage() {
 
 // ── Chat Panel ────────────────────────────────────────────────────────────────
 // Key is passed from parent (key={activeSessionId}) so this remounts per session
-function ChatPanel({ sessionId, mode, effort }: {
-  sessionId: string; mode: string; effort: string;
+function ChatPanel({ sessionId, mode, effort, workspaceId }: {
+  sessionId: string; mode: string; effort: string; workspaceId?: string;
 }) {
   const { data: messages = [], isLoading } = useMessages(sessionId);
-  // ← Correct: useMessageMutations takes sessionId, returns { add, isAdding }
   const { add: addMessage } = useMessageMutations(sessionId);
   const { toast } = useToast();
 
@@ -437,6 +602,8 @@ function ChatPanel({ sessionId, mode, effort }: {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamContent, setStreamContent] = useState("");
   const [streamThinking, setStreamThinking] = useState("");
+  // Tool-use events during agent loop
+  const [agentEvents, setAgentEvents] = useState<AgentChatEvent[]>([]);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -465,53 +632,62 @@ function ChatPanel({ sessionId, mode, effort }: {
     setIsStreaming(true);
     setStreamContent("");
     setStreamThinking("");
+    setAgentEvents([]);
 
     try {
-      // 1. Save user message to backend (correct: add(data), not add(sessionId, data))
+      // 1. Save user message
       const userMsg = await addMessage({ role: "user", content: text });
       setNewIds(prev => new Set([...prev, userMsg.id]));
 
-      // 2. Fetch RAG context from backend
-      let systemPrompt = "You are Requiem Agent 1 — a powerful AI coding and research assistant. Be thorough, precise, and proactive.";
-      try {
-        const rag = await fetchRagContext(text, sessionId, 1200);
-        if (rag?.systemContext) {
-          systemPrompt += `\n\nRelevant memory:\n${rag.systemContext}`;
-        }
-      } catch {
-        // RAG optional — continue without it
-      }
-
-      // 3. Build message history (last 12 exchanges)
-      const history = messages
-        .slice(-12)
-        .filter((m: any) => m.role === "user" || m.role === "assistant")
-        .map((m: any) => ({ role: m.role, content: m.content }));
-
-      const apiMessages = [
-        { role: "system", content: systemPrompt },
-        ...history,
-        { role: "user", content: text },
-      ];
-
-      // 4. Stream from backend /api/zen/chat (goes through Rust/Axum → Zen AI via SOCKS5 proxies)
       abortRef.current = new AbortController();
-      let full = "";
+      let cleanFull = "";
 
-      for await (const chunk of streamZenChat(modelId, apiMessages, abortRef.current.signal)) {
-        full += chunk;
-        // Clean display: strip JSON wrapper, fix escaped \n
-        let displayChunk = extractTextFromJson(full) ?? full;
-        displayChunk = displayChunk.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
-        setStreamContent(displayChunk);
+      // ── Path A: Workspace agent loop (tool-use) ───────────────────────────
+      if (workspaceId) {
+        for await (const event of streamAgentChat(
+          text, workspaceId, sessionId, mode, effort, abortRef.current.signal
+        )) {
+          if (event.type === "thinking" || event.type === "tool_use" || event.type === "tool_result") {
+            setAgentEvents(prev => [...prev, event]);
+          } else if (event.type === "text") {
+            cleanFull = event.content ?? "";
+            setStreamContent(cleanFull);
+          } else if (event.type === "error") {
+            throw new Error(event.message ?? "Agent error");
+          }
+        }
+      }
+      // ── Path B: Standard zen chat (no workspace) ──────────────────────────
+      else {
+        let systemPrompt = "You are Requiem Agent 1 — a powerful AI coding and research assistant. Be thorough, precise, and proactive.";
+        try {
+          const rag = await fetchRagContext(text, sessionId, 1200);
+          if (rag?.systemContext) systemPrompt += `\n\nRelevant memory:\n${rag.systemContext}`;
+        } catch { /* RAG optional */ }
+
+        const history = messages
+          .slice(-12)
+          .filter((m: any) => m.role === "user" || m.role === "assistant")
+          .map((m: any) => ({ role: m.role, content: m.content }));
+
+        const apiMessages = [
+          { role: "system", content: systemPrompt },
+          ...history,
+          { role: "user", content: text },
+        ];
+
+        let full = "";
+        for await (const chunk of streamZenChat(modelId, apiMessages, abortRef.current.signal)) {
+          full += chunk;
+          let display = extractTextFromJson(full) ?? full;
+          display = display.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
+          setStreamContent(display);
+        }
+        cleanFull = (extractTextFromJson(full) ?? full)
+          .replace(/\\n/g, "\n").replace(/\\t/g, "\t");
       }
 
-      // Extract clean text if the full response ended up being JSON-wrapped
-      let cleanFull = extractTextFromJson(full) ?? full;
-      // Fix escaped newlines in stored content
-      cleanFull = cleanFull.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
-
-      // 5. Save assistant message to backend
+      // 2. Save assistant message
       const assistantMsg = await addMessage({
         role: "assistant",
         content: cleanFull,
@@ -519,7 +695,7 @@ function ChatPanel({ sessionId, mode, effort }: {
       } as any);
       setNewIds(prev => new Set([...prev, assistantMsg.id]));
 
-      // 6. Auto-store to RAG memory (fire & forget)
+      // 3. Auto-store to RAG
       autoStoreMemory(text, cleanFull, sessionId).catch(() => {});
 
     } catch (err: any) {
@@ -564,6 +740,15 @@ function ChatPanel({ sessionId, mode, effort }: {
               <MessageBubble key={m.id} message={m} isNew={newIds.has(m.id)} />
             ))}
 
+            {/* Agent tool-use events */}
+            {agentEvents.length > 0 && (
+              <div className="space-y-1.5 animate-fade-in">
+                {agentEvents.map((ev, i) => (
+                  <ToolUseCard key={i} event={ev} />
+                ))}
+              </div>
+            )}
+
             {/* Streaming message */}
             {isStreaming && (
               <div className="flex justify-start animate-fade-in">
@@ -575,6 +760,11 @@ function ChatPanel({ sessionId, mode, effort }: {
                           <Bot className="h-2.5 w-2.5 text-primary" />
                         </div>
                         <span className="text-[10px] text-muted-foreground/50 font-mono">Requiem Agent 1</span>
+                        {workspaceId && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono ml-1">
+                            workspace mode
+                          </span>
+                        )}
                       </div>
                       <FormattedMessage content={streamContent} />
                       <span className="stream-cursor" />

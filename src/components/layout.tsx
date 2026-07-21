@@ -1,15 +1,15 @@
 import { Link, useLocation } from "wouter";
-import { Terminal, Bot as BotIcon, Settings, FolderOpen, Brain, CheckSquare } from "lucide-react";
+import { Terminal, Bot as BotIcon, Settings, FolderOpen, Brain, CheckSquare, FolderClosed } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 
 const NAV_ITEMS = [
-  { href: "/",         label: "Agent",    Icon: Terminal    },
-  { href: "/files",    label: "Files",    Icon: FolderOpen  },
-  { href: "/memory",   label: "Memory",   Icon: Brain       },
-  { href: "/bots",     label: "Bots",     Icon: BotIcon     },
-  { href: "/tasks",    label: "Tasks",    Icon: CheckSquare },
-  { href: "/settings", label: "Settings", Icon: Settings    },
+  { href: "/",           label: "Agent",    Icon: Terminal    },
+  { href: "/workspaces", label: "Projects", Icon: FolderClosed },
+  { href: "/files",      label: "Files",    Icon: FolderOpen  },
+  { href: "/memory",     label: "Memory",   Icon: Brain       },
+  { href: "/bots",       label: "Bots",     Icon: BotIcon     },
+  { href: "/settings",   label: "Settings", Icon: Settings    },
 ];
 
 // ── Telegram safe-area detection ─────────────────────────────────────────────
