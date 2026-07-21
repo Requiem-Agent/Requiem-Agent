@@ -133,17 +133,24 @@ export default function FilesPage() {
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const text = await file.text();
-    try {
-      await uploadMutation.mutateAsync({ name: file.name, content: text });
-      toast({ title: "File uploaded", description: file.name });
-      refetch();
-    } catch {
-      toast({ title: "Upload failed", variant: "destructive" });
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    let uploaded = 0;
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      try {
+        const text = await file.text();
+        await uploadMutation.mutateAsync({ name: file.name, content: text });
+        uploaded++;
+      } catch {
+        toast({ title: `Failed: ${file.name}`, variant: "destructive" });
+      }
     }
-    e.target.value = "";
+    if (uploaded > 0) {
+      toast({ title: uploaded === 1 ? "File uploaded" : uploaded + " files uploaded" });
+      refetch();
+    }
+    if (e.target) e.target.value = "";
   }
 
   const totalSize = files.reduce((acc, f) => acc + (f.size ?? 0), 0);
@@ -330,18 +337,21 @@ export default function FilesPage() {
                   >
                     <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
                   </button>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadMutation.isPending}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-all active:scale-95 shadow-md shadow-primary/20"
-                  >
+                  <label className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-all active:scale-95 shadow-md shadow-primary/20 cursor-pointer select-none">
                     {uploadMutation.isPending
                       ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                       : <Upload className="h-3.5 w-3.5" />
                     }
                     Upload
-                  </button>
-                  <input ref={fileInputRef} type="file" className="hidden" onChange={handleUpload} />
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onChange={handleUpload}
+                      disabled={uploadMutation.isPending}
+                    />
+                  </label>
                 </div>
               </div>
 

@@ -53,12 +53,26 @@ const TOOL_BORDER: Record<string, string> = {
 function ToolUseCard({ event }: { event: AgentChatEvent }) {
   const [open, setOpen] = useState(false);
 
-  if (event.type === "thinking") return (
-    <div className="flex items-center gap-2 py-1.5 px-3 rounded-xl bg-violet-500/8 border border-violet-500/20 text-xs font-mono text-violet-400 animate-fade-in">
-      <BrainCircuit className="h-3 w-3 shrink-0 animate-pulse" />
-      <span className="truncate">{event.content}</span>
-    </div>
-  );
+  if (event.type === "thinking") {
+    // Sanitize: remove any model names that might appear
+    const thinkingText = (event.content ?? "")
+      .replace(/deepseek[^\s,]*/gi, "")
+      .replace(/mimo[^\s,]*/gi, "")
+      .replace(/hy3[^\s,]*/gi, "")
+      .replace(/nemotron[^\s,]*/gi, "")
+      .replace(/north-mini[^\s,]*/gi, "")
+      .replace(/big-pickle[^\s,]*/gi, "")
+      .replace(/gpt-[^\s,]*/gi, "")
+      .replace(/claude[^\s,]*/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    return (
+      <div className="flex items-center gap-2 py-1.5 px-3 rounded-xl bg-violet-500/8 border border-violet-500/20 text-xs font-mono text-violet-400 animate-fade-in">
+        <BrainCircuit className="h-3 w-3 shrink-0 animate-pulse" />
+        <span className="truncate">{thinkingText || "processing…"}</span>
+      </div>
+    );
+  }
 
   if (event.type === "memory_hit") return (
     <div className="flex items-center gap-2 py-1.5 px-3 rounded-xl bg-indigo-500/8 border border-indigo-500/20 text-xs font-mono text-indigo-400 animate-fade-in">
