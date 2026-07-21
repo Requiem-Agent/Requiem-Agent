@@ -17,6 +17,7 @@ import MemoryPage from '@/pages/memory';
 import TasksPage from '@/pages/tasks';
 import BotsPage from '@/pages/bots';
 import SettingsPage from '@/pages/settings';
+import SandboxPage from '@/pages/sandbox';
 import NotFound from '@/pages/not-found';
 
 const queryClient = new QueryClient({
@@ -37,6 +38,7 @@ function Router() {
       <Route path="/tasks" component={TasksPage} />
       <Route path="/bots" component={BotsPage} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/sandbox" component={SandboxPage} />
       <Route component={NotFound} />
     </Switch>
   );
