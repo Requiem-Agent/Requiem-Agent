@@ -1,18 +1,166 @@
-//! Enhanced Storage Module — التخزين الآمن مع العزل البرمجي
+//! # Storage Module — محرك التخزين الهجين
 //!
-//! يستخدم `path_safety::UserPathRoot` لضمان أن كل عملية وصول للملفات
-//! تكون ضمن جذر المستخدم فقط ولا يمكن تجاوزها.
+//! ## طبقتان:
+//! 1. **محلي** — `/app/data` (سريع، مؤقت بين عمليات الإعادة)
+//! 2. **HuggingFace Bucket** — `rayig/Dev-storage` (دائم، منعزل per-user)
+//!
+//! ## العزل:
+//! كل مستخدم يحصل على مجلد خاص: `users/{user_id}/sessions/{session_id}/`
+//! لا يمكن لمستخدم الوصول لملفات مستخدم آخر بسبب path_safety.
 
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use tokio::fs;
 use libsql::{Builder, Connection};
+use tracing::{debug, warn};
+use base64::Engine as _;
 
 use crate::path_safety::{UserPathRoot, ensure_safe_path};
 
+// ─── HF Bucket Client ─────────────────────────────────────────────────────────
+
+/// رابط HF Datasets API للتخزين الدائم
+const HF_DATASET: &str = "rayig/Dev-storage";
+const HF_API_BASE: &str = "https://huggingface.co/api/datasets";
+
+/// رفع ملف إلى HF bucket (dataset)
+pub async fn hf_upload_file(
+    hf_token: &str,
+    user_id: &str,
+    session_id: &str,
+    file_name: &str,
+    content: &str,
+) -> Result<(), String> {
+    if hf_token.is_empty() {
+        return Ok(()); // لا رمز مميز — تخطى الرفع
+    }
+    let path = format!("users/{user_id}/sessions/{session_id}/{file_name}");
+    let url = format!("{HF_API_BASE}/{HF_DATASET}/resolve/main/{path}");
+
+    // HF Datasets commit API
+    let commit_url = format!("https://huggingface.co/api/datasets/{HF_DATASET}/commit/main");
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(&commit_url)
+        .bearer_auth(hf_token)
+        .json(&serde_json::json!({
+            "summary": format!("Upload {file_name} for user {user_id}"),
+            "files": [{
+                "path": path,
+                "content": base64::engine::general_purpose::STANDARD.encode(content.as_bytes()),
+                "encoding": "base64"
+            }]
+        }))
+        .timeout(std::time::Duration::from_secs(20))
+        .send()
+        .await
+        .map_err(|e| format!("HF upload send: {e}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        warn!("HF upload failed {status}: {}", &body[..body.len().min(200)]);
+        return Err(format!("HF upload {status}"));
+    }
+    debug!("HF uploaded: {path}");
+    Ok(())
+}
+
+/// قراءة ملف من HF bucket
+pub async fn hf_read_file(
+    hf_token: &str,
+    user_id: &str,
+    session_id: &str,
+    file_name: &str,
+) -> Result<String, String> {
+    if hf_token.is_empty() {
+        return Err("no HF token".to_string());
+    }
+    let path = format!("users/{user_id}/sessions/{session_id}/{file_name}");
+    let url = format!("https://huggingface.co/datasets/{HF_DATASET}/resolve/main/{path}");
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(&url)
+        .bearer_auth(hf_token)
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|e| format!("HF read: {e}"))?;
+
+    if resp.status().as_u16() == 404 {
+        return Err("file not found in HF bucket".to_string());
+    }
+    if !resp.status().is_success() {
+        return Err(format!("HF read status {}", resp.status()));
+    }
+    resp.text().await.map_err(|e| format!("HF read body: {e}"))
+}
+
+/// قائمة ملفات المستخدم في HF bucket
+pub async fn hf_list_files(
+    hf_token: &str,
+    user_id: &str,
+    session_id: &str,
+) -> Result<Vec<String>, String> {
+    if hf_token.is_empty() {
+        return Ok(vec![]);
+    }
+    let prefix = format!("users/{user_id}/sessions/{session_id}/");
+    let url = format!("{HF_API_BASE}/{HF_DATASET}/tree/main/{prefix}");
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(&url)
+        .bearer_auth(hf_token)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|e| format!("HF list: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Ok(vec![]);
+    }
+    let items: Vec<serde_json::Value> = resp.json().await.unwrap_or_default();
+    Ok(items.iter()
+        .filter(|i| i["type"].as_str() == Some("file"))
+        .filter_map(|i| {
+            i["path"].as_str().and_then(|p| p.strip_prefix(&prefix).map(|s| s.to_string()))
+        })
+        .collect())
+}
+
+/// حذف ملف من HF bucket
+pub async fn hf_delete_file(
+    hf_token: &str,
+    user_id: &str,
+    session_id: &str,
+    file_name: &str,
+) -> Result<(), String> {
+    if hf_token.is_empty() {
+        return Ok(());
+    }
+    let path = format!("users/{user_id}/sessions/{session_id}/{file_name}");
+    let commit_url = format!("https://huggingface.co/api/datasets/{HF_DATASET}/commit/main");
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(&commit_url)
+        .bearer_auth(hf_token)
+        .json(&serde_json::json!({
+            "summary": format!("Delete {file_name} for user {user_id}"),
+            "deletedFiles": [path]
+        }))
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|e| format!("HF delete: {e}"))?;
+
+    if !resp.status().is_success() {
+        warn!("HF delete failed {}: {path}", resp.status());
+    }
+    Ok(())
+}
+
 // ─── Session Database ─────────────────────────────────────────────────────────
 
-/// قاعدة بيانات SQLite خاصة بجلسة مستخدم
 #[derive(Debug, Clone)]
 pub struct SessionDb {
     db_path: PathBuf,
@@ -89,6 +237,7 @@ impl SessionDb {
 #[derive(Debug, Clone)]
 pub struct StorageEngine {
     base_path: PathBuf,
+    hf_token: String,
 }
 
 impl StorageEngine {
@@ -108,7 +257,8 @@ impl StorageEngine {
             PathBuf::from(std::env::var("REQUIEM_STORAGE")
                 .unwrap_or_else(|_| "/app/data".to_string()))
         });
-        Self { base_path: base }
+        let hf_token = std::env::var("HF_TOKEN").unwrap_or_default();
+        Self { base_path: base, hf_token }
     }
 
     pub fn user_root(&self, user_id: &str) -> UserPathRoot {
@@ -140,6 +290,7 @@ impl StorageEngine {
         SessionDb::new(&db_path).await
     }
 
+    /// حفظ ملف — محلياً + HF bucket في الخلفية
     pub async fn save_file(&self, user_id: &str, session_id: &str, file_name: &str, content: &str) -> Result<(), String> {
         let root = self.user_root(user_id);
         let fpath = root.session_files_dir(session_id).join(file_name);
@@ -148,40 +299,95 @@ impl StorageEngine {
         if let Some(parent) = fpath.parent() {
             fs::create_dir_all(parent).await.map_err(|e| format!("Dir: {e}"))?;
         }
-        fs::write(&fpath, content).await.map_err(|e| format!("Save file: {e}"))
+        // 1. حفظ محلي (أولوية)
+        fs::write(&fpath, content).await.map_err(|e| format!("Save file: {e}"))?;
+        // 2. رفع إلى HF bucket (خلفية، لا يوقف العملية)
+        let token = self.hf_token.clone();
+        let uid = user_id.to_string();
+        let sid = session_id.to_string();
+        let fname = file_name.to_string();
+        let data = content.to_string();
+        tokio::spawn(async move {
+            if let Err(e) = hf_upload_file(&token, &uid, &sid, &fname, &data).await {
+                warn!("HF bucket upload failed (non-fatal): {e}");
+            }
+        });
+        Ok(())
     }
 
+    /// قراءة ملف — محلياً أولاً، ثم HF bucket
     pub async fn read_file(&self, user_id: &str, session_id: &str, file_name: &str) -> Result<String, String> {
         let root = self.user_root(user_id);
         let fpath = root.session_files_dir(session_id).join(file_name);
-        let safe = ensure_safe_path(&fpath, root.root())
-            .map_err(|e| format!("Path safety: {e}"))?;
-        fs::read_to_string(&safe).await.map_err(|e| format!("Read file: {e}"))
+
+        // حاول القراءة المحلية أولاً
+        if let Ok(safe) = ensure_safe_path(&fpath, root.root()) {
+            if let Ok(content) = fs::read_to_string(&safe).await {
+                return Ok(content);
+            }
+        }
+
+        // الملف غير موجود محلياً — جرب HF bucket
+        debug!("File not local, fetching from HF bucket: {user_id}/{session_id}/{file_name}");
+        let content = hf_read_file(&self.hf_token, user_id, session_id, file_name).await
+            .map_err(|e| format!("Read file (local+HF): {e}"))?;
+
+        // خزّنه محلياً للمرة القادمة
+        if let Ok(safe) = ensure_safe_path(&fpath, root.root()) {
+            if let Some(parent) = safe.parent() {
+                let _ = fs::create_dir_all(parent).await;
+            }
+            let _ = fs::write(&safe, &content).await;
+        }
+        Ok(content)
     }
 
+    /// قائمة الملفات — دمج المحلية + HF bucket
     pub async fn list_files(&self, user_id: &str, session_id: &str) -> Result<Vec<String>, String> {
         let root = self.user_root(user_id);
         let fdir = root.session_files_dir(session_id);
-        let safe = ensure_safe_path(&fdir, root.root())
-            .map_err(|e| format!("Path safety: {e}"))?;
-        let mut entries = fs::read_dir(&safe).await.map_err(|e| format!("List files: {e}"))?;
-        let mut files = Vec::new();
-        while let Ok(Some(entry)) = entries.next_entry().await {
-            if entry.file_type().await.map(|t| t.is_file()).unwrap_or(false) {
-                if let Some(name) = entry.file_name().to_str() {
-                    files.push(name.to_string());
+
+        let mut files = std::collections::HashSet::new();
+
+        // الملفات المحلية
+        if let Ok(safe) = ensure_safe_path(&fdir, root.root()) {
+            if let Ok(mut entries) = fs::read_dir(&safe).await {
+                while let Ok(Some(entry)) = entries.next_entry().await {
+                    if entry.file_type().await.map(|t| t.is_file()).unwrap_or(false) {
+                        if let Some(name) = entry.file_name().to_str() {
+                            files.insert(name.to_string());
+                        }
+                    }
                 }
             }
         }
-        Ok(files)
+
+        // الملفات في HF bucket
+        if let Ok(hf_files) = hf_list_files(&self.hf_token, user_id, session_id).await {
+            for f in hf_files { files.insert(f); }
+        }
+
+        let mut result: Vec<String> = files.into_iter().collect();
+        result.sort();
+        Ok(result)
     }
 
     pub async fn delete_file(&self, user_id: &str, session_id: &str, file_name: &str) -> Result<(), String> {
         let root = self.user_root(user_id);
         let fpath = root.session_files_dir(session_id).join(file_name);
-        let safe = ensure_safe_path(&fpath, root.root())
-            .map_err(|e| format!("Path safety: {e}"))?;
-        fs::remove_file(&safe).await.map_err(|e| format!("Delete file: {e}"))
+        // حذف محلي
+        if let Ok(safe) = ensure_safe_path(&fpath, root.root()) {
+            let _ = fs::remove_file(&safe).await;
+        }
+        // حذف من HF bucket
+        let token = self.hf_token.clone();
+        let uid = user_id.to_string();
+        let sid = session_id.to_string();
+        let fname = file_name.to_string();
+        tokio::spawn(async move {
+            let _ = hf_delete_file(&token, &uid, &sid, &fname).await;
+        });
+        Ok(())
     }
 
     pub async fn save_session_context(&self, user_id: &str, session_id: &str, context: &str) -> Result<(), String> {

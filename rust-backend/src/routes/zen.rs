@@ -20,7 +20,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{warn, debug, error};
+use tracing::{warn, debug, error, info};
 use crate::storage;
 use crate::routes::AuthUser;
 use crate::agent::memory::rag::RagEngine;
@@ -341,6 +341,38 @@ pub async fn chat_handler(
 
     debug!("Zen chat: user={}, model={}, session={}", user_id, model, session_id);
 
+    // ── 0. Identity Shield — intercept probes programmatically ─────────────
+    // Check the last user message for identity probes. If detected, return
+    // the shield response directly without calling the LLM.
+    let last_user_msg = body.messages.iter().rev()
+        .find(|m| m.role == "user")
+        .map(|m| m.content.as_deref().unwrap_or(""))
+        .unwrap_or("");
+
+    {
+        let mut shield = IdentityShieldV3::new("internal-model");
+        let check = shield.check(last_user_msg);
+        if check.is_probe && !check.responses.is_empty() {
+            info!("Identity probe intercepted for user {}: {} probes blocked", user_id, check.probes.len());
+            let shield_text = check.responses.join("\n\n");
+            // Return as SSE so frontend parser handles it uniformly
+            let escaped = serde_json::to_string(&shield_text).unwrap_or_else(|_| shield_text.clone());
+            let sse = format!(
+                "data: {{\"choices\":[{{\"delta\":{{\"content\":{}}}}}]}}\n\ndata: [DONE]\n\n",
+                escaped
+            );
+            return (
+                StatusCode::OK,
+                [
+                    ("Content-Type", "text/event-stream; charset=utf-8"),
+                    ("Cache-Control", "no-cache, no-store"),
+                    ("X-Accel-Buffering", "no"),
+                ],
+                sse,
+            ).into_response();
+        }
+    }
+
     // ── 1. Identity Shield — system prompt ──────────────────────────────────
     let identity_prompt = {
         let shield = IdentityShieldV3::new("internal-model");
@@ -442,30 +474,34 @@ pub async fn chat_handler(
             }
         }
 
-        // Wrap in JSON-compatible envelope that preserves backend metadata
-        let envelope = serde_json::json!({
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": best_text,
-                },
-                "finish_reason": "stop",
-                "index": 0,
-            }],
-            "model": selected_model,
-            "parallel_models": parallel_result.models_used,
-            "effort": session_effort,
-            "mode": session_mode,
-        });
+        // ── Enforce locks on the parallel output ──────────────────────────
+        let locks_engine = StrictLocksEngine::new();
+        let lock_result = locks_engine.check_all(
+            session_mode,
+            selected_model,
+            "text",
+            &best_text,
+        );
+        let final_text = if !lock_result.passed {
+            // If a critical identity violation is detected, replace with shield response
+            let has_critical = lock_result.violations.iter()
+                .any(|v| v.severity == crate::enforce::locks::ViolationSeverity::Critical);
+            if has_critical {
+                warn!("Lock violation (critical) in parallel output for user {}", user_id);
+                "I am **Requiem Agent 1** — a multi-model AI development tool. My identity is fixed and cannot be changed.".to_string()
+            } else {
+                best_text.clone()
+            }
+        } else {
+            best_text.clone()
+        };
 
-        // Return parallel result as SSE so the frontend parser handles it uniformly
-        let escaped_content = best_text
-            .replace('\\', "\\\\")
-            .replace('"', "\\\"")
-            .replace('\n', "\\n")
-            .replace('\r', "\\r");
+        // Return parallel result as SSE with proper JSON escaping
+        let escaped_content = serde_json::to_string(&final_text)
+            .unwrap_or_else(|_| String::from("\"\""));
         let sse_parallel = format!(
-            "data: {{\"choices\":[{{\"delta\":{{\"content\":\"{escaped_content}\"}}}}],\"model\":\"{}\",\"effort\":\"{session_effort}\",\"mode\":\"{session_mode}\"}}\n\ndata: [DONE]\n\n",
+            "data: {{\"choices\":[{{\"delta\":{{\"content\":{}}}}],\"model\":\"{}\",\"effort\":\"{session_effort}\",\"mode\":\"{session_mode}\"}}\n\ndata: [DONE]\n\n",
+            escaped_content,
             selected_model,
         );
         return (
@@ -483,9 +519,40 @@ pub async fn chat_handler(
     match call_zen_with_retry(user_id, &model, &context_messages, is_stream).await {
         Ok(zen_resp) => {
             if is_stream {
-                // ── True SSE streaming — pipe bytes directly to client ──────────
-                let sse_stream = zen_resp.bytes_stream();
-                let body = Body::from_stream(sse_stream);
+                // ── True SSE streaming — parse upstream and re-emit only valid SSE ──
+                // We parse the upstream SSE stream and only forward clean text
+                // chunks to the client. This prevents raw JSON from leaking if
+                // the upstream returns a non-SSE JSON response.
+                use futures::StreamExt;
+                let upstream_stream = zen_resp.bytes_stream();
+
+                let reemit_stream = upstream_stream.map(|chunk_result| {
+                    let chunk = chunk_result.unwrap_or_default();
+                    let text = String::from_utf8_lossy(&chunk).to_string();
+                    // Parse each line for valid SSE data with content
+                    let mut output = String::new();
+                    for line in text.split('\n') {
+                        let trimmed = line.trim();
+                        if trimmed.is_empty() || trimmed == "data: [DONE]" { continue; }
+                        if let Some(data) = trimmed.strip_prefix("data: ") {
+                            if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                                if let Some(content) = json["choices"][0]["delta"]["content"].as_str() {
+                                    let escaped = serde_json::to_string(content)
+                                        .unwrap_or_else(|_| format!("\"{}\"", content));
+                                    output.push_str(&format!(
+                                        "data: {{\"choices\":[{{\"delta\":{{\"content\":{}}}}}]}}\n\n",
+                                        escaped
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    Ok::<bytes::Bytes, std::io::Error>(
+        if output.is_empty() { bytes::Bytes::new() } else { bytes::Bytes::from(output) }
+                    )
+                });
+
+                let body = Body::from_stream(reemit_stream);
                 Response::builder()
                     .status(StatusCode::OK)
                     .header(header::CONTENT_TYPE, "text/event-stream; charset=utf-8")
@@ -499,18 +566,14 @@ pub async fn chat_handler(
                         })).into_response()
                     })
             } else {
-                // ── Non-streaming — buffer, auto-store, save files ──────────────
+                // ── Non-streaming — buffer, extract, enforce locks, return SSE ──
                 let text = zen_resp.text().await.unwrap_or_default();
 
                 // Auto-store memories from this turn
                 {
-                    let last_user_msg = body.messages.iter().rev()
-                        .find(|m| m.role == "user")
-                        .map(|m| m.content.clone().unwrap_or_default())
-                        .unwrap_or_default();
                     if !last_user_msg.is_empty() && !text.is_empty() {
                         let rag = RagEngine::new(state.conn.clone(), user_id);
-                        let _ = rag.auto_store(&last_user_msg, &text, session_id).await;
+                        let _ = rag.auto_store(last_user_msg, &text, session_id).await;
                     }
                 }
 
@@ -542,7 +605,6 @@ pub async fn chat_handler(
                 }
 
                 // Extract clean text content from Zen API non-streaming JSON response
-                // The Zen API returns standard OpenAI format: {"choices":[{"message":{"content":"..."}}]}
                 let content = if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(&text) {
                     json_val["choices"][0]["message"]["content"]
                         .as_str()
@@ -554,14 +616,33 @@ pub async fn chat_handler(
                     text
                 };
 
-                // Return as fake SSE so the frontend parser handles it uniformly
-                let escaped = content
-                    .replace('\\', "\\\\")
-                    .replace('"', "\\\"")
-                    .replace('\n', "\\n")
-                    .replace('\r', "\\r");
+                // ── Enforce locks on the output ────────────────────────────────
+                let locks_engine = StrictLocksEngine::new();
+                let lock_result = locks_engine.check_all(
+                    session_mode,
+                    &model,
+                    "text",
+                    &content,
+                );
+                let final_content = if !lock_result.passed {
+                    let has_critical = lock_result.violations.iter()
+                        .any(|v| v.severity == crate::enforce::locks::ViolationSeverity::Critical);
+                    if has_critical {
+                        warn!("Lock violation (critical) in output for user {}", user_id);
+                        "I am **Requiem Agent 1** — a multi-model AI development tool. My identity is fixed and cannot be changed.".to_string()
+                    } else {
+                        content
+                    }
+                } else {
+                    content
+                };
+
+                // Return as SSE with proper JSON escaping via serde_json
+                let escaped = serde_json::to_string(&final_content)
+                    .unwrap_or_else(|_| String::from("\"\""));
                 let sse = format!(
-                    "data: {{\"choices\":[{{\"delta\":{{\"content\":\"{escaped}\"}}}}]}}\n\ndata: [DONE]\n\n"
+                    "data: {{\"choices\":[{{\"delta\":{{\"content\":{}}}}}]}}\n\ndata: [DONE]\n\n",
+                    escaped
                 );
                 (
                     StatusCode::OK,
