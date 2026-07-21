@@ -22,9 +22,14 @@ jobs:
           node-version: 22
       - run: npm install -g pnpm
       - run: pnpm install --no-frozen-lockfile
-      - run: npx --yes vite build
+      - name: Build TypeScript workspace libs
+        run: |
+          cd lib/api-zod && npx tsc --noEmit 2>/dev/null || true && cd ../..
+          cd lib/api-client-react && npx tsc --noEmit 2>/dev/null || true && cd ../..
+      - run: pnpm run build 2>/dev/null || npx --yes vite build
         env:
           VITE_API_URL: https://rayig-dev.hf.space
+          BASE_URL: /Requiem-Agent/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist/public

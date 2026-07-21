@@ -69,16 +69,16 @@ function BotCard({
         <p className="text-xs text-muted-foreground/60 leading-relaxed">{bot.description}</p>
       )}
 
-      {/* HF URL */}
-      {bot.hf_space_url && (
+      {/* HF URL — API returns camelCase hfSpaceUrl */}
+      {(bot.hfSpaceUrl || bot.hf_space_url) && (
         <a
-          href={bot.hf_space_url}
+          href={bot.hfSpaceUrl || bot.hf_space_url}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-1.5 text-[10px] text-primary/70 hover:text-primary font-mono transition-colors"
         >
           <ExternalLink className="h-3 w-3" />
-          {bot.hf_space_url.replace("https://", "")}
+          {(bot.hfSpaceUrl || bot.hf_space_url).replace("https://", "")}
         </a>
       )}
 

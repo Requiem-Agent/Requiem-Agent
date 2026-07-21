@@ -496,7 +496,11 @@ function ChatPanel({ sessionId, mode, effort }: {
 
       for await (const chunk of streamZenChat(modelId, apiMessages, abortRef.current.signal)) {
         full += chunk;
-        setStreamContent(full);
+        // During streaming: try to extract clean text from JSON wrapper in real-time
+        // If the whole buffer is valid JSON with {"response":"..."}, show extracted text
+        // Otherwise show the raw buffer (normal streaming)
+        const displayChunk = extractTextFromJson(full) ?? full;
+        setStreamContent(displayChunk);
       }
 
       // Extract clean text if the full response ended up being JSON-wrapped
