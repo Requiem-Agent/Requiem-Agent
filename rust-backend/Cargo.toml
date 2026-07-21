@@ -1,0 +1,91 @@
+[package]
+name = "requiem-server"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "requiem-server"
+path = "src/main.rs"
+
+[dependencies]
+# === Core Framework ===
+axum = { version = "0.8", features = ["ws", "macros", "multipart"] }
+tokio = { version = "1", features = ["full"] }
+tower = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.6", features = ["cors", "fs", "trace", "compression-gzip"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+toml = "0.8"
+
+# === HTTP & Networking ===
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "socks", "rustls-tls"] }
+url = "2"
+
+# === Database ===
+# libsql 0.6 doesn't exist — latest stable is 0.9.x
+libsql = { version = "0.9", features = ["remote"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "sqlite", "json"] }
+
+# === Search & Code Understanding ===
+grep-regex = "0.1"
+grep-searcher = "0.1"
+grep-matcher = "0.1"
+ignore = "0.4"
+walkdir = "2"
+
+# tree-sitter for AST parsing — tree-sitter 0.26 doesn't exist; use 0.24
+# Grammar crates pinned to versions compatible with tree-sitter 0.24 ABI
+tree-sitter = "0.24"
+tree-sitter-rust = "0.23"
+tree-sitter-typescript = "0.23"
+tree-sitter-python = "0.23"
+
+# Diff generation
+similar = "3"
+
+# === Version Control ===
+git2 = { version = "0.21", features = ["vendored-libgit2"] }
+
+# === Observability ===
+# opentelemetry 0.28 mismatches tracing-opentelemetry 0.33 (needs ^0.32).
+# Also: feature "tracing" was renamed to "trace" in opentelemetry 0.32.
+opentelemetry = { version = "0.32", features = ["trace", "metrics"] }
+tracing-opentelemetry = "0.33"
+lsp-types = "0.97"
+
+# Tracing / metrics
+prometheus = "0.13"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# === Utilities ===
+rand = "0.8"
+uuid = { version = "1", features = ["v4"] }
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+dotenvy = "0.15"
+anyhow = "1"
+thiserror = "2"
+
+# axum-extra 0.9 doesn't exist; use 0.12 which targets axum 0.8
+axum-extra = { version = "0.12", features = ["typed-header"] }
+headers = "0.4"
+libc = "0.2"
+csv = "1.3"
+futures = "0.3"
+bytes = "1"
+
+[dev-dependencies]
+proptest = "1"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
