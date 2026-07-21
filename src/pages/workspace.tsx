@@ -831,9 +831,12 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
 
     try {
       // 1. Save user message to DB (fire & don't block UI — optimistic already shown)
-      const userMsg = await addMessage({ role: "user", content: userDisplayContent || text || "[image]" }, true);
+      // Save user message. Use skipInvalidate=false so the cache refreshes
+      // immediately — this makes the real message replace the optimistic one atomically.
+      const userMsg = await addMessage({ role: "user", content: userDisplayContent || text || "[image]" }, false);
       setNewIds(prev => new Set([...prev, userMsg.id]));
-      // Clear optimistic now that real message is saved
+      // Now that messages[] has been invalidated and will refetch, clear optimistic.
+      // The real message will appear from the refetch; no gap.
       setOptimisticUserMsg(null);
 
       abortRef.current = new AbortController();
