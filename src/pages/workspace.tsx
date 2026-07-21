@@ -772,6 +772,8 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
 
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  // Optimistic user message — shown immediately before DB save completes
+  const [optimisticUserMsg, setOptimisticUserMsg] = useState<{id: string; content: string} | null>(null);
   const [streamContent, setStreamContent] = useState("");
   const [streamThinking, setStreamThinking] = useState("");
   const [lastThinking, setLastThinking] = useState("");
@@ -807,25 +809,32 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
     const hasImages = attachedImages.length > 0;
     if (!text && !hasImages) return;
     if (isStreaming) return;
+
     setInput("");
     const imagesToSend = [...attachedImages];
     setAttachedImages([]);
-    setIsStreaming(true);
     setStreamContent("");
     setStreamThinking("");
     setLastThinking("");
     setAgentEvents([]);
     setPendingMessage(null);
 
-    // Build display content for user message (include image count if any)
+    // Build display content for user message
     const userDisplayContent = hasImages
       ? `${text || ""}${text ? "\n" : ""}[${imagesToSend.length} image${imagesToSend.length > 1 ? "s" : ""} attached]`
       : text;
 
+    // ── OPTIMISTIC UPDATE: show user message IMMEDIATELY before any async work ──
+    const optimisticId = `opt_${Date.now()}`;
+    setOptimisticUserMsg({ id: optimisticId, content: userDisplayContent || "[image]" });
+    setIsStreaming(true);
+
     try {
-      // 1. Save user message — skip invalidate to avoid a re-fetch mid-stream
+      // 1. Save user message to DB (fire & don't block UI — optimistic already shown)
       const userMsg = await addMessage({ role: "user", content: userDisplayContent || text || "[image]" }, true);
       setNewIds(prev => new Set([...prev, userMsg.id]));
+      // Clear optimistic now that real message is saved
+      setOptimisticUserMsg(null);
 
       abortRef.current = new AbortController();
       let cleanFull = "";
@@ -926,6 +935,9 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
       setStreamThinking("");
       setLastThinking("");
       setPendingMessage(null);
+      setOptimisticUserMsg(null);
+      // Invalidate so any partial saves show up
+      invalidateMessages();
     }
   }
 
@@ -935,8 +947,9 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
     setStreamContent("");
     setStreamThinking("");
     setLastThinking("");
-    // Keep agentEvents visible; don't clear them on abort
     setPendingMessage(null);
+    setOptimisticUserMsg(null);
+    invalidateMessages();
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -958,6 +971,15 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
             {messages.map((m: any) => (
               <MessageBubble key={m.id} message={m} isNew={newIds.has(m.id)} />
             ))}
+
+            {/* Optimistic user message — shown immediately, disappears once in messages[] */}
+            {optimisticUserMsg && !messages.find((m: any) => m.content === optimisticUserMsg.content && m.role === "user") && (
+              <div className="flex justify-end animate-fade-in">
+                <div className="msg-user border rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[85%] text-sm leading-relaxed">
+                  {optimisticUserMsg.content}
+                </div>
+              </div>
+            )}
 
             {/* Agent tool-use events — show while streaming AND persist after (collapsed "done" state) */}
             {agentEvents.length > 0 && (
