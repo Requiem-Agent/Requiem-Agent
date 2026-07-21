@@ -1,6 +1,8 @@
 use anyhow::Result;
 use libsql::{Builder, Connection};
 use std::sync::Arc;
+// S3-02: per-user rate limit state
+use crate::rate_limit::{MultiEndpointRateLimiter, RateLimitConfig, EndpointConfig};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -9,6 +11,8 @@ pub struct AppState {
     pub hf_token: String,
     pub hf_space_prdcn: String,
     pub session_secret: String,
+    // S3-02: Rate limiter مُشترَك عبر جميع الـ handlers
+    pub rate_limiter: Arc<MultiEndpointRateLimiter>,
 }
 
 impl AppState {
@@ -19,6 +23,44 @@ impl AppState {
         };
         let conn = db.connect()?;
 
+        // S3-02: بناء endpoints config مع حدود per-endpoint قابلة للتهيئة
+        let endpoints = vec![
+            EndpointConfig {
+                path_prefix: "/api/auth".to_string(),
+                max_requests: std::env::var("RATE_AUTH_MAX")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(10),
+                window_secs: 60,
+            },
+            EndpointConfig {
+                path_prefix: "/api/sandbox".to_string(),
+                max_requests: std::env::var("RATE_SANDBOX_MAX")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(20),
+                window_secs: 60,
+            },
+            EndpointConfig {
+                path_prefix: "/api/agent/chat".to_string(),
+                max_requests: std::env::var("RATE_CHAT_MAX")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(30),
+                window_secs: 60,
+            },
+            EndpointConfig {
+                path_prefix: "/api".to_string(),
+                max_requests: std::env::var("RATE_API_MAX")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(200),
+                window_secs: 60,
+            },
+        ];
+
+        let rate_config = RateLimitConfig { endpoints };
+
         Ok(Self {
             conn: Arc::new(conn),
             bot_token: std::env::var("TELEGRAM_BOT_TOKEN")
@@ -27,7 +69,18 @@ impl AppState {
             hf_space_prdcn: std::env::var("HF_SPACE_PRDCN")
                 .unwrap_or_else(|_| "rayig/Prdcn".to_string()),
             session_secret: std::env::var("SESSION_SECRET")
-                .unwrap_or_else(|_| "fallback-secret".to_string()),
+                .unwrap_or_else(|_| {
+                tracing::warn!("SESSION_SECRET not set — using ephemeral random secret. Sessions will not persist across restarts.");
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+                use std::time::{SystemTime, UNIX_EPOCH};
+                let mut hasher = DefaultHasher::new();
+                SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_nanos().hash(&mut hasher);
+                std::process::id().hash(&mut hasher);
+                format!("ephemeral-{:x}-{:x}", hasher.finish(), rand_u64())
+            }),
+            // S3-02: تهيئة MultiEndpointRateLimiter
+            rate_limiter: Arc::new(MultiEndpointRateLimiter::new(rate_config)),
         })
     }
 
@@ -81,9 +134,9 @@ impl AppState {
                 created_at TEXT NOT NULL
             );
 
-            -- ═══════════════════════════════════════════
+            -- ══════════════════════════════════════════════════════════════
             -- RAG MEMORY — persistent per-user store
-            -- ═══════════════════════════════════════════
+            -- ══════════════════════════════════════════════════════════════
             CREATE TABLE IF NOT EXISTS memories (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -106,9 +159,9 @@ impl AppState {
             CREATE INDEX IF NOT EXISTS idx_memories_type
                 ON memories(user_id, memory_type);
 
-            -- ═══════════════════════════════════════════
+            -- ══════════════════════════════════════════════════════════════
             -- SESSION SUMMARIES — auto-generated on delete
-            -- ═══════════════════════════════════════════
+            -- ══════════════════════════════════════════════════════════════
             CREATE TABLE IF NOT EXISTS session_summaries (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -124,4 +177,12 @@ impl AppState {
         ").await?;
         Ok(())
     }
+}
+
+fn rand_u64() -> u64 {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut h = DefaultHasher::new();
+    std::time::SystemTime::now().hash(&mut h);
+    h.finish()
 }

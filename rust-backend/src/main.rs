@@ -8,7 +8,7 @@ use axum::{
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tower_http::{
-    cors::{CorsLayer},
+    cors::{AllowOrigin, CorsLayer},
     services::ServeDir,
     trace::TraceLayer,
 };
@@ -26,6 +26,16 @@ mod sandbox;
 mod formats;
 mod enforce;
 mod agent;
+// S2-01: Error handling موحد — يستبدل unwrap() في production code
+mod error;
+// S2-02: ReAct Loop Engine — Reasoning + Acting pattern
+mod react_loop;
+// S2-03: Rate Limiting — Sliding Window per IP/user
+mod rate_limit;
+// S3-04: Prometheus Metrics endpoint
+mod metrics;
+// S3-05: Database Migration Runner
+mod migrate;
 
 pub use db::AppState;
 
@@ -76,6 +86,15 @@ async fn main() -> Result<()> {
         std::process::exit(1);
     }
     eprintln!("[requiem] schema ready");
+
+    // S3-05: تشغيل الـ migrations تلقائياً
+    eprintln!("[requiem] running database migrations...");
+    if let Err(e) = migrate::run(&state.conn).await {
+        // الـ migrations غير حرجة — نُسجِّل الخطأ ونكمل
+        eprintln!("[requiem] migration warning (non-fatal): {e:#}");
+    } else {
+        eprintln!("[requiem] migrations complete");
+    }
 
     let state = Arc::new(state);
 
@@ -150,7 +169,9 @@ async fn main() -> Result<()> {
     let public_router = Router::new()
         .route("/healthz", get(routes::health::health_check))
         .route("/auth", post(routes::auth::telegram_auth))
-        .route("/models", get(routes::models::list_models));
+        .route("/models", get(routes::models::list_models))
+        // S3-04: Prometheus metrics endpoint (public — لا يحتاج auth)
+        .route("/metrics", get(metrics::metrics_handler));
 
     // ── AXUM 0.8 ROUTER RULE ─────────────────────────────────────────────────
     // ALL .route() calls MUST come before .route_layer() and .layer() calls.
@@ -169,9 +190,11 @@ async fn main() -> Result<()> {
         .route("/sessions/{id}/messages", post(routes::messages::add_message))
         .route("/bots", get(routes::bots::list_bots))
         .route("/bots", post(routes::bots::create_bot))
+        .route("/bots/provision", post(routes::bots::provision_bot))
         .route("/bots/{id}", get(routes::bots::get_bot))
         .route("/bots/{id}", delete(routes::bots::delete_bot))
         .route("/bots/{id}/deploy", post(routes::bots::deploy_bot))
+        .route("/bots/{id}/link-token", post(routes::bots::link_bot_token))
         .route("/usage", get(routes::usage::get_usage))
         .route("/zen/chat", post(routes::zen::chat_handler))
         .route("/sessions/{id}/files", get(routes::files::list_files))
@@ -297,10 +320,10 @@ async fn main() -> Result<()> {
                 .patch(routes::workspaces::update_workspace)
                 .delete(routes::workspaces::delete_workspace))
         .route("/workspaces/{id}/tree",              get(routes::workspaces::get_tree))
-        .route("/workspaces/{id}/files/*path",       get(routes::workspaces::read_file)
+        .route("/workspaces/{id}/files/{*path}",       get(routes::workspaces::read_file)
                                                         .put(routes::workspaces::write_file)
                                                         .delete(routes::workspaces::delete_file))
-        .route("/workspaces/{id}/mkdir/*path",       post(routes::workspaces::mkdir))
+        .route("/workspaces/{id}/mkdir/{*path}",       post(routes::workspaces::mkdir))
         .route("/workspaces/{id}/clone",             post(routes::workspaces::clone_repo))
         // ── Auth middleware — MUST come after all .route() calls (Axum 0.8 rule) ──
         // route_layer applies to every route defined above it in this builder chain.
