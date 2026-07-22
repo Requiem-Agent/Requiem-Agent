@@ -402,7 +402,7 @@ Begin your reasoning:"#
         let category = TaskClassifier::classify(query);
         let models = TaskClassifier::suggest_models(category, Effort::Medium);
         
-        let model_refs: Vec<&str> = models.iter().map(|s| s.as_str()).collect();
+        let model_refs: Vec<&str> = models.iter().map(|s| s.as_ref()).collect();
         
         info!(
             "ReAct calling LLM: category={}, models={:?}, query_len={}",

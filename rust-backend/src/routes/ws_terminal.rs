@@ -68,7 +68,7 @@ pub fn terminal_router() -> Router {
 }
 
 /// معالج WebSocket Terminal — Sprint 2
-pub pub async fn ws_terminal_handler(
+pub async fn ws_terminal_handler(
     State(_state): State<Arc<AppState>>,
     ws: WebSocketUpgrade,
     Path(session_id): Path<Option<String>>,
