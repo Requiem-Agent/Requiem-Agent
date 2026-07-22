@@ -25,6 +25,7 @@
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
+use crate::orchestrator::{TaskClassifier, Effort, ParallelExecutor};
 
 // ─── الثوابت ───────────────────────────────────────────────────────────────
 
@@ -386,14 +387,61 @@ Begin your reasoning:"#
         )
     }
 
-    /// استدعاء LLM للتفكير (stub — يُستبدل بـ real LLM call في Sprint 3)
+    /// استدعاء LLM حقيقي عبر Orchestrator — Sprint 1 Alpha
     async fn call_llm_think(
         &self,
-        _conversation: &[serde_json::Value],
+        conversation: &[serde_json::Value],
     ) -> Result<String, String> {
-        // TODO Sprint 3: استبدال بـ real LLM call عبر orchestrator
-        // في الوقت الحالي نُرجع stub response
-        Ok("Final Answer: Task analysis complete. This is a stub response — real LLM integration coming in Sprint 3.".to_string())
+        // استخراج query من آخر رسالة
+        let query = conversation
+            .last()
+            .and_then(|m| m["content"].as_str())
+            .unwrap_or("");
+        
+        // تصنيف المهمة واختيار النماذج المناسبة
+        let category = TaskClassifier::classify(query);
+        let models = TaskClassifier::suggest_models(category, Effort::Medium);
+        
+        let model_refs: Vec<&str> = models.iter().map(|s| s.as_str()).collect();
+        
+        info!(
+            "ReAct calling LLM: category={}, models={:?}, query_len={}",
+            category, model_refs, query.len()
+        );
+        
+        let user_id = std::env::var("DEFAULT_USER_ID").unwrap_or_else(|_| "default".to_string());
+        
+        // تنفيذ متوازي على عدة نماذج واختيار الأفضل
+        let result = ParallelExecutor::execute_parallel(
+            &model_refs,
+            conversation,
+            &user_id,
+        ).await;
+        
+        match result.best_content {
+            Some(content) if !content.is_empty() => {
+                info!(
+                    "ReAct LLM response: model={}, len={}, duration={}ms",
+                    result.selected_from.as_deref().unwrap_or("unknown"),
+                    content.len(),
+                    result.total_duration_ms
+                );
+                Ok(content)
+            }
+            _ => {
+                // Fallback: استخدم نموذج واحد سريع
+                warn!("Parallel execution returned empty, trying direct fallback");
+                let fallback_result = ParallelExecutor::execute_parallel(
+                    &["deepseek-v4-flash-free"],
+                    conversation,
+                    &user_id,
+                ).await;
+                
+                fallback_result.best_content
+                    .filter(|c| !c.is_empty())
+                    .ok_or_else(|| "All LLM models failed to respond".to_string())
+            }
+        }
     }
 
     /// استخراج الإجابة النهائية من رد LLM

@@ -39,6 +39,7 @@ use crate::agent::tools::AgentTools;
 
 /// محرك الوكيل الرئيسي
 pub struct AgentEngine {
+    pub orchestrator_active: bool,
     pub mode: ModeController,
     pub thinking: ThinkingProtocol,
     pub sub_agents: SubAgentOrchestrator,
@@ -47,6 +48,8 @@ pub struct AgentEngine {
     pub pipeline: CompilerPipeline,
     pub context_router: ContextRouter,
     pub synergy: ModelSynergyCoordinator,
+    pub last_task_category: Option<crate::orchestrator::TaskCategory>,
+    pub last_model_used: Option<String>,
     pub rag: Arc<RwLock<RagEngine>>,
     pub identity_shield: IdentityShieldV3,
     pub tools: AgentTools,
@@ -59,6 +62,7 @@ pub struct AgentEngine {
 impl AgentEngine {
     /// إنشاء محرك وكيل جديد
     pub fn new(user_id: &str, mode: AgentMode, audit_log: Arc<RwLock<AuditLog>>, conn: Arc<Connection>) -> Self {
+            orchestrator_active: true,
         let thinking_mode = mode.constraints().thinking_mode;
         Self {
             mode: ModeController::new(mode),
@@ -83,6 +87,8 @@ impl AgentEngine {
             user_id: user_id.to_string(),
             steps_taken: 0,
             max_steps: 100,
+            last_task_category: None,
+            last_model_used: None,
         }
     }
 
@@ -109,11 +115,27 @@ impl AgentEngine {
         );
     }
 
+    /// تصنيف مهمة وتوجيهها عبر Orchestrator — Sprint 1B
+    pub fn classify_and_route(&mut self, query: &str, effort: Option<crate::orchestrator::Effort>) -> (crate::orchestrator::TaskCategory, Vec<String>) {
+        let category = crate::orchestrator::TaskClassifier::classify(query);
+        let effort = effort.unwrap_or(crate::orchestrator::Effort::Medium);
+        let models = crate::orchestrator::TaskClassifier::suggest_models(category, effort);
+        let model_names: Vec<String> = models.iter().map(|s| s.to_string()).collect();
+        self.last_task_category = Some(category);
+        self.last_model_used = model_names.first().cloned();
+        (category, model_names)
+    }
+
     /// تقرير كامل عن حالة الوكيل
     pub fn status_report(&self) -> serde_json::Value {
         serde_json::json!({
-            "engine": "requiem-agent",
+            "engine": "requiem-agent-v2",
             "user_id": self.user_id,
+            "orchestrator": {
+                "active": self.orchestrator_active,
+                "last_category": self.last_task_category.map(|c| c.to_string()),
+                "last_model": self.last_model_used.clone(),
+            },
             "mode": self.mode.current().name(),
             "steps_taken": self.steps_taken,
             "max_steps": self.max_steps,

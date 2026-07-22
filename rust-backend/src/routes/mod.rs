@@ -20,6 +20,12 @@ pub mod synergy;
 pub mod rag;
 // S4-03: WebSocket agent streaming
 pub mod ws_agent;
+// Sprint 2: WebSocket Terminal
+pub mod ws_terminal;
+// S5-02: User preferences CRUD API
+pub mod preferences;
+// S6-02: User API keys (encrypted LLM provider keys)
+pub mod user_api_keys;
 pub mod strict_locks;
 pub mod identity_shield;
 pub mod workspaces;

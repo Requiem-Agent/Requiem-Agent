@@ -36,6 +36,13 @@ mod rate_limit;
 mod metrics;
 // S3-05: Database Migration Runner
 mod migrate;
+// S5-01: Anthropic SSE → WebSocket bridge
+mod llm_stream;
+// S5-02: User preferences API endpoints
+// S5-03: AES-256-GCM encryption for user_api_keys
+mod crypto;
+// S6-02: User API keys routes (encrypted LLM provider keys)
+// (module declared in routes/mod.rs — no separate mod needed here)
 
 pub use db::AppState;
 
@@ -142,8 +149,11 @@ async fn main() -> Result<()> {
     tracing::info!("✅ Phase 16 — Model Synergy Engine initialized");
 
     // S1-04: تقييد CORS — بدلاً من Any نستخدم قائمة محددة
+    // يشمل الآن روابط HF Spaces الفعلية بالإضافة إلى GitHub Pages و Telegram
     let allowed_origins = std::env::var("ALLOWED_ORIGINS")
-        .unwrap_or_else(|_| "https://requiem-agent.github.io,https://web.telegram.org".to_string());
+        .unwrap_or_else(|_| {
+            "https://requiem-agent.github.io,https://web.telegram.org,https://rayig-dev.hf.space,https://rayig-prdcn.hf.space,https://huggingface.co".to_string()
+        });
     
     let origins: Vec<axum::http::HeaderValue> = allowed_origins
         .split(',')
@@ -158,6 +168,7 @@ async fn main() -> Result<()> {
             axum::http::Method::PUT,
             axum::http::Method::DELETE,
             axum::http::Method::OPTIONS,
+            axum::http::Method::PATCH,
         ])
         .allow_headers([
             axum::http::header::AUTHORIZATION,
@@ -313,6 +324,17 @@ async fn main() -> Result<()> {
         .route("/agent/chat", post(routes::agent_chat::agent_chat_handler))
         // S4-03: WebSocket real-time agent streaming
         .route("/ws/agent", get(routes::ws_agent::ws_handler::<AppState>))
+        // Sprint 2: WebSocket Terminal
+        .route("/ws/terminal", get(routes::ws_terminal::ws_terminal_handler))
+        .route("/ws/terminal/{session_id}", get(routes::ws_terminal::ws_terminal_handler))
+        // S5-02 + S6-01: User preferences API (GET/PUT) — backed by real SQLx
+        .route("/preferences", get(routes::preferences::get_preferences::<AppState>))
+        .route("/preferences", put(routes::preferences::put_preferences::<AppState>))
+        // S6-02: User API keys (encrypted LLM provider keys)
+        .route("/user-api-keys", get(routes::user_api_keys::list_api_keys::<AppState>))
+        .route("/user-api-keys", post(routes::user_api_keys::save_api_key::<AppState>))
+        .route("/user-api-keys/{id}", delete(routes::user_api_keys::delete_api_key::<AppState>))
+        .route("/user-api-keys/decrypt", post(routes::user_api_keys::decrypt_api_key_handler::<AppState>))
          // ─── Workspace Routes ─────────────────────────────────────────────────
          // Axum 0.8: same path must chain methods — separate .route() on same path panics at runtime
          .route("/workspaces",
