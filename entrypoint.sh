@@ -3,8 +3,9 @@ set -e
 
 echo "[entrypoint] Starting Requiem Agent v2 (Sprint 1-2)"
 
-# Start Rust backend
+# Start Rust backend on internal port 3001
 echo "[entrypoint] Starting Rust backend on :3001"
+export PORT=3001
 ./requiem-server &
 BACKEND_PID=$!
 sleep 2
