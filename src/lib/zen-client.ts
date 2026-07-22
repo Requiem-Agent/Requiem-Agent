@@ -20,13 +20,22 @@ export function hasApiKey(): boolean { return getApiKey() !== null; }
 
 // ─── استخراج النص من أي تنسيق JSON ────────────────────────────
 export function extractTextFromJson(raw: string): string | null {
+  if (!raw) return null;
   const trimmed = raw.trim();
-  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
-    // Also handle markdown-wrapped JSON (```json\n{...}\n```)
-    const mdMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+
+  // If it doesn't look like JSON at all, return null immediately
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[") && !trimmed.startsWith('"')) {
+    // Handle markdown-wrapped JSON (```json\n{...}\n```)
+    const mdMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)```$/m);
     if (mdMatch) return extractTextFromJson(mdMatch[1]);
     return null;
   }
+
+  // Handle bare JSON string (e.g. "hello world")
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    try { return JSON.parse(trimmed) as string; } catch {}
+  }
+
   try {
     const json = JSON.parse(trimmed);
     // OpenAI streaming delta
@@ -41,33 +50,48 @@ export function extractTextFromJson(raw: string): string | null {
     if (typeof json.text === "string") return json.text;
     // Custom {"content": "..."} format
     if (typeof json.content === "string") return json.content;
-    // Custom {"message": "..."} format
-    if (typeof json.message === "string") return json.message;
+    // Custom {"message": "..."} format — but NOT if it's an error message
+    if (typeof json.message === "string" && !json.error && !json.status) return json.message;
     // Nested {"data": {"response": "..."}}
     if (typeof json.data?.response === "string") return json.data.response;
     if (typeof json.data?.content === "string") return json.data.content;
+    // Array with single string element
+    if (Array.isArray(json) && json.length === 1 && typeof json[0] === "string") return json[0];
     return null;
   } catch {
-    // Partial JSON — try to extract content field with regex
-    const contentMatch = trimmed.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-    if (contentMatch) {
-      try {
-        // Unescape the JSON string
-        return JSON.parse(`"${contentMatch[1]}"`);
-      } catch {
-        return contentMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+    // Partial JSON — try to extract content/text/response field with regex
+    for (const key of ["content", "text", "response"]) {
+      const rx = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`)
+      const m = trimmed.match(rx);
+      if (m) {
+        try { return JSON.parse(`"${m[1]}"`); } catch {
+          return m[1].replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+        }
       }
-    }
-    const textMatch = trimmed.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-    if (textMatch) {
-      try { return JSON.parse(`"${textMatch[1]}"`); } catch { return textMatch[1]; }
-    }
-    const responseMatch = trimmed.match(/"response"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-    if (responseMatch) {
-      try { return JSON.parse(`"${responseMatch[1]}"`); } catch { return responseMatch[1]; }
     }
     return null;
   }
+}
+
+// ─── تنظيف نهائي لأي نص قبل العرض ──────────────────────────────
+// يُزيل أي JSON wrapper متبقٍّ ويُعيد نصاً صافياً دائماً
+export function cleanDisplayText(raw: string): string {
+  if (!raw) return "";
+  let text = raw;
+
+  // محاولة استخراج JSON wrapper
+  const extracted = extractTextFromJson(raw);
+  if (extracted) text = extracted;
+
+  // إصلاح escape sequences
+  text = text.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\r/g, "");
+
+  // إزالة outer quotes إذا بقيت
+  if (text.startsWith('"') && text.endsWith('"')) {
+    try { text = JSON.parse(text); } catch {}
+  }
+
+  return text;
 }
 
 // ─── إحصائيات ──────────────────────────────────────────────────

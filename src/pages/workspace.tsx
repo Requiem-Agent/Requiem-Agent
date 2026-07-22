@@ -8,7 +8,7 @@ import {
 } from "@/hooks/use-sessions";
 import { ROLE_MODEL_MAP, FREE_ZEN_MODELS } from "@/hooks/use-system";
 import { FormattedMessage } from "@/components/message-formatter";
-import { streamZenChat, extractTextFromJson } from "@/lib/zen-client";
+import { streamZenChat, cleanDisplayText } from "@/lib/zen-client";
 import { Textarea } from "@/components/ui/textarea";
 import { SessionMode, SessionEffort } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -417,19 +417,7 @@ function MessageBubble({ message, isNew }: {
   );
 
   // Assistant — extract clean text from any JSON-wrapped content
-  const rawContent = message.content || "";
-  let displayContent = extractTextFromJson(rawContent) ?? rawContent;
-  // Safety net: if displayContent still looks like JSON, try once more
-  if (displayContent.trim().startsWith("{") || displayContent.trim().startsWith("[")) {
-    const inner = extractTextFromJson(displayContent);
-    if (inner) displayContent = inner;
-  }
-  // Fix escaped newlines that got stored literally (\n → actual newline)
-  displayContent = displayContent.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
-  // Remove any remaining outer JSON braces/quotes if the whole thing is still wrapped
-  if (displayContent.startsWith('"') && displayContent.endsWith('"')) {
-    try { displayContent = JSON.parse(displayContent); } catch {}
-  }
+  const displayContent = cleanDisplayText(message.content || "");
 
   return (
     <div className={cn("flex justify-start", isNew && "animate-slide-up")}>
@@ -895,12 +883,9 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
         let full = "";
         for await (const chunk of streamZenChat(modelId, apiMessages, abortRef.current.signal)) {
           full += chunk;
-          let display = extractTextFromJson(full) ?? full;
-          display = display.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
-          setStreamContent(display);
+          setStreamContent(cleanDisplayText(full));
         }
-        cleanFull = (extractTextFromJson(full) ?? full)
-          .replace(/\\n/g, "\n").replace(/\\t/g, "\t");
+        cleanFull = cleanDisplayText(full);
       }
 
       // 2. Streaming done — transition: hold content in pendingMessage, clear stream UI

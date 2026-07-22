@@ -363,37 +363,49 @@ function ThinkBlock({ content }: { content: string }) {
 }
 
 export function FormattedMessage({ content }: { content: string }) {
-  // Step 1: normalize escape sequences
+  // Step 1: normalize escape sequences and clean up any JSON wrapping
   const normalized = content
     .replace(/\\n/g, "\n")
     .replace(/\\t/g, "\t")
-    .replace(/\\r/g, "");
+    .replace(/\\r/g, "")
+    // Remove leading/trailing whitespace from the whole block
+    .trim();
 
-  // Step 2: extract <think>...</think> blocks first
-  const withThink = normalized.split(/(<think>[\s\S]*?<\/think>)/g);
+  // Step 2: bail early on empty content
+  if (!normalized) return null;
 
-  // Step 3: for non-think segments, split by code fences
+  // Step 3: extract <think>...</think> blocks first (case-insensitive, multiline)
+  // Also handle [think]...[/think] variant that some models produce
+  const withThink = normalized.split(/(<think>[\s\S]*?<\/think>|\[think\][\s\S]*?\[\/think\])/gi);
+
+  // Step 4: for non-think segments, split by code fences
   return (
-    <div className="space-y-1">
+    <div className="space-y-1 min-w-0">
       {withThink.map((seg, i) => {
-        // Think block
-        if (seg.startsWith("<think>") && seg.endsWith("</think>")) {
-          const inner = seg.slice(7, -8);
+        // Think block (<think> or [think] variant)
+        if (/^<think>/i.test(seg) && /<\/think>$/i.test(seg)) {
+          const inner = seg.replace(/^<think>/i, "").replace(/<\/think>$/i, "");
+          return <ThinkBlock key={i} content={inner} />;
+        }
+        if (/^\[think\]/i.test(seg) && /\[\/think\]$/i.test(seg)) {
+          const inner = seg.replace(/^\[think\]/i, "").replace(/\[\/think\]$/i, "");
           return <ThinkBlock key={i} content={inner} />;
         }
 
-        // Code fences within segment
-        const codeSplit = seg.split(/(```[\s\S]*?```)/g);
+        // Code fences within segment — handle nested ``` correctly
+        const codeSplit = seg.split(/(```[\w]*\n[\s\S]*?```|```[\s\S]*?```)/g);
         return (
           <React.Fragment key={i}>
             {codeSplit.map((part, j) => {
-              if (part.startsWith("```") && part.endsWith("```")) {
-                const inner = part.slice(3, -3);
+              if (part.startsWith("```")) {
+                // Strip outer fences
+                const inner = part.slice(3).replace(/```$/, "");
                 const firstBreak = inner.indexOf("\n");
-                const lang = firstBreak > -1 ? inner.slice(0, firstBreak).trim() : "";
+                const lang = firstBreak > -1 ? inner.slice(0, firstBreak).trim().toLowerCase() : "";
                 const code = firstBreak > -1 ? inner.slice(firstBreak + 1) : inner;
-                if (!lang && code.trimStart().startsWith("<svg")) return <SvgBlock key={j} code={code.trimEnd()} />;
-                return <CodeBlock key={j} language={lang} code={code.trimEnd()} />;
+                const trimmedCode = code.replace(/\n$/, ""); // trim trailing newline only
+                if (!lang && trimmedCode.trimStart().startsWith("<svg")) return <SvgBlock key={j} code={trimmedCode} />;
+                return <CodeBlock key={j} language={lang} code={trimmedCode} />;
               }
               if (!part.trim()) return null;
               return <React.Fragment key={j}>{renderMarkdown(part)}</React.Fragment>;
