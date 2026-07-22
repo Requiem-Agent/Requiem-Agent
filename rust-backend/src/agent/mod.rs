@@ -62,9 +62,9 @@ pub struct AgentEngine {
 impl AgentEngine {
     /// إنشاء محرك وكيل جديد
     pub fn new(user_id: &str, mode: AgentMode, audit_log: Arc<RwLock<AuditLog>>, conn: Arc<Connection>) -> Self {
-            orchestrator_active: true,
         let thinking_mode = mode.constraints().thinking_mode;
         Self {
+            orchestrator_active: true,
             mode: ModeController::new(mode),
             thinking: ThinkingProtocol::new(thinking_mode),
             sub_agents: SubAgentOrchestrator::new(mode.constraints().max_sub_agents),
