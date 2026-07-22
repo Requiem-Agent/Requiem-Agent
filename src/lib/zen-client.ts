@@ -148,33 +148,33 @@ export async function* streamZenChat(
 
   const contentType = r.headers.get("content-type") || "";
 
-  // ── Non-SSE response (parallel execution or fallback) ──────────
-  // Backend returned a buffered JSON response instead of SSE stream
+  // ── Non-SSE response (buffered fallback path) ──────────────────
   if (!contentType.includes("text/event-stream")) {
     const rawText = await r.text();
     if (!rawText.trim()) return;
 
-    // Try to extract clean text from JSON envelope
     const extracted = extractTextFromJson(rawText);
-    if (extracted) {
-      // Yield in chunks to keep typewriter effect smooth
-      const chunkSize = 8;
-      for (let i = 0; i < extracted.length; i += chunkSize) {
-        yield extracted.slice(i, i + chunkSize);
-        // Allow React to re-render between chunks
-        await new Promise(res => setTimeout(res, 0));
-      }
-    } else {
-      // Plain text response — yield directly
-      yield rawText;
+    const finalText = extracted ?? rawText;
+
+    // Never show raw JSON — only yield if it looks like clean text
+    if (finalText.trim().startsWith("{") || finalText.trim().startsWith("[")) {
+      return; // discard JSON artifacts
+    }
+
+    // Stream in small chunks for typewriter effect
+    const chunkSize = 6;
+    for (let i = 0; i < finalText.length; i += chunkSize) {
+      yield finalText.slice(i, i + chunkSize);
+      await new Promise(res => setTimeout(res, 8)); // ~120 chars/sec
     }
     return;
   }
 
-  // ── SSE streaming path ─────────────────────────────────────────
+  // ── SSE streaming path ─────────────────────────────────────────────
   const reader = r.body.getReader();
   const decoder = new TextDecoder();
   let buf = "";
+  let full = "";   // accumulate full response for dedup
 
   while (true) {
     const { done, value } = await reader.read();
@@ -182,41 +182,51 @@ export async function* streamZenChat(
     buf += decoder.decode(value, { stream: true });
 
     const lines = buf.split("\n");
-    // FIXED: keep the last (potentially incomplete) line in the buffer
     buf = lines.pop() ?? "";
 
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed.startsWith("data: ") || trimmed === "data: [DONE]") continue;
+
+      const raw = trimmed.slice(6).trim();
+      if (!raw) continue;
+
       try {
-        const d = JSON.parse(trimmed.slice(6));
+        const d = JSON.parse(raw);
+        // Standard OpenAI streaming delta
         const chunk = d.choices?.[0]?.delta?.content;
-        if (chunk) yield chunk;
+        if (typeof chunk === "string" && chunk.length > 0) {
+          full += chunk;
+          yield chunk;
+        }
+        // Non-streaming full response embedded in stream (fallback path)
+        else if (d.choices?.[0]?.message?.content && full.length === 0) {
+          const msg = d.choices[0].message.content as string;
+          yield msg;
+          full = msg;
+        }
       } catch {
-        // Not valid SSE JSON — try to extract content from a plain JSON object
-        // (handles cases where upstream returns non-SSE JSON chunks)
-        const extracted = extractTextFromJson(trimmed);
-        if (extracted) yield extracted;
+        // Not valid JSON — treat as literal text only if it looks clean
+        // Never yield raw JSON blobs
+        const clean = raw
+          .replace(/^data:\s*/, "")
+          .replace(/^{.*}$/, "") // drop JSON-shaped strings
+          .trim();
+        if (clean && !clean.startsWith("{") && !clean.startsWith("[")) {
+          yield clean;
+        }
       }
     }
   }
 
-  // Process any remaining data in the buffer after stream ends
-  const trimmed = buf.trim();
-  if (trimmed && trimmed !== "data: [DONE]") {
-    if (trimmed.startsWith("data: ")) {
-      try {
-        const d = JSON.parse(trimmed.slice(6));
-        const chunk = d.choices?.[0]?.delta?.content;
-        if (chunk) yield chunk;
-      } catch {
-        const extracted = extractTextFromJson(trimmed.slice(6));
-        if (extracted) yield extracted;
-      }
-    } else {
-      // Try extracting from raw JSON
-      const extracted = extractTextFromJson(trimmed);
-      if (extracted) yield extracted;
-    }
+  // Process remaining buffer
+  const remaining = buf.trim();
+  if (remaining && remaining !== "data: [DONE]" && remaining.startsWith("data: ")) {
+    const raw = remaining.slice(6).trim();
+    try {
+      const d = JSON.parse(raw);
+      const chunk = d.choices?.[0]?.delta?.content;
+      if (typeof chunk === "string" && chunk.length > 0) yield chunk;
+    } catch { /* discard malformed trailing data */ }
   }
 }

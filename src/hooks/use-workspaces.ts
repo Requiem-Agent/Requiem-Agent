@@ -202,6 +202,10 @@ export async function* streamAgentChat(
   const decoder = new TextDecoder();
   let buf = "";
 
+  // Dedup: track last seen event fingerprint to prevent duplicate emissions
+  let lastTextContent = "";
+  let lastEventKey = "";
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -213,10 +217,52 @@ export async function* streamAgentChat(
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed.startsWith("data: ") || trimmed === "data: [DONE]") continue;
+
+      const raw = trimmed.slice(6).trim();
+      if (!raw) continue;
+
       try {
-        const event: AgentChatEvent = JSON.parse(trimmed.slice(6));
+        const event: AgentChatEvent = JSON.parse(raw);
+
+        // ── Deduplication: skip events identical to previous ───────────────
+        const eventKey = `${event.type}:${
+          event.type === "text" ? (event as {type:"text";content:string}).content.slice(0, 40) :
+          event.type === "thinking" ? (event as {type:"thinking";content:string}).content.slice(0, 30) :
+          event.type === "tool_use" ? (event as {type:"tool_use";tool:string;input:Record<string,unknown>;tool_call_id:string}).tool :
+          JSON.stringify(event).slice(0, 40)
+        }`;
+        if (eventKey === lastEventKey) continue;
+        lastEventKey = eventKey;
+
+        // ── Text dedup: skip if same text content already emitted ──────────
+        if (event.type === "text") {
+          const textEvent = event as { type: "text"; content: string };
+          if (textEvent.content === lastTextContent) continue;
+          lastTextContent = textEvent.content;
+        }
+
+        // ── Sanitize thinking content — never show JSON or model names ─────
+        if (event.type === "thinking") {
+          const thinkEvent = event as { type: "thinking"; content: string };
+          let cleanContent = thinkEvent.content
+            .replace(/\{[^}]{0,200}\}/g, "")      // remove JSON blobs
+            .replace(/deepseek[^\s,]*/gi, "")       // hide model names
+            .replace(/mimo[^\s,]*/gi, "")
+            .replace(/north-mini[^\s,]*/gi, "")
+            .replace(/big-pickle[^\s,]*/gi, "")
+            .replace(/gpt-[^\s,]*/gi, "")
+            .replace(/claude[^\s,]*/gi, "")
+            .replace(/\s{2,}/g, " ")
+            .trim();
+          if (!cleanContent || cleanContent.length < 3) continue; // skip empty thoughts
+          yield { ...thinkEvent, content: cleanContent };
+          continue;
+        }
+
         yield event;
-      } catch { /* skip malformed */ }
+      } catch {
+        // Malformed SSE line — skip silently (never show raw JSON to user)
+      }
     }
   }
 }

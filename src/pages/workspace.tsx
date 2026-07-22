@@ -199,7 +199,15 @@ function AgentEventStream({ events, isStreaming: streamActive = false }: { event
       </button>
       {!collapsed && (
         <div className="px-3 pb-2 space-y-1.5 max-h-48 overflow-y-auto">
-          {events.map((ev, i) => <ToolUseCard key={i} event={ev} isStreaming={streamActive} />)}
+          {events
+        .filter((ev, i, arr) => {
+          // For "thinking" type, only show the last one (deduplicate)
+          if (ev.type === "thinking") {
+            return arr.findLastIndex(e => e.type === "thinking") === i;
+          }
+          return true;
+        })
+        .map((ev, i) => <ToolUseCard key={i} event={ev} isStreaming={streamActive} />)}
         </div>
       )}
     </div>
@@ -843,7 +851,11 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
           imagesToSend.map(img => ({ url: img.url }))
         )) {
           if (event.type === "thinking") {
-            setAgentEvents(prev => [...prev, event]);
+            // Replace last thinking event instead of accumulating
+            setAgentEvents(prev => {
+              const without = prev.filter(e => e.type !== "thinking");
+              return [...without, event];
+            });
             setLastThinking(event.content ?? "");
           } else if (
             event.type === "tool_use" ||
@@ -854,8 +866,13 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
           } else if (event.type === "progress" || event.type === "file_written") {
             setAgentEvents(prev => [...prev, event]);
           } else if (event.type === "text") {
-            cleanFull = event.content ?? "";
-            setStreamContent(cleanFull);
+            const rawContent = event.content ?? "";
+            // Guard against raw JSON leaking into text events
+            const isJson = rawContent.trim().startsWith("{") || rawContent.trim().startsWith("[");
+            if (!isJson) {
+              cleanFull = rawContent;
+              setStreamContent(cleanFull);
+            }
           } else if (event.type === "error") {
             throw new Error(event.message ?? "Agent error");
           }
@@ -882,8 +899,12 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
 
         let full = "";
         for await (const chunk of streamZenChat(modelId, apiMessages, abortRef.current.signal)) {
-          full += chunk;
-          setStreamContent(cleanDisplayText(full));
+          // Guard: only append if chunk looks like clean text (not JSON)
+          const isJsonChunk = chunk.trim().startsWith("{") || chunk.trim().startsWith("[");
+          if (!isJsonChunk) {
+            full += chunk;
+            setStreamContent(cleanDisplayText(full));
+          }
         }
         cleanFull = cleanDisplayText(full);
       }

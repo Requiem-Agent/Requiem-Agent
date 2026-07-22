@@ -363,16 +363,32 @@ function ThinkBlock({ content }: { content: string }) {
 }
 
 export function FormattedMessage({ content }: { content: string }) {
-  // Step 1: normalize escape sequences and clean up any JSON wrapping
-  const normalized = content
-    .replace(/\\n/g, "\n")
-    .replace(/\\t/g, "\t")
-    .replace(/\\r/g, "")
-    // Remove leading/trailing whitespace from the whole block
+  // Strip residual JSON wrapping before rendering
+  let cleaned = content;
+  const isBareJson = cleaned.trim().startsWith("{") || cleaned.trim().startsWith("[");
+  if (isBareJson) {
+    try {
+      const parsed = JSON.parse(cleaned.trim());
+      const extracted =
+        parsed?.choices?.[0]?.message?.content ||
+        parsed?.choices?.[0]?.delta?.content ||
+        parsed?.response || parsed?.text || parsed?.content ||
+        (typeof parsed?.message === "string" && !parsed?.error ? parsed.message : null);
+      if (extracted && typeof extracted === "string") cleaned = extracted;
+      else return null;
+    } catch { /* not JSON */ }
+  }
+
+  const normalized = cleaned
+    .replace(/\n/g, "
+")
+    .replace(/\t/g, "	")
+    .replace(/\r/g, "")
     .trim();
 
-  // Step 2: bail early on empty content
   if (!normalized) return null;
+
+  
 
   // Step 3: extract <think>...</think> blocks first (case-insensitive, multiline)
   // Also handle [think]...[/think] variant that some models produce
