@@ -20,6 +20,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
       <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+      // GitHub Pages SPA: restore route after 404.html redirect
+      (function(){
+        var r = sessionStorage.getItem('spa_redirect');
+        if (r) { sessionStorage.removeItem('spa_redirect'); window.history.replaceState(null,'','/Requiem-Agent'+r); }
+      })();
+    </script>
 </head>
   <body>
     <div id="root"></div>
