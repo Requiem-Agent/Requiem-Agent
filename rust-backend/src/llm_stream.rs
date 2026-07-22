@@ -1,22 +1,11 @@
 // llm_stream.rs — Anthropic SSE → WebSocket token bridge
 // S5-01: Converts Anthropic's streaming SSE response into WebSocket token messages
-//
-// Architecture:
-//   HTTP POST /v1/messages (stream=true)
-//     → SSE events (content_block_delta / message_delta / message_stop)
-//       → mpsc::Sender<ServerMessage> (Token / Done / Error)
-//         → WebSocket frames
-//
-// Anthropic SSE event types we handle:
-//   event: content_block_delta  → data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"..."}}
-//   event: message_delta        → data: {"type":"message_delta","usage":{"output_tokens":N}}
-//   event: message_stop         → signals end of stream
-//   event: error                → data: {"type":"error","error":{"type":"...","message":"..."}}
+// S7-02: resolve_api_key_for_user — fetches user key from DB, decrypts with AES-256-GCM
 
 use reqwest::Client;
 use serde::Deserialize;
 use tokio::sync::mpsc;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::routes::ws_agent::ServerMessage;
 
@@ -155,7 +144,7 @@ pub async fn stream_anthropic_to_ws(
     user_message: &str,
     config: &LlmStreamConfig,
     tx: &mpsc::Sender<ServerMessage>,
-    cancelled: &std::sync::Arc<tokio::sync::AtomicBool>,
+    cancelled: &std::sync::Arc<std::sync::atomic::AtomicBool>,
 ) -> Result<u32, String> {
     if config.api_key.is_empty() {
         let msg = "ANTHROPIC_API_KEY not configured".to_string();
@@ -312,6 +301,162 @@ pub async fn stream_anthropic_to_ws(
     }
 
     Ok(output_tokens)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// S7-02: DB-backed API key resolution
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// يجلب مفتاح Anthropic للمستخدم من قاعدة البيانات ويفكّ تشفيره.
+/// إذا لم يوجد مفتاح مخزَّن، يرجع إلى متغير البيئة ANTHROPIC_API_KEY.
+///
+/// Priority:
+///   1. user_api_keys table (provider = "anthropic") → decrypt with crypto.rs
+///   2. ANTHROPIC_API_KEY env var
+///   3. Empty string (caller will return error)
+pub async fn resolve_api_key_for_user<D>(db: &D, user_id: &str) -> String
+where
+    D: crate::routes::user_api_keys::HasApiKeysDb + Sync,
+{
+    // محاولة جلب المفتاح من DB
+    match db.get_encrypted_key(user_id, "anthropic").await {
+        Ok(Some(encrypted)) => {
+            // فك التشفير باستخدام crypto.rs
+            match crate::crypto::decrypt_api_key(&encrypted) {
+                Ok(plaintext) => {
+                    info!("Resolved Anthropic API key from DB for user {}", user_id);
+                    plaintext.to_string()
+                }
+                Err(e) => {
+                    warn!(
+                        "Failed to decrypt Anthropic key for user {}: {} — falling back to env",
+                        user_id, e
+                    );
+                    std::env::var("ANTHROPIC_API_KEY").unwrap_or_default()
+                }
+            }
+        }
+        Ok(None) => {
+            debug!(
+                "No Anthropic key in DB for user {} — using env var",
+                user_id
+            );
+            std::env::var("ANTHROPIC_API_KEY").unwrap_or_default()
+        }
+        Err(e) => {
+            warn!(
+                "DB error fetching API key for user {}: {} — falling back to env",
+                user_id, e
+            );
+            std::env::var("ANTHROPIC_API_KEY").unwrap_or_default()
+        }
+    }
+}
+
+/// دالة مساعدة: تبني LlmStreamConfig من تفضيلات المستخدم ومفتاحه المخزَّن.
+/// تُستخدَم من ws_agent.rs لتجنب تكرار منطق الـ key resolution.
+pub async fn build_config_for_user<D>(
+    db: &D,
+    user_id: &str,
+    model_override: Option<String>,
+    system: Option<String>,
+) -> LlmStreamConfig
+where
+    D: crate::routes::user_api_keys::HasApiKeysDb + Sync,
+{
+    let api_key = resolve_api_key_for_user(db, user_id).await;
+    let model = model_override
+        .unwrap_or_else(|| {
+            std::env::var("ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-sonnet-4-5".into())
+        });
+
+    LlmStreamConfig {
+        api_key,
+        model,
+        system,
+        max_tokens: 4096,
+        temperature: 0.7,
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Unit tests for S7-02
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod s7_tests {
+    use super::*;
+    use crate::error::AppError;
+    use crate::routes::user_api_keys::{HasApiKeysDb, StoredApiKey};
+    use async_trait::async_trait;
+
+    struct MockDb {
+        /// None = no key stored, Some(encrypted) = key exists
+        encrypted_key: Option<String>,
+    }
+
+    #[async_trait]
+    impl HasApiKeysDb for MockDb {
+        async fn list_api_keys(&self, _user_id: &str) -> Result<Vec<StoredApiKey>, AppError> {
+            Ok(vec![])
+        }
+        async fn save_api_key(
+            &self,
+            _user_id: &str,
+            _provider: &str,
+            _encrypted_key: &str,
+            _key_hint: &str,
+        ) -> Result<StoredApiKey, AppError> {
+            unimplemented!()
+        }
+        async fn delete_api_key(&self, _user_id: &str, _key_id: &str) -> Result<(), AppError> {
+            Ok(())
+        }
+        async fn get_encrypted_key(
+            &self,
+            _user_id: &str,
+            _provider: &str,
+        ) -> Result<Option<String>, AppError> {
+            Ok(self.encrypted_key.clone())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_resolve_no_key_in_db_falls_back_to_env() {
+        std::env::set_var("ANTHROPIC_API_KEY", "env-key-123");
+        let db = MockDb { encrypted_key: None };
+        let key = resolve_api_key_for_user(&db, "user-1").await;
+        assert_eq!(key, "env-key-123");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_invalid_encrypted_key_falls_back_to_env() {
+        std::env::set_var("ANTHROPIC_API_KEY", "env-fallback");
+        let db = MockDb {
+            encrypted_key: Some("not-valid-base64-encrypted-data".into()),
+        };
+        let key = resolve_api_key_for_user(&db, "user-2").await;
+        assert_eq!(key, "env-fallback");
+    }
+
+    #[tokio::test]
+    async fn test_build_config_uses_env_model_when_no_override() {
+        std::env::set_var("ANTHROPIC_API_KEY", "test-key");
+        std::env::set_var("ANTHROPIC_MODEL", "claude-opus-4-5");
+        let db = MockDb { encrypted_key: None };
+        let config = build_config_for_user(&db, "user-3", None, None).await;
+        assert_eq!(config.model, "claude-opus-4-5");
+        assert_eq!(config.api_key, "test-key");
+    }
+
+    #[tokio::test]
+    async fn test_build_config_respects_model_override() {
+        std::env::set_var("ANTHROPIC_API_KEY", "test-key");
+        let db = MockDb { encrypted_key: None };
+        let config =
+            build_config_for_user(&db, "user-4", Some("claude-haiku-3-5".into()), None).await;
+        assert_eq!(config.model, "claude-haiku-3-5");
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

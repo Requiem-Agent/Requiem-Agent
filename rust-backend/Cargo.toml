@@ -19,9 +19,9 @@ serde_yaml = "0.9"
 toml = "0.8"
 
 # === HTTP & Networking ===
+urlencoding = "2.1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "socks", "rustls-tls"] }
 url = "2"
-urlencoding = "2.1"
 
 # === Database ===
 # libsql 0.6 doesn't exist — latest stable is 0.9.x
@@ -31,6 +31,7 @@ sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "sqlite", "
 
 # === Search & Code Understanding ===
 grep-regex = "0.1"
+regex = "1"
 grep-searcher = "0.1"
 grep-matcher = "0.1"
 ignore = "0.4"
@@ -68,10 +69,6 @@ hmac = "0.12"
 sha2 = "0.10"
 hex = "0.4"
 base64 = "0.22"
-chrono = { version = "0.4", features = ["serde"] }
-dotenvy = "0.15"
-anyhow = "1"
-thiserror = "2"
 
 # === Cryptography (S5-03: AES-256-GCM for user API key encryption) ===
 aes-gcm = "0.10"
@@ -80,8 +77,10 @@ zeroize = { version = "1", features = ["derive"] }
 # === Async Traits (needed by collaborative_agents, webhooks, plugins) ===
 async-trait = "0.1"
 
-# === Regex ===
-regex = "1"
+chrono = { version = "0.4", features = ["serde"] }
+dotenvy = "0.15"
+anyhow = "1"
+thiserror = "2"
 
 # axum-extra 0.9 doesn't exist; use 0.12 which targets axum 0.8
 axum-extra = { version = "0.12", features = ["typed-header"] }
@@ -89,14 +88,14 @@ headers = "0.4"
 libc = "0.2"
 csv = "1.3"
 futures = "0.3"
+futures-util = "0.3"
 bytes = "1"
 
 [dev-dependencies]
 proptest = "1"
 criterion = { version = "0.5", features = ["html_reports"] }
-# E2E WebSocket streaming tests
+# S6-04: E2E WebSocket streaming tests
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
-futures-util = "0.3"
 
 [profile.release]
 opt-level = 3

@@ -30,7 +30,7 @@ use crate::{
 
 /// Trait يُجرّد عمليات قاعدة البيانات لـ user_api_keys.
 /// يُمكّن الاختبار بدون DB حقيقي.
-#[allow(async_fn_in_trait)]
+#[async_trait::async_trait]
 pub trait HasApiKeysDb: Send + Sync {
     async fn list_api_keys(&self, user_id: &str) -> Result<Vec<StoredApiKey>, AppError>;
     async fn save_api_key(

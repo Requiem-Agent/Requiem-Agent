@@ -21,7 +21,7 @@ use crate::error::AppError;
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Full user preferences object returned by GET /api/preferences
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UserPreferences {
     // UI / UX
     #[serde(default = "default_theme")]

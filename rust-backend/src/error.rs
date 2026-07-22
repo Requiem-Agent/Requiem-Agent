@@ -43,6 +43,10 @@ pub enum AppError {
     Storage(String),
     /// خطأ في الـ sandbox
     Sandbox(String),
+    /// خطأ في التحقق من صحة البيانات
+    Validation(String),
+    /// غير مصرح
+    Unauthorized(String),
 }
 
 impl fmt::Display for AppError {
@@ -58,6 +62,8 @@ impl fmt::Display for AppError {
             Self::Serialization(msg) => write!(f, "Serialization error: {msg}"),
             Self::Storage(msg) => write!(f, "Storage error: {msg}"),
             Self::Sandbox(msg) => write!(f, "Sandbox error: {msg}"),
+            Self::Validation(msg) => write!(f, "Validation error: {msg}"),
+            Self::Unauthorized(msg) => write!(f, "Unauthorized: {msg}"),
         }
     }
 }
@@ -102,6 +108,12 @@ impl IntoResponse for AppError {
             }
             AppError::Sandbox(msg) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "SANDBOX_ERROR", msg.as_str())
+            }
+            AppError::Validation(msg) => {
+                (StatusCode::UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", msg.as_str())
+            }
+            AppError::Unauthorized(msg) => {
+                (StatusCode::UNAUTHORIZED, "UNAUTHORIZED", msg.as_str())
             }
         };
 

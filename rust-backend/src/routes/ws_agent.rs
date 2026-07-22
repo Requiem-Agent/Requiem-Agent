@@ -28,9 +28,11 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
     error::AppError,
+    llm_stream::{stream_anthropic_to_ws, LlmStreamConfig},
     metrics::{record_agent_step, record_llm_call},
     react_loop::{default_requiem_tools, ReActEngine, StopReason},
 };
@@ -60,7 +62,7 @@ fn default_max_steps() -> usize { 10 }
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-enum ServerMessage {
+pub enum ServerMessage {
     Token { content: String },
     Step { step: usize, thought: String },
     ToolCall { name: String, args: serde_json::Value },
@@ -125,7 +127,7 @@ where
     let send_task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
             let json = msg.to_json();
-            if sender.send(Message::Text(json)).await.is_err() {
+            if sender.send(Message::Text(json.into())).await.is_err() {
                 break; // client disconnected
             }
         }
@@ -134,7 +136,7 @@ where
     });
 
     // Cancellation flag
-    let cancelled = Arc::new(tokio::sync::AtomicBool::new(false));
+    let cancelled = Arc::new(AtomicBool::new(false));
 
     // Session loop — wait for a "start" message, then run the agent
     let session_timeout = tokio::time::Duration::from_secs(timeout_secs);
@@ -176,7 +178,7 @@ where
                 }
 
                 ClientMessage::Cancel => {
-                    cancelled.store(true, std::sync::atomic::Ordering::Relaxed);
+                    cancelled.store(true, Ordering::Relaxed);
                     info!("WS agent session cancelled by client");
                     break;
                 }
@@ -234,7 +236,7 @@ async fn run_agent_session(
     mode: String,
     max_steps: usize,
     tx: mpsc::Sender<ServerMessage>,
-    cancelled: Arc<tokio::sync::AtomicBool>,
+    cancelled: Arc<AtomicBool>,
 ) {
     if mode == "orchestrator" {
         run_react_session(user_message, max_steps, tx, cancelled).await;
@@ -248,7 +250,7 @@ async fn run_react_session(
     user_message: String,
     max_steps: usize,
     tx: mpsc::Sender<ServerMessage>,
-    cancelled: Arc<tokio::sync::AtomicBool>,
+    cancelled: Arc<AtomicBool>,
 ) {
     let tools = default_requiem_tools();
     let engine = ReActEngine::with_config(tools, max_steps, 45);
@@ -269,8 +271,8 @@ async fn run_react_session(
             // Emit tool_call event (best-effort; ignore send errors)
             let tx_inner = tx.clone();
             let name = tool_name.clone();
-            let args_val: serde_json::Value = serde_json::from_str(&args)
-                .unwrap_or(serde_json::Value::String(args.clone()));
+            // args is already a serde_json::Value from the engine
+            let args_val = args.clone();
             tokio::spawn(async move {
                 let _ = tx_inner.send(ServerMessage::ToolCall {
                     name,
@@ -278,14 +280,23 @@ async fn run_react_session(
                 }).await;
             });
 
-            // Simulate tool execution (real impl would call workspace tools)
+            // Return a ToolResult (real impl would call workspace tools)
+            let tool_name_owned = tool_name.clone();
             async move {
-                format!("Tool '{}' executed with args: {}", tool_name, args)
+                crate::react_loop::ToolResult {
+                    tool_name: tool_name_owned,
+                    success: true,
+                    output: Some(serde_json::json!({
+                        "result": format!("Tool '{}' executed", tool_name)
+                    })),
+                    error: None,
+                    duration_ms: 0,
+                }
             }
         },
     ).await;
 
-    if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
+    if cancelled.load(Ordering::Relaxed) {
         let _ = tx.send(ServerMessage::Error { message: "Cancelled".into() }).await;
         return;
     }
@@ -293,21 +304,27 @@ async fn run_react_session(
     // Stream steps from result
     for (i, step) in result.steps.iter().enumerate() {
         record_agent_step();
+        // ReActStep uses `content` field (not `thought`)
         let _ = tx.send(ServerMessage::Step {
             step: i + 1,
-            thought: step.thought.clone().unwrap_or_default(),
+            thought: step.content.clone(),
         }).await;
 
         if let Some(ref tool_name) = step.tool_name {
+            // tool_input is the observation/output for tool steps
+            let output = step.tool_input
+                .as_ref()
+                .map(|v| v.to_string())
+                .unwrap_or_default();
             let _ = tx.send(ServerMessage::ToolResult {
                 name: tool_name.clone(),
-                output: step.observation.clone().unwrap_or_default(),
+                output,
             }).await;
         }
     }
 
     match result.stop_reason {
-        StopReason::FinalAnswer => {
+        StopReason::Completed => {
             let content = result.final_answer.unwrap_or_default();
             let _ = tx.send(ServerMessage::Done {
                 content,
@@ -322,35 +339,48 @@ async fn run_react_session(
     }
 }
 
-/// Simple chat mode — streams a mock response token by token
-/// (replace with real LLM streaming when available)
+/// Simple chat mode — streams real Anthropic SSE tokens over WebSocket.
+/// Falls back to echo mode if ANTHROPIC_API_KEY is not set.
 async fn run_chat_session(
     user_message: String,
     tx: mpsc::Sender<ServerMessage>,
-    cancelled: Arc<tokio::sync::AtomicBool>,
+    cancelled: Arc<AtomicBool>,
 ) {
     record_llm_call("chat", true);
 
-    // In production: call LLM streaming API and forward tokens.
-    // For now: echo the message back word by word to demonstrate streaming.
-    let response = format!("Echo (streaming): {}", user_message);
-    let words: Vec<&str> = response.split_whitespace().collect();
+    let config = LlmStreamConfig::default();
 
-    for word in &words {
-        if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
-            let _ = tx.send(ServerMessage::Error { message: "Cancelled".into() }).await;
-            return;
+    if config.api_key.is_empty() {
+        // Fallback: echo mode (no API key configured)
+        let response = format!("Echo (no API key): {}", user_message);
+        let words: Vec<&str> = response.split_whitespace().collect();
+        for word in &words {
+            if cancelled.load(Ordering::Relaxed) {
+                let _ = tx.send(ServerMessage::Error { message: "Cancelled".into() }).await;
+                return;
+            }
+            let _ = tx.send(ServerMessage::Token {
+                content: format!("{} ", word),
+            }).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(30)).await;
         }
-        let _ = tx.send(ServerMessage::Token {
-            content: format!("{} ", word),
+        let _ = tx.send(ServerMessage::Done {
+            content: response,
+            steps: 0,
         }).await;
-        tokio::time::sleep(tokio::time::Duration::from_millis(30)).await;
+        return;
     }
 
-    let _ = tx.send(ServerMessage::Done {
-        content: response,
-        steps: 0,
-    }).await;
+    // Real Anthropic SSE → WebSocket bridge
+    match stream_anthropic_to_ws(&user_message, &config, &tx, &cancelled).await {
+        Ok(tokens) => {
+            tracing::info!(output_tokens = tokens, "Anthropic stream completed");
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "Anthropic stream failed");
+            // Error already sent to WS by stream_anthropic_to_ws
+        }
+    }
 }
 
 // ─────────────────────────────────────────────

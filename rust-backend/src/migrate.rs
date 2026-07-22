@@ -82,12 +82,13 @@ pub async fn status(conn: &Arc<Connection>) -> Result<MigrationStatus> {
         .map(|(name, _)| name.to_string())
         .collect();
 
+    let is_up_to_date = pending.is_empty();
     Ok(MigrationStatus {
         total,
         applied: applied_count,
         pending_count: pending.len(),
         pending,
-        is_up_to_date: pending.is_empty(),
+        is_up_to_date,
     })
 }
 
