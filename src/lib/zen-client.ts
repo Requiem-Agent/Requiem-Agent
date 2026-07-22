@@ -79,7 +79,7 @@ export interface UsageStats {
   usagePercent: number;
 }
 export async function fetchUsageStats(): Promise<UsageStats> {
-  const token = localStorage.getItem("requiem_token") || "";
+  const token = sessionStorage.getItem("rq_tok") || localStorage.getItem("requiem_token") || "";
   const r = await fetch(`${API_BASE}/api/usage`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -102,7 +102,7 @@ export async function* streamZenChat(
   const body: Record<string, unknown> = { model, messages, stream: true };
   if (hasApiKey()) body.apiKey = getApiKey();
 
-  const token = localStorage.getItem("requiem_token") || "";
+  const token = sessionStorage.getItem("rq_tok") || localStorage.getItem("requiem_token") || "";
   const r = await fetch(API, {
     method: "POST",
     headers: {

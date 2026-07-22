@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
-function getToken() { return localStorage.getItem("requiem_token") || ""; }
+function getToken() { return sessionStorage.getItem("rq_tok") || localStorage.getItem("requiem_token") || ""; }
 
 async function apiFetch(path: string, opts: RequestInit = {}) {
   const res = await fetch(`${API_BASE}/api${path}`, {

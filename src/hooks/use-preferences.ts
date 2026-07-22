@@ -53,7 +53,7 @@ export interface SaveApiKeyPayload {
 // ─── API helpers ──────────────────────────────────────────────────────────────
 
 function getAuthHeader(): Record<string, string> {
-  const token = localStorage.getItem("requiem_token") ?? sessionStorage.getItem("requiem_token");
+  const token = sessionStorage.getItem("rq_tok") ?? localStorage.getItem("requiem_token");
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
