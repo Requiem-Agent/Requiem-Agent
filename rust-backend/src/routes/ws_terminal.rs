@@ -61,7 +61,7 @@ pub enum TerminalOutput {
 }
 
 /// راوتر WebSocket Terminal
-pub fn terminal_router() -> Router {
+pub fn terminal_router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/ws/terminal", get(ws_terminal_handler))
         .route("/ws/terminal/:session_id", get(ws_terminal_handler))
