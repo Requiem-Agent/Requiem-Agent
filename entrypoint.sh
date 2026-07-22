@@ -1,37 +1,41 @@
 #!/bin/bash
-set -e
+echo "[entrypoint] Requiem Agent v2 — Starting services..."
 
-echo "[entrypoint] Starting Requiem Agent v2 (Sprint 1-2)"
-
-# Start Rust backend on internal port 3001
-echo "[entrypoint] Starting Rust backend on :3001"
+# Start Rust backend (uses PORT from env, default 7860 in code)
 export PORT=3001
-./requiem-server &
+echo "[entrypoint] Starting backend on :${PORT}..."
+./requiem-server > /tmp/backend.log 2>&1 &
 BACKEND_PID=$!
-sleep 2
+sleep 3
 
-# Start ttyd terminal on :7681
-echo "[entrypoint] Starting ttyd terminal on :7681"
+# Check if backend started
+if ! kill -0 $BACKEND_PID 2>/dev/null; then
+    echo "[entrypoint] Backend failed! Logs:"
+    cat /tmp/backend.log
+    exit 1
+fi
+echo "[entrypoint] Backend OK (pid=$BACKEND_PID)"
+
+# Start ttyd on port 7681
+echo "[entrypoint] Starting terminal on :7681..."
 ttyd --port 7681 --writable --once \
-    -t 'theme={"background":"#1a1b26","foreground":"#a9b1d6","cursor":"#c0caf5"}' \
     -t fontSize=14 \
-    bash &
+    bash > /tmp/ttyd.log 2>&1 &
 TTYD_PID=$!
 sleep 1
+echo "[entrypoint] Terminal OK (pid=$TTYD_PID)"
 
-# Start nginx on :7860
-echo "[entrypoint] Starting nginx on :7860"
-nginx -g 'daemon off;' &
+# Start nginx
+echo "[entrypoint] Starting nginx..."
+nginx -g 'daemon off;' > /tmp/nginx.log 2>&1 &
 NGINX_PID=$!
+sleep 1
+echo "[entrypoint] Nginx OK (pid=$NGINX_PID)"
+echo "[entrypoint] All services running on :7860"
 
-echo "[entrypoint] All services running:"
-echo "  Backend: :3001 (pid=$BACKEND_PID)"
-echo "  Terminal: :7681 (pid=$TTYD_PID)"
-echo "  Nginx: :7860 (pid=$NGINX_PID)"
-
-# Wait for any process to exit
-wait -n
-EXIT_CODE=$?
-echo "[entrypoint] Process exited with code $EXIT_CODE, shutting down..."
-kill $BACKEND_PID $TTYD_PID $NGINX_PID 2>/dev/null || true
-exit $EXIT_CODE
+# Wait for backend (main service)
+wait $BACKEND_PID
+EXIT=$?
+echo "[entrypoint] Backend exited with code $EXIT"
+kill $TTYD_PID $NGINX_PID 2>/dev/null
+exit $EXIT
