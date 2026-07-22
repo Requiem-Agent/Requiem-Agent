@@ -380,10 +380,9 @@ export function FormattedMessage({ content }: { content: string }) {
   }
 
   const normalized = cleaned
-    .replace(/\n/g, "
-")
-    .replace(/\t/g, "	")
-    .replace(/\r/g, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\t/g, "  ")
     .trim();
 
   if (!normalized) return null;
