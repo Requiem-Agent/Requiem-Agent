@@ -46,11 +46,17 @@ RUN wget -qO /usr/local/bin/ttyd https://github.com/tsl0922/ttyd/releases/downlo
 # Copy Rust binary only — no frontend
 COPY --from=rust-builder /app/rust-backend/target/release/requiem-server ./requiem-server
 
+# Copy nginx reverse proxy config and entrypoint while still ROOT
+COPY nginx.conf /etc/nginx/nginx.conf
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 # Create non-root user with UID 1000 (matches HF bucket mount ownership)
 # /data is mounted by HF with UID:GID = 1000:1000
 RUN useradd -u 1000 -m -d /home/appuser -s /bin/false appuser \
-    && chown -R appuser:appuser /app \
-    && mkdir -p /data && chown appuser:appuser /data
+    && mkdir -p /data \
+    && chown -R appuser:appuser /data /app \
+    && chown -R appuser:appuser /var/log/nginx /var/lib/nginx /etc/nginx /run
 
 USER appuser
 
@@ -61,13 +67,6 @@ EXPOSE 7860
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
     CMD curl -sf http://localhost:7860/api/healthz || exit 1
-
-# Copy nginx reverse proxy config
-COPY nginx.conf /etc/nginx/nginx.conf
-
-# Startup: Rust backend + ttyd + nginx
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["/app/entrypoint.sh"]
