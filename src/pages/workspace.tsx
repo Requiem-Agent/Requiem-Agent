@@ -867,10 +867,11 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
             setAgentEvents(prev => [...prev, event]);
           } else if (event.type === "text") {
             const rawContent = event.content ?? "";
-            // Guard against raw JSON leaking into text events
-            const isJson = rawContent.trim().startsWith("{") || rawContent.trim().startsWith("[");
-            if (!isJson) {
-              cleanFull = rawContent;
+            // The backend always sends clean text in event.content — no JSON guard needed.
+            // If somehow a raw JSON string leaks, cleanDisplayText will unwrap it.
+            const clean = cleanDisplayText(rawContent);
+            if (clean) {
+              cleanFull = clean;
               setStreamContent(cleanFull);
             }
           } else if (event.type === "error") {
@@ -899,11 +900,12 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
 
         let full = "";
         for await (const chunk of streamZenChat(modelId, apiMessages, abortRef.current.signal)) {
-          // Guard: only append if chunk looks like clean text (not JSON)
-          const isJsonChunk = chunk.trim().startsWith("{") || chunk.trim().startsWith("[");
-          if (!isJsonChunk) {
-            full += chunk;
-            setStreamContent(cleanDisplayText(full));
+          // Backend already strips JSON from stream chunks via zen.rs buffer parser.
+          // cleanDisplayText handles any remaining edge cases.
+          const cleanChunk = cleanDisplayText(chunk);
+          if (cleanChunk) {
+            full += cleanChunk;
+            setStreamContent(full);
           }
         }
         cleanFull = cleanDisplayText(full);

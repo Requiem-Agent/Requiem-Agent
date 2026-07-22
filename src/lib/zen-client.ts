@@ -156,15 +156,17 @@ export async function* streamZenChat(
     const extracted = extractTextFromJson(rawText);
     const finalText = extracted ?? rawText;
 
-    // Never show raw JSON — only yield if it looks like clean text
-    if (finalText.trim().startsWith("{") || finalText.trim().startsWith("[")) {
+    // Apply cleanDisplayText one more time to remove any residual JSON wrappers
+    const safeText = cleanDisplayText(finalText);
+    // Never show raw JSON
+    if (!safeText || safeText.trim().startsWith("{") || safeText.trim().startsWith("[")) {
       return; // discard JSON artifacts
     }
 
     // Stream in small chunks for typewriter effect
     const chunkSize = 6;
-    for (let i = 0; i < finalText.length; i += chunkSize) {
-      yield finalText.slice(i, i + chunkSize);
+    for (let i = 0; i < safeText.length; i += chunkSize) {
+      yield safeText.slice(i, i + chunkSize);
       await new Promise(res => setTimeout(res, 8)); // ~120 chars/sec
     }
     return;
@@ -206,15 +208,10 @@ export async function* streamZenChat(
           full = msg;
         }
       } catch {
-        // Not valid JSON — treat as literal text only if it looks clean
-        // Never yield raw JSON blobs
-        const clean = raw
-          .replace(/^data:\s*/, "")
-          .replace(/^{.*}$/, "") // drop JSON-shaped strings
-          .trim();
-        if (clean && !clean.startsWith("{") && !clean.startsWith("[")) {
-          yield clean;
-        }
+        // Not valid JSON — this line was not a valid SSE event, discard it.
+        // Never show raw non-JSON text that slipped through the upstream filter.
+        // (The backend zen.rs now only emits valid SSE lines, so this path
+        //  should rarely trigger.)
       }
     }
   }
