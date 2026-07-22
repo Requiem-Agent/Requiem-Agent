@@ -246,7 +246,10 @@ export function useAgentStream(): UseAgentStreamReturn {
     closeSocket();
     setStatus("connecting");
 
-    const ws = new WebSocket(WS_URL);
+    // Auth token as query param — browsers cannot send Authorization headers on WS upgrade
+    const _wsToken = sessionStorage.getItem('rq_tok') || localStorage.getItem('requiem_token') || '';
+    const _wsUrl = _wsToken ? `${WS_URL}?token=${encodeURIComponent(_wsToken)}` : WS_URL;
+    const ws = new WebSocket(_wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {

@@ -48,6 +48,7 @@ jobs:
         run: pnpm exec vite build
         env:
           VITE_API_URL: https://rayig-dev.hf.space
+          VITE_WS_URL: wss://rayig-dev.hf.space/api/ws/agent
 
       - uses: actions/upload-pages-artifact@v3
         with:
