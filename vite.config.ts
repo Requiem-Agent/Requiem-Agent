@@ -1,21 +1,23 @@
+import { fileURLToPath } from 'url';
 import path from 'path';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   base: '/Requiem-Agent/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      '@': path.resolve(import.meta.dirname, 'src'),
-      // S1-08: alias لـ workspace package حتى يعمل بدون pnpm
-      '@workspace/api-client-react': path.resolve(import.meta.dirname, 'lib/api-client-react/src/index.ts'),
-      '@workspace/api-zod': path.resolve(import.meta.dirname, 'lib/api-zod/src/index.ts'),
+      '@': path.resolve(__dirname, 'src'),
+      '@workspace/api-client-react': path.resolve(__dirname, 'lib/api-client-react/src/index.ts'),
+      '@workspace/api-zod': path.resolve(__dirname, 'lib/api-zod/src/index.ts'),
     },
   },
   build: {
-    outDir: path.resolve(import.meta.dirname, 'dist/public'),
+    outDir: path.resolve(__dirname, 'dist/public'),
     emptyOutDir: true,
     // S2-04: Code splitting لتقليل bundle size من 1.1MB
     rollupOptions: {

@@ -905,119 +905,37 @@ impl MultiFileEditor {
     }
 }
 
-// ─── الـ 100 Webshare SOCKS5 Proxies كاملة (نفس قائمة zen.rs) ──────────────
-const ORCHESTRATOR_PROXIES: &[(&str, u16, &str, &str)] = &[
-    ("31.59.20.176",6754,"cchsbntj","8ocnhyz7f53b"),
-    ("31.56.127.193",7684,"cchsbntj","8ocnhyz7f53b"),
-    ("45.38.107.97",6014,"cchsbntj","8ocnhyz7f53b"),
-    ("198.105.121.200",6462,"cchsbntj","8ocnhyz7f53b"),
-    ("64.137.96.74",6641,"cchsbntj","8ocnhyz7f53b"),
-    ("198.23.243.226",6361,"cchsbntj","8ocnhyz7f53b"),
-    ("38.154.185.97",6370,"cchsbntj","8ocnhyz7f53b"),
-    ("84.247.60.125",6095,"cchsbntj","8ocnhyz7f53b"),
-    ("142.111.67.146",5611,"cchsbntj","8ocnhyz7f53b"),
-    ("191.96.254.138",6185,"cchsbntj","8ocnhyz7f53b"),
-    ("31.59.20.176",6754,"chimgwqf","3693u6fbvvdq"),
-    ("31.56.127.193",7684,"chimgwqf","3693u6fbvvdq"),
-    ("45.38.107.97",6014,"chimgwqf","3693u6fbvvdq"),
-    ("198.105.121.200",6462,"chimgwqf","3693u6fbvvdq"),
-    ("64.137.96.74",6641,"chimgwqf","3693u6fbvvdq"),
-    ("198.23.243.226",6361,"chimgwqf","3693u6fbvvdq"),
-    ("38.154.185.97",6370,"chimgwqf","3693u6fbvvdq"),
-    ("84.247.60.125",6095,"chimgwqf","3693u6fbvvdq"),
-    ("142.111.67.146",5611,"chimgwqf","3693u6fbvvdq"),
-    ("191.96.254.138",6185,"chimgwqf","3693u6fbvvdq"),
-    ("31.59.20.176",6754,"qnotadmv","tk20kqtx2wfs"),
-    ("31.56.127.193",7684,"qnotadmv","tk20kqtx2wfs"),
-    ("45.38.107.97",6014,"qnotadmv","tk20kqtx2wfs"),
-    ("198.105.121.200",6462,"qnotadmv","tk20kqtx2wfs"),
-    ("64.137.96.74",6641,"qnotadmv","tk20kqtx2wfs"),
-    ("198.23.243.226",6361,"qnotadmv","tk20kqtx2wfs"),
-    ("38.154.185.97",6370,"qnotadmv","tk20kqtx2wfs"),
-    ("84.247.60.125",6095,"qnotadmv","tk20kqtx2wfs"),
-    ("142.111.67.146",5611,"qnotadmv","tk20kqtx2wfs"),
-    ("191.96.254.138",6185,"qnotadmv","tk20kqtx2wfs"),
-    ("31.59.20.176",6754,"oarzdrmm","lzjj8fezq82r"),
-    ("31.56.127.193",7684,"oarzdrmm","lzjj8fezq82r"),
-    ("45.38.107.97",6014,"oarzdrmm","lzjj8fezq82r"),
-    ("198.105.121.200",6462,"oarzdrmm","lzjj8fezq82r"),
-    ("64.137.96.74",6641,"oarzdrmm","lzjj8fezq82r"),
-    ("198.23.243.226",6361,"oarzdrmm","lzjj8fezq82r"),
-    ("38.154.185.97",6370,"oarzdrmm","lzjj8fezq82r"),
-    ("84.247.60.125",6095,"oarzdrmm","lzjj8fezq82r"),
-    ("142.111.67.146",5611,"oarzdrmm","lzjj8fezq82r"),
-    ("191.96.254.138",6185,"oarzdrmm","lzjj8fezq82r"),
-    ("31.59.20.176",6754,"yvptbhkt","0v8zzv1j120y"),
-    ("31.56.127.193",7684,"yvptbhkt","0v8zzv1j120y"),
-    ("45.38.107.97",6014,"yvptbhkt","0v8zzv1j120y"),
-    ("198.105.121.200",6462,"yvptbhkt","0v8zzv1j120y"),
-    ("64.137.96.74",6641,"yvptbhkt","0v8zzv1j120y"),
-    ("198.23.243.226",6361,"yvptbhkt","0v8zzv1j120y"),
-    ("38.154.185.97",6370,"yvptbhkt","0v8zzv1j120y"),
-    ("84.247.60.125",6095,"yvptbhkt","0v8zzv1j120y"),
-    ("142.111.67.146",5611,"yvptbhkt","0v8zzv1j120y"),
-    ("191.96.254.138",6185,"yvptbhkt","0v8zzv1j120y"),
-    ("31.59.20.176",6754,"ukhiyovs","nuiyu4j6b199"),
-    ("31.56.127.193",7684,"ukhiyovs","nuiyu4j6b199"),
-    ("45.38.107.97",6014,"ukhiyovs","nuiyu4j6b199"),
-    ("198.105.121.200",6462,"ukhiyovs","nuiyu4j6b199"),
-    ("64.137.96.74",6641,"ukhiyovs","nuiyu4j6b199"),
-    ("198.23.243.226",6361,"ukhiyovs","nuiyu4j6b199"),
-    ("38.154.185.97",6370,"ukhiyovs","nuiyu4j6b199"),
-    ("84.247.60.125",6095,"ukhiyovs","nuiyu4j6b199"),
-    ("142.111.67.146",5611,"ukhiyovs","nuiyu4j6b199"),
-    ("191.96.254.138",6185,"ukhiyovs","nuiyu4j6b199"),
-    ("31.59.20.176",6754,"anvqpams","bkrvfs0gyckg"),
-    ("31.56.127.193",7684,"anvqpams","bkrvfs0gyckg"),
-    ("45.38.107.97",6014,"anvqpams","bkrvfs0gyckg"),
-    ("198.105.121.200",6462,"anvqpams","bkrvfs0gyckg"),
-    ("64.137.96.74",6641,"anvqpams","bkrvfs0gyckg"),
-    ("198.23.243.226",6361,"anvqpams","bkrvfs0gyckg"),
-    ("38.154.185.97",6370,"anvqpams","bkrvfs0gyckg"),
-    ("84.247.60.125",6095,"anvqpams","bkrvfs0gyckg"),
-    ("142.111.67.146",5611,"anvqpams","bkrvfs0gyckg"),
-    ("191.96.254.138",6185,"anvqpams","bkrvfs0gyckg"),
-    ("31.59.20.176",6754,"shwcmvdj","7f0dmrhg0l92"),
-    ("31.56.127.193",7684,"shwcmvdj","7f0dmrhg0l92"),
-    ("45.38.107.97",6014,"shwcmvdj","7f0dmrhg0l92"),
-    ("198.105.121.200",6462,"shwcmvdj","7f0dmrhg0l92"),
-    ("64.137.96.74",6641,"shwcmvdj","7f0dmrhg0l92"),
-    ("198.23.243.226",6361,"shwcmvdj","7f0dmrhg0l92"),
-    ("38.154.185.97",6370,"shwcmvdj","7f0dmrhg0l92"),
-    ("84.247.60.125",6095,"shwcmvdj","7f0dmrhg0l92"),
-    ("142.111.67.146",5611,"shwcmvdj","7f0dmrhg0l92"),
-    ("191.96.254.138",6185,"shwcmvdj","7f0dmrhg0l92"),
-    ("31.59.20.176",6754,"rdtkrpec","ha7nsmzzw8xe"),
-    ("31.56.127.193",7684,"rdtkrpec","ha7nsmzzw8xe"),
-    ("45.38.107.97",6014,"rdtkrpec","ha7nsmzzw8xe"),
-    ("198.105.121.200",6462,"rdtkrpec","ha7nsmzzw8xe"),
-    ("64.137.96.74",6641,"rdtkrpec","ha7nsmzzw8xe"),
-    ("198.23.243.226",6361,"rdtkrpec","ha7nsmzzw8xe"),
-    ("38.154.185.97",6370,"rdtkrpec","ha7nsmzzw8xe"),
-    ("84.247.60.125",6095,"rdtkrpec","ha7nsmzzw8xe"),
-    ("142.111.67.146",5611,"rdtkrpec","ha7nsmzzw8xe"),
-    ("191.96.254.138",6185,"rdtkrpec","ha7nsmzzw8xe"),
-    ("31.59.20.176",6754,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("31.56.127.193",7684,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("45.38.107.97",6014,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("198.105.121.200",6462,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("64.137.96.74",6641,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("198.23.243.226",6361,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("38.154.185.97",6370,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("84.247.60.125",6095,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("142.111.67.146",5611,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("191.96.254.138",6185,"qyuvyzeu","5ayzwc8rfvw5"),
-];
+// ─── Proxy Configuration from Environment ──────────────────────────
+// Reads WEBSHARE_CREDENTIALS env var (JSON array of [host,port,user,pass])
+// Falls back to a single localhost:9050 (Tor) if not configured.
+fn load_proxies() -> Vec<(String, u16, String, String)> {
+    let env_val = std::env::var("WEBSHARE_CREDENTIALS").unwrap_or_default();
+    if env_val.is_empty() {
+        tracing::warn!("WEBSHARE_CREDENTIALS not set — using Tor fallback localhost:9050");
+        return vec![("127.0.0.1".to_string(), 9050, "".to_string(), "".to_string())];
+    }
+    serde_json::from_str(&env_val).unwrap_or_else(|e| {
+        tracing::warn!("Failed to parse WEBSHARE_CREDENTIALS: {e}");
+        vec![("127.0.0.1".to_string(), 9050, "".to_string(), "".to_string())]
+    })
+}
 
-// ─── مساعد: Proxy per model+user — يستخدم كل الـ 100 proxy ──────────────────
+// ─── مساعد: Proxy per model+user ──────────────────────────────────
 
 fn format_proxy_for_user(user_id: &str, model_id: &str) -> String {
-    // خلط user_id + model_id → توزيع أفضل بين الـ 100 proxy
+    let proxies = load_proxies();
+    if proxies.is_empty() {
+        return "socks5://localhost:9050".to_string();
+    }
     let hash: u64 = user_id.bytes().chain(model_id.bytes())
         .fold(5381u64, |acc, b| acc.wrapping_mul(33).wrapping_add(b as u64));
-    let proxy_idx = (hash as usize) % ORCHESTRATOR_PROXIES.len();
-    let (host, port, user, pass) = ORCHESTRATOR_PROXIES[proxy_idx];
-    format!("socks5://{user}:{pass}@{host}:{port}")
+    let proxy_idx = (hash as usize) % proxies.len();
+    let (host, port, user, pass) = &proxies[proxy_idx];
+    if user.is_empty() && pass.is_empty() {
+        format!("socks5://{host}:{port}")
+    } else {
+        format!("socks5://{user}:{pass}@{host}:{port}")
+    }
 }
 
 // ─── اختبارات ─────────────────────────────────────────────────────────────────

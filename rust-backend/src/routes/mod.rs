@@ -30,6 +30,7 @@ pub mod strict_locks;
 pub mod identity_shield;
 pub mod workspaces;
 pub mod agent_chat;
+pub mod prdcn;
 
 use axum::{
     extract::State,

@@ -42,7 +42,7 @@ pub struct ModelInfo {
 }
 pub fn assign_role(mid: &str, mname: &str) -> &'static str {
     let l = format!("{} {}", mid, mname).to_lowercase();
-    if l.contains("deepseek")||l.contains("code")||l.contains("bigpickle"){"coder"}
+    if l.contains("deepseek")||l.contains("code")||l.contains("big-pickle")||l.contains("bigpickle"){"coder"}
     else if l.contains("mimo")||l.contains("orchestrat"){"orchestrator"}
     else if l.contains("hy3")||l.contains("reasoning")||l.contains("planner")||l.contains("o3"){"planner"}
     else if l.contains("north")||l.contains("review")||l.contains("audit"){"reviewer"}

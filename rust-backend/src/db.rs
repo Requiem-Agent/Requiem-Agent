@@ -30,7 +30,10 @@ impl AppState {
         Ok(Self {
             conn: Arc::new(conn),
             bot_token: std::env::var("TELEGRAM_BOT_TOKEN")
-                .unwrap_or_else(|_| "8335891917:AAGPVYHTtPAx3vcd-iIcVRw8H5lfOTwnA04".to_string()),
+                .unwrap_or_else(|_| {
+                    tracing::warn!("TELEGRAM_BOT_TOKEN not set — bot features disabled");
+                    String::new()
+                }),
             hf_token: std::env::var("HF_TOKEN").unwrap_or_default(),
             hf_space_prdcn: std::env::var("HF_SPACE_PRDCN")
                 .unwrap_or_else(|_| "rayig/Prdcn".to_string()),
@@ -98,6 +101,39 @@ impl AppState {
                 hf_space_url TEXT,
                 deployed_at TEXT,
                 created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS user_preferences (
+                user_id TEXT PRIMARY KEY,
+                theme TEXT NOT NULL DEFAULT 'dark',
+                language TEXT NOT NULL DEFAULT 'en',
+                compact_mode INTEGER NOT NULL DEFAULT 0,
+                show_timestamps INTEGER NOT NULL DEFAULT 1,
+                enable_animations INTEGER NOT NULL DEFAULT 1,
+                default_model TEXT NOT NULL DEFAULT 'deepseek-v4-flash-free',
+                default_mode TEXT NOT NULL DEFAULT 'chat',
+                max_tokens INTEGER NOT NULL DEFAULT 4096,
+                temperature REAL NOT NULL DEFAULT 0.7,
+                system_prompt TEXT NOT NULL DEFAULT '',
+                stream_responses INTEGER NOT NULL DEFAULT 1,
+                show_thinking INTEGER NOT NULL DEFAULT 0,
+                notify_on_complete INTEGER NOT NULL DEFAULT 1,
+                notify_on_error INTEGER NOT NULL DEFAULT 1,
+                notify_on_mention INTEGER NOT NULL DEFAULT 1,
+                save_history INTEGER NOT NULL DEFAULT 1,
+                share_analytics INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS user_api_keys (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                key_hint TEXT NOT NULL,
+                encrypted_key TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(user_id, provider)
             );
 
             -- ══════════════════════════════════════════════════════════════

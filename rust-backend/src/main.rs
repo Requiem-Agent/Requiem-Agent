@@ -348,8 +348,11 @@ async fn main() -> Result<()> {
                                                         .put(routes::workspaces::write_file)
                                                         .delete(routes::workspaces::delete_file))
         .route("/workspaces/{id}/mkdir/{*path}",       post(routes::workspaces::mkdir))
-        .route("/workspaces/{id}/clone",             post(routes::workspaces::clone_repo))
-        // ── Auth middleware — MUST come after all .route() calls (Axum 0.8 rule) ──
+         .route("/workspaces/{id}/clone",             post(routes::workspaces::clone_repo))
+         // ─── Prdcn Integration Routes ──────────────────────────────────────────
+         .route("/prdcn/health", get(routes::prdcn::prdcn_health))
+         .route("/prdcn/deploy", post(routes::prdcn::deploy_bot_to_prdcn))
+         // ── Auth middleware — MUST come after all .route() calls (Axum 0.8 rule) ──
         // route_layer applies to every route defined above it in this builder chain.
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
