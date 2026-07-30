@@ -47,6 +47,25 @@ function Router() {
 }
 
 function App() {
+  const isDev = import.meta.env.DEV || window.location.search.includes('dev=1');
+
+  if (isDev) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <TooltipProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+              <AuthGuard>
+                <Router />
+              </AuthGuard>
+            </WouterRouter>
+            <Toaster />
+          </TooltipProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    );
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <SDKProvider options={{ cssVars: true, acceptCustomStyles: true, async: true }}>
@@ -114,9 +133,10 @@ function App() {
             </TooltipProvider>
           </AuthProvider>
         </DisplayGate>
-      </SDKProvider>
-    </QueryClientProvider>
-  );
-}
+        </SDKProvider>
+      </QueryClientProvider>
+    );
+  }
+
 
 export default App;

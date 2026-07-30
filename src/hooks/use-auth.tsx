@@ -17,6 +17,8 @@ const AuthContext = createContext<AuthContextType>({
   logout: () => {},
 });
 
+const DEV_MODE = import.meta.env.DEV || (typeof window !== 'undefined' && window.location.search.includes('dev=1'));
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -26,14 +28,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const authMutation = useTelegramAuth();
 
   useEffect(() => {
-    // Register token getter for the API client
-    // S1-06: استخدام sessionStorage بدلاً من localStorage للـ token
-    // sessionStorage يُمسح عند إغلاق التبويب — أأمن من localStorage
+    // Dev mode: bypass Telegram auth
+    if (DEV_MODE) {
+      const mockUser: User = {
+        id: 'dev-user',
+        telegramId: 0,
+        firstName: 'Dev',
+        lastName: 'User',
+        username: 'dev_user',
+        createdAt: new Date().toISOString(),
+      };
+      const mockToken = 'dev-token';
+      setToken(mockToken);
+      setUser(mockUser);
+      setIsTelegram(true);
+      setIsLoading(false);
+      setAuthTokenGetter(() => mockToken);
+      return;
+    }
+
     setAuthTokenGetter(() => {
       return sessionStorage.getItem('rq_tok') || localStorage.getItem('requiem_token');
     });
     
-    // S1-06: حذف الـ token القديم من localStorage إذا وُجد
     const oldToken = localStorage.getItem('requiem_token');
     if (oldToken) {
       sessionStorage.setItem('rq_tok', oldToken);
@@ -42,14 +59,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const initAuth = async () => {
-      // 1. Check local storage
-      // S1-06: قراءة من sessionStorage أولاً (أأمن)
       const storedToken = sessionStorage.getItem('rq_tok');
       const storedUser = sessionStorage.getItem('rq_user');
       
       if (storedToken && storedUser) {
         try {
-          // Validate stored token is still accepted by the API
           const apiBase = import.meta.env.VITE_API_URL || "";
           const check = await fetch(`${apiBase}/api/usage`, {
             headers: { Authorization: `Bearer ${storedToken}` },
@@ -60,11 +74,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setIsLoading(false);
             return;
           }
-          // 401 → token invalid, clear and re-auth below
           sessionStorage.removeItem('rq_tok');
           sessionStorage.removeItem('rq_user');
         } catch {
-          // network error — trust stored token optimistically
           setToken(storedToken);
           setUser(JSON.parse(storedUser));
           setIsLoading(false);
@@ -72,7 +84,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // 2. Try Telegram Auth
       const webApp = (window as any).Telegram?.WebApp;
       if (webApp) {
         webApp.ready();
@@ -86,14 +97,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setToken(authResult.token);
           setUser(authResult.user);
           setIsTelegram(true);
-          // S1-06: حفظ في sessionStorage (يُمسح عند إغلاق التبويب)
           sessionStorage.setItem('rq_tok', authResult.token);
           sessionStorage.setItem('rq_user', JSON.stringify(authResult.user));
         } catch (error) {
           console.error('Failed to auth with Telegram', error);
         }
       } else {
-        // Non-Telegram access — show rejection message
         setIsTelegram(false);
         setIsLoading(false);
         return;
@@ -107,10 +116,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = () => {
-    // S1-06: مسح من sessionStorage
     sessionStorage.removeItem('rq_tok');
     sessionStorage.removeItem('rq_user');
-    // مسح القديم من localStorage أيضاً
     localStorage.removeItem('requiem_token');
     localStorage.removeItem('requiem_user');
     setToken(null);

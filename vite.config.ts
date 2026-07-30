@@ -16,6 +16,16 @@ export default defineConfig({
       '@workspace/api-zod': path.resolve(__dirname, 'lib/api-zod/src/index.ts'),
     },
   },
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true,
+      },
+    },
+    allowedHosts: ['.monkeycode-ai.live'],
+  },
   build: {
     outDir: path.resolve(__dirname, 'dist/public'),
     emptyOutDir: true,

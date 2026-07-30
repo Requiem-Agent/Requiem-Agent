@@ -108,10 +108,10 @@ pub fn validate_telegram_init_data(
         .collect::<Vec<_>>()
         .join("\n");
 
-    // 3. secret_key = HMAC-SHA256("WebAppData", bot_token)
-    let mut mac = HmacSha256::new_from_slice(b"WebAppData")
+    // 3. secret_key = HMAC-SHA256(bot_token, "WebAppData")
+    let mut mac = HmacSha256::new_from_slice(bot_token.as_bytes())
         .map_err(|e| format!("HMAC init: {e}"))?;
-    mac.update(bot_token.as_bytes());
+    mac.update(b"WebAppData");
     let secret_key = mac.finalize().into_bytes();
 
     // 4. expected_hash = HMAC-SHA256(data_check_string, secret_key)

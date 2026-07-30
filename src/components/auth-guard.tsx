@@ -52,7 +52,52 @@ function LoadingScreen() {
 }
 
 // ── Access denied screen ──────────────────────────────────────────────────────
-function AccessDeniedScreen() {
+function AccessDeniedScreen({ inTelegram }: { inTelegram: boolean }) {
+  if (inTelegram) {
+    return (
+      <div dir="rtl" style={{
+        display: "flex", height: "100dvh", width: "100%",
+        alignItems: "center", justifyContent: "center",
+        background: "hsl(240 7% 6%)", flexDirection: "column", gap: "16px",
+        padding: "32px", textAlign: "center",
+        fontFamily: "'Inter','Cairo','Noto Sans Arabic',system-ui,sans-serif",
+      }}>
+        <div style={{
+          height: "60px", width: "60px", borderRadius: "16px",
+          background: "hsl(40 83% 62% / 0.1)", border: "1px solid hsl(40 83% 62% / 0.2)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="hsl(40 83% 65%)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <div style={{ maxWidth: "280px" }}>
+          <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#fff", margin: "0 0 8px" }}>
+            فشل التحقق
+          </h1>
+          <p style={{ color: "hsl(240 5% 55%)", fontSize: "13px", lineHeight: "1.8", margin: 0 }}>
+            تعذر التحقق من هوية تلغرام. حاول إعادة فتح التطبيق.
+          </p>
+        </div>
+        <button onClick={() => window.location.reload()}
+          style={{
+            background: "hsl(262 83% 62%)", color: "#fff", border: "none",
+            borderRadius: "10px", padding: "10px 24px", fontSize: "13px",
+            fontWeight: 600, cursor: "pointer", marginTop: "8px",
+          }}>
+          إعادة المحاولة
+        </button>
+        <style>{`
+          @keyframes ra-float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+          }
+        `}</style>
+      </div>
+    );
+  }
   return (
     <div dir="rtl" style={{
       display: "flex", height: "100dvh", width: "100%",
@@ -109,10 +154,10 @@ function AccessDeniedScreen() {
 
 // ── AuthGuard ─────────────────────────────────────────────────────────────────
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, isTelegram } = useAuth();
 
   if (isLoading) return <LoadingScreen />;
-  if (!user)     return <AccessDeniedScreen />;
+  if (!user)     return <AccessDeniedScreen inTelegram={isTelegram} />;
 
   return <>{children}</>;
 }
