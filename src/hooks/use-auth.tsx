@@ -1,11 +1,18 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useTelegramAuth, User, setAuthTokenGetter } from '@workspace/api-client-react';
+
+interface AuthUser {
+  id: string;
+  firstName?: string;
+  username?: string;
+  plan?: string;
+}
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   token: string | null;
   isLoading: boolean;
   isTelegram: boolean;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
 }
 
@@ -14,106 +21,53 @@ const AuthContext = createContext<AuthContextType>({
   token: null,
   isLoading: true,
   isTelegram: true,
+  login: async () => ({ success: false }),
   logout: () => {},
 });
 
-const DEV_MODE = import.meta.env.DEV || (typeof window !== 'undefined' && window.location.search.includes('dev=1'));
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isTelegram, setIsTelegram] = useState(true);
-
-  const authMutation = useTelegramAuth();
 
   useEffect(() => {
-    // Dev mode: bypass Telegram auth
-    if (DEV_MODE) {
-      const mockUser: User = {
-        id: 'dev-user',
-        telegramId: 0,
-        firstName: 'Dev',
-        lastName: 'User',
-        username: 'dev_user',
-        createdAt: new Date().toISOString(),
-      };
-      const mockToken = 'dev-token';
-      setToken(mockToken);
-      setUser(mockUser);
-      setIsTelegram(true);
-      setIsLoading(false);
-      setAuthTokenGetter(() => mockToken);
-      return;
+    const storedToken = sessionStorage.getItem('rq_tok');
+    const storedUser = sessionStorage.getItem('rq_user');
+
+    if (storedToken && storedUser) {
+      setToken(storedToken);
+      setUser(JSON.parse(storedUser));
     }
-
-    setAuthTokenGetter(() => {
-      return sessionStorage.getItem('rq_tok') || localStorage.getItem('requiem_token');
-    });
-    
-    const oldToken = localStorage.getItem('requiem_token');
-    if (oldToken) {
-      sessionStorage.setItem('rq_tok', oldToken);
-      localStorage.removeItem('requiem_token');
-      localStorage.removeItem('requiem_user');
-    }
-
-    const initAuth = async () => {
-      const storedToken = sessionStorage.getItem('rq_tok');
-      const storedUser = sessionStorage.getItem('rq_user');
-      
-      if (storedToken && storedUser) {
-        try {
-          const apiBase = import.meta.env.VITE_API_URL || "";
-          const check = await fetch(`${apiBase}/api/usage`, {
-            headers: { Authorization: `Bearer ${storedToken}` },
-          });
-          if (check.ok || check.status !== 401) {
-            setToken(storedToken);
-            setUser(JSON.parse(storedUser));
-            setIsLoading(false);
-            return;
-          }
-          sessionStorage.removeItem('rq_tok');
-          sessionStorage.removeItem('rq_user');
-        } catch {
-          setToken(storedToken);
-          setUser(JSON.parse(storedUser));
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      const webApp = (window as any).Telegram?.WebApp;
-      if (webApp) {
-        webApp.ready();
-        webApp.expand();
-      }
-
-      const initData = webApp?.initData;
-      if (initData) {
-        try {
-          const authResult = await authMutation.mutateAsync({ data: { initData } });
-          setToken(authResult.token);
-          setUser(authResult.user);
-          setIsTelegram(true);
-          sessionStorage.setItem('rq_tok', authResult.token);
-          sessionStorage.setItem('rq_user', JSON.stringify(authResult.user));
-        } catch (error) {
-          console.error('Failed to auth with Telegram', error);
-        }
-      } else {
-        setIsTelegram(false);
-        setIsLoading(false);
-        return;
-      }
-      
-      setIsLoading(false);
-    };
-
-    initAuth();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    setIsLoading(false);
   }, []);
+
+  const login = async (username: string, password: string) => {
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiBase}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || 'Invalid credentials' };
+
+      const authUser: AuthUser = {
+        id: data.user_id,
+        username,
+        plan: 'premium',
+      };
+
+      setToken(data.token);
+      setUser(authUser);
+      sessionStorage.setItem('rq_tok', data.token);
+      sessionStorage.setItem('rq_user', JSON.stringify(authUser));
+
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Connection error' };
+    }
+  };
 
   const logout = () => {
     sessionStorage.removeItem('rq_tok');
@@ -125,7 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, isTelegram, logout }}>
+    <AuthContext.Provider value={{ user, token, isLoading, isTelegram: true, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
@@ -135,8 +89,8 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-/** Hook for Telegram-only access check */
-export function useRequireTelegram() {
-  const { isLoading, isTelegram, user } = useAuth();
-  return { isReady: !isLoading && isTelegram && !!user, isLoading, isTelegram };
+/** Access check — user must be logged in */
+export function useRequireAuth() {
+  const { isLoading, user } = useAuth();
+  return { isReady: !isLoading && !!user, isLoading };
 }
