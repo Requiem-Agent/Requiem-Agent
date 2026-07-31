@@ -213,7 +213,10 @@ impl JsonAutoCorrect {
         while i < chars.len() {
             let c = chars[i];
             match c {
-                '"' => in_str = !in_str,
+                '"' => {
+                    in_str = !in_str;
+                    result.push('"');
+                }
                 ':' if !in_str => {
                     // تحقق من أن المفتاح السابق ليس مقتبساً
                     let needs_fix = {

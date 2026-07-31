@@ -486,25 +486,45 @@ impl PatternDetector {
     pub fn detect_all(&self, text: &str) -> Vec<DetectedProbe> {
         let lower = text.to_lowercase();
         let mut detected = Vec::new();
+        let mut secondary = Vec::new();
 
+        // أنماط RoleAssignment لها أولوية — النص الذي يُسند دوراً قد يذكر
+        // أسماء نماذج (gpt/claude...) فيُصنّف خطأً كـ ModelQuestion
         for pattern in &self.patterns {
-            for keyword in pattern.keywords {
-                if lower.contains(&keyword.to_lowercase()) {
-                    let sophistication = self.estimate_sophistication(text);
-                    detected.push(DetectedProbe {
-                        pattern_id: pattern.pattern_id.to_string(),
-                        category: pattern.category.clone(),
-                        language: Language::from_text(text),
-                        keyword_matched: keyword.to_string(),
-                        original_text: text.to_string(),
-                        sophistication,
-                    });
-                    break; // كفاية نمط واحد لكل فئة
-                }
-            }
+            let target = if pattern.category == ProbeCategory::RoleAssignment {
+                &mut detected
+            } else {
+                &mut secondary
+            };
+            self.match_pattern_into(pattern, &lower, text, target);
         }
 
+        detected.extend(secondary);
         detected
+    }
+
+    /// تطابق نمط واحد وإضافته للقائمة (نمط واحد لكل فئة)
+    fn match_pattern_into(
+        &self,
+        pattern: &DetectionPattern,
+        lower: &str,
+        text: &str,
+        out: &mut Vec<DetectedProbe>,
+    ) {
+        for keyword in pattern.keywords {
+            if lower.contains(&keyword.to_lowercase()) {
+                let sophistication = self.estimate_sophistication(text);
+                out.push(DetectedProbe {
+                    pattern_id: pattern.pattern_id.to_string(),
+                    category: pattern.category.clone(),
+                    language: Language::from_text(text),
+                    keyword_matched: keyword.to_string(),
+                    original_text: text.to_string(),
+                    sophistication,
+                });
+                break; // كفاية نمط واحد لكل فئة
+            }
+        }
     }
 
     /// كشف هل النص يحتوي على أي محاولة

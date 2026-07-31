@@ -132,9 +132,8 @@ impl AgentOutputCompiler {
         // 6. استخراج thinking من النص لو موجود
         let thinking = self.extract_thinking(raw_output);
 
-        let valid = tool_calls_validated.iter().any(|tc| tc.validation.valid)
-            || text_part.is_some()
-            || tool_calls_validated.is_empty();
+        let valid =
+            tool_calls_validated.iter().any(|tc| tc.validation.valid) || text_part.is_some();
 
         CompiledOutput {
             raw: raw_output.to_string(),

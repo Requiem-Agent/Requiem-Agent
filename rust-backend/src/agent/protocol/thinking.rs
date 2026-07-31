@@ -209,6 +209,20 @@ impl ThinkingProtocol {
     /// تسجيل خطوة تفكير — يتحقق من الصحة والترتيب
     pub fn record_step(&mut self, step: ThinkingStep) -> Result<(), ProtocolViolation> {
         // تحقق من الترتيب
+        if let Some(first) = self.required_stages.first() {
+            if self.stages_completed.is_empty() && step.stage != *first {
+                return Err(ProtocolViolation {
+                    stage: Some(step.stage),
+                    code: ViolationCode::StageOrder,
+                    message: format!(
+                        "أول خطوة يجب أن تكون {} وليس {}",
+                        first.name(),
+                        step.stage.name()
+                    ),
+                    suggestion: "ابدأ بالتحليل قبل أي مرحلة أخرى".into(),
+                });
+            }
+        }
         if let Some(last) = self.stages_completed.last() {
             let last_idx = self.required_stages.iter().position(|s| *s == last.stage);
             let curr_idx = self.required_stages.iter().position(|s| *s == step.stage);

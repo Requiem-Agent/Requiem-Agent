@@ -239,6 +239,11 @@ impl UserPathRoot {
         // 1. تحقق من الأحرف
         validate_path_chars(&path_str)?;
 
+        // 1b. تحقق من traversal في المسار المُدخل قبل الحل (يمنع الصعود فوق جذر المستخدم)
+        if path.is_relative() {
+            check_path_traversal(path)?;
+        }
+
         // 2. حلّ المسار وعودته للمسار الطبيعي
         let resolved = if path.is_relative() {
             self.root_path.join(path)

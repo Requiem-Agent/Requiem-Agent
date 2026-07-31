@@ -42,13 +42,11 @@ pub async fn extract_functions(code: &str, language: &str) -> Result<Vec<AstNode
             || trimmed.starts_with("function ")
             || trimmed.starts_with("pub fn ")
         {
+            let raw_name = trimmed.split_whitespace().nth(1).unwrap_or("unknown");
+            let name = raw_name.split('(').next().unwrap_or(raw_name);
             functions.push(AstNode {
                 node_type: "function".to_string(),
-                name: trimmed
-                    .split_whitespace()
-                    .nth(1)
-                    .unwrap_or("unknown")
-                    .to_string(),
+                name: name.to_string(),
                 start_line: idx + 1,
                 end_line: idx + 1,
                 children: Vec::new(),

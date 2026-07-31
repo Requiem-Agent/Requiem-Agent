@@ -162,38 +162,26 @@ impl SecurityScanner {
 
     /// مطابقة نمط معيّن في المحتوى
     fn match_pattern(&self, content: &str, pattern: &&ScanPattern) -> Option<SecurityViolation> {
-        // استخدام contains للأنماط البسيطة (لتفادي الاعتماد على regex)
-        if content.contains(pattern.pattern) {
-            // استخرج snippet من حول الموقع
-            let snippet = self.extract_snippet(content, pattern.pattern);
-            Some(SecurityViolation {
-                severity: pattern.severity.clone(),
-                pattern: pattern.name.to_string(),
-                description: pattern.description.to_string(),
-                snippet,
-            })
-        } else {
-            None
-        }
-    }
+        let re = regex::Regex::new(pattern.pattern).ok()?;
+        let matched = re.find(content)?;
 
-    /// استخراج مقتطف من الكود حول النمط المكتشف
-    fn extract_snippet(&self, content: &str, pattern: &str) -> String {
-        if let Some(pos) = content.find(pattern) {
-            let start = pos.saturating_sub(30);
-            let end = (pos + pattern.len() + 30).min(content.len());
-            let mut snippet = String::new();
-            if start > 0 {
-                snippet.push_str("...");
-            }
-            snippet.push_str(&content[start..end]);
-            if end < content.len() {
-                snippet.push_str("...");
-            }
-            snippet
-        } else {
-            pattern.to_string()
+        // استخرج snippet من حول الموقع
+        let start = matched.start().saturating_sub(30);
+        let end = (matched.end() + 30).min(content.len());
+        let mut snippet = String::new();
+        if start > 0 {
+            snippet.push_str("...");
         }
+        snippet.push_str(&content[start..end]);
+        if end < content.len() {
+            snippet.push_str("...");
+        }
+        Some(SecurityViolation {
+            severity: pattern.severity.clone(),
+            pattern: pattern.name.to_string(),
+            description: pattern.description.to_string(),
+            snippet,
+        })
     }
 }
 

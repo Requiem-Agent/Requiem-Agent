@@ -68,7 +68,7 @@ impl PatternDetector {
         self.check_circular(thinking_text, step_history, &mut patterns);
 
         // 3. Shallow Response
-        self.check_shallow(thinking_text, &mut patterns);
+        self.check_shallow(thinking_text, tool_calls, &mut patterns);
 
         // 4. Verbose No Action
         self.check_verbose(thinking_text, tool_calls, &mut patterns);
@@ -101,7 +101,7 @@ impl PatternDetector {
 
     /// 1. تفكير بدون إخراج: الوكيل يفكر لكن لا ينفذ أداة
     fn check_output_less(&self, text: &str, tools: &[Value], patterns: &mut Vec<DetectedPattern>) {
-        if text.len() > 100 && tools.is_empty() {
+        if text.chars().count() > 30 && tools.is_empty() {
             patterns.push(DetectedPattern {
                 pattern_type: PatternType::OutputLessThinking,
                 description: "تفكير مطول بدون أي تنفيذ أداة. الوكيل يجب أن يتخذ إجراءً.".to_string(),
@@ -137,9 +137,12 @@ impl PatternDetector {
     }
 
     /// 3. ردود سطحية: قصيرة جداً أو عامة بدون تحليل
-    fn check_shallow(&self, text: &str, patterns: &mut Vec<DetectedPattern>) {
+    fn check_shallow(&self, text: &str, tools: &[Value], patterns: &mut Vec<DetectedPattern>) {
         let stripped = text.trim();
-        if stripped.len() < self.shallow_response_max_len && !stripped.is_empty() {
+        if tools.is_empty()
+            && stripped.len() < self.shallow_response_max_len
+            && !stripped.is_empty()
+        {
             patterns.push(DetectedPattern {
                 pattern_type: PatternType::ShallowResponse,
                 description: format!(

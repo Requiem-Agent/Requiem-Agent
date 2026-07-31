@@ -24,6 +24,8 @@
 
 use crate::orchestrator::{Effort, ParallelExecutor, TaskClassifier};
 use serde::{Deserialize, Serialize};
+use std::pin::Pin;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
 
@@ -140,7 +142,16 @@ pub struct ReActEngine {
     iteration_timeout: Duration,
     /// Timeout إجمالي
     total_timeout: Duration,
+    /// بديل لاستدعاء LLM (لاختبارات الوحدة)
+    think_fn: Option<Arc<ThinkFn>>,
 }
+
+/// توقيع دالة التفكير — تستقبل المحادثة وتُعيد نص التفكير
+pub type ThinkFn = dyn Fn(
+        &[serde_json::Value],
+    ) -> Pin<Box<dyn std::future::Future<Output = Result<String, String>> + Send>>
+    + Send
+    + Sync;
 
 impl ReActEngine {
     /// إنشاء محرك ReAct جديد
@@ -150,6 +161,7 @@ impl ReActEngine {
             max_iterations: MAX_REACT_ITERATIONS,
             iteration_timeout: Duration::from_secs(REACT_ITERATION_TIMEOUT_SECS),
             total_timeout: Duration::from_secs(REACT_TOTAL_TIMEOUT_SECS),
+            think_fn: None,
         }
     }
 
@@ -164,6 +176,7 @@ impl ReActEngine {
             max_iterations,
             iteration_timeout: Duration::from_secs(iteration_timeout_secs),
             total_timeout: Duration::from_secs(REACT_TOTAL_TIMEOUT_SECS),
+            think_fn: None,
         }
     }
 
@@ -404,6 +417,11 @@ Begin your reasoning:"#
 
     /// استدعاء LLM حقيقي عبر Orchestrator — Sprint 1 Alpha
     async fn call_llm_think(&self, conversation: &[serde_json::Value]) -> Result<String, String> {
+        // بديل محقون (اختبارات) — يتجاوز استدعاء LLM الحقيقي
+        if let Some(think_fn) = &self.think_fn {
+            return think_fn(conversation).await;
+        }
+
         // استخراج query من آخر رسالة
         let query = conversation
             .last()
@@ -640,9 +658,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_react_loop_final_answer() {
-        let engine = make_engine();
+        let mut engine = make_engine();
 
-        // الـ stub يُرجع "Final Answer:" مباشرة
+        // حقن دالة تفكير تُرجع "Final Answer:" مباشرة — بدون أي استدعاء LLM
+        engine.think_fn = Some(Arc::new(|_conv: &[serde_json::Value]| {
+            Box::pin(async { Ok("Final Answer: The answer is 4.".to_string()) })
+        }));
+
         let result = engine
             .run("What is 2 + 2?", None, |_tool, _input| async {
                 ToolResult {

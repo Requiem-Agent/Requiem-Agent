@@ -213,9 +213,14 @@ impl LockInterpreter {
         let total_checks = 5.0;
         let violations_count = violations.len() as f32;
         let score = (total_checks - violations_count) / total_checks;
+        let has_critical = drift_detected
+            .iter()
+            .any(|d| d.severity == DriftSeverity::Critical);
 
         let status = if violations.is_empty() {
             ComplianceStatus::FullyCompliant
+        } else if has_critical {
+            ComplianceStatus::NonCompliant
         } else if score > 0.7 {
             ComplianceStatus::PartiallyCompliant
         } else if score > 0.3 {
