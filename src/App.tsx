@@ -4,10 +4,20 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { AuthProvider } from '@/hooks/use-auth';
 import AuthGuard from '@/components/auth-guard';
-import { setBaseUrl } from '@workspace/api-client-react';
+import { setBaseUrl, setAuthTokenGetter } from '@workspace/api-client-react';
 
 const apiUrl = import.meta.env.VITE_API_URL;
 if (apiUrl) setBaseUrl(apiUrl);
+
+// تمرير توكن الجلسة تلقائياً لكل طلبات api-client (sessions, bots, ...)
+// وإلا تفشل الطلبات المحمية بـ 401 من التطبيق المصغر
+setAuthTokenGetter(() => {
+  try {
+    return sessionStorage.getItem('rq_tok') || localStorage.getItem('requiem_token');
+  } catch {
+    return null;
+  }
+});
 
 // Pages
 import WorkspacePage from '@/pages/workspace';
