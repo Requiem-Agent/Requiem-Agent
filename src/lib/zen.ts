@@ -17,7 +17,7 @@ const API_KEY_STORAGE_KEY = "requiem_zen_api_key";
 
 /**
  * الحصول على Session ID فريد لكل مستخدم.
- * يُخزن في localStorage (أو Telegram CloudStorage في WebView)
+ * يُخزن في localStorage
  */
 function getSessionId(): string {
   try {
@@ -28,7 +28,7 @@ function getSessionId(): string {
     }
     return sid;
   } catch {
-    // localStorage غير متاح (بعض WebViews)
+    // localStorage غير متاح
     return `ses_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   }
 }
@@ -38,19 +38,10 @@ function getSessionId(): string {
  */
 function getApiKey(): string | null {
   try {
-    // 1. localStorage
-    const stored = localStorage.getItem(API_KEY_STORAGE_KEY);
-    if (stored) return stored;
-
-    // 2. Telegram CloudStorage (في وضع WebView)
-    if (typeof Telegram !== "undefined" && Telegram?.WebApp?.CloudStorage) {
-      // ملاحظة: CloudStorage يستخدم callback, هذا تبسيط
-      return null;
-    }
+    return localStorage.getItem(API_KEY_STORAGE_KEY);
   } catch {
-    // ignore
+    return null;
   }
-  return null;
 }
 
 /**
@@ -59,10 +50,6 @@ function getApiKey(): string | null {
 export function setApiKey(key: string): void {
   try {
     localStorage.setItem(API_KEY_STORAGE_KEY, key);
-    // محاولة التخزين في Telegram CloudStorage
-    if (typeof Telegram !== "undefined" && Telegram?.WebApp?.CloudStorage) {
-      Telegram.WebApp.CloudStorage.setItem(API_KEY_STORAGE_KEY, key);
-    }
   } catch {
     // ignore in non-browser environments
   }
@@ -74,9 +61,6 @@ export function setApiKey(key: string): void {
 export function clearApiKey(): void {
   try {
     localStorage.removeItem(API_KEY_STORAGE_KEY);
-    if (typeof Telegram !== "undefined" && Telegram?.WebApp?.CloudStorage) {
-      Telegram.WebApp.CloudStorage.removeItem(API_KEY_STORAGE_KEY);
-    }
   } catch {
     // ignore
   }

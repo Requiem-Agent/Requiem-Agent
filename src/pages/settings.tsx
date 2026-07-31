@@ -473,9 +473,9 @@ export default function SettingsPage() {
                     <User className="h-4 w-4 text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{user?.firstName || "Telegram User"}</p>
+                    <p className="text-sm font-medium truncate">{user?.username || "User"}</p>
                     <p className="text-xs text-muted-foreground">
-                      {user?.username ? `@${user.username}` : "Telegram Mini App"}
+                      {user?.plan || "Premium"}
                     </p>
                   </div>
                   <Badge variant="outline" className="text-emerald-400 border-emerald-400/30 bg-emerald-400/5 text-[10px] font-mono shrink-0">
@@ -483,13 +483,13 @@ export default function SettingsPage() {
                   </Badge>
                 </div>
 
-                {/* Telegram ID */}
-                {user?.telegramId ? (
+                {/* User ID */}
+                {user?.id ? (
                   <div className="flex items-center justify-between px-4 py-3 border-b border-border/40">
-                    <span className="text-xs text-muted-foreground">Telegram ID</span>
+                    <span className="text-xs text-muted-foreground">User ID</span>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-mono text-foreground/70">
-                        {showUserId ? user.telegramId : "••••••••"}
+                        {showUserId ? user.id : "••••••••"}
                       </span>
                       <button onClick={() => setShowUserId(p => !p)} className="text-muted-foreground/50 hover:text-muted-foreground transition-colors">
                         {showUserId ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
