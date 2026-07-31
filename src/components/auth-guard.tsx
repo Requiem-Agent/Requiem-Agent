@@ -17,8 +17,10 @@ function LoadingScreen() {
         animation: "ra-float 3s ease-in-out infinite",
       }}>
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="hsl(262 83% 65%)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          <path d="M9 12l2 2 4-4"/>
+          <path d="M6 10h12l-1.2 10a2 2 0 0 1-2 1.8H9.2a2 2 0 0 1-2-1.8L6 10z"/>
+          <circle cx="8.5" cy="7.5" r="1.6"/>
+          <circle cx="12" cy="6" r="1.8"/>
+          <circle cx="15.5" cy="7.5" r="1.6"/>
         </svg>
       </div>
       <div style={{ width: "140px", height: "2px", background: "hsl(240 6% 14%)", borderRadius: "1px", overflow: "hidden" }}>
@@ -77,17 +79,19 @@ function LoginScreen() {
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="hsl(262 83% 65%)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          <path d="M9 12l2 2 4-4"/>
+          <path d="M6 10h12l-1.2 10a2 2 0 0 1-2 1.8H9.2a2 2 0 0 1-2-1.8L6 10z"/>
+          <circle cx="8.5" cy="7.5" r="1.6"/>
+          <circle cx="12" cy="6" r="1.8"/>
+          <circle cx="15.5" cy="7.5" r="1.6"/>
         </svg>
       </div>
 
       <div style={{ textAlign: "center" }}>
         <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#fff", margin: "0 0 6px" }}>
-          Requiem Agent
+          PopCorn AI Studio
         </h1>
         <p style={{ color: "hsl(240 5% 45%)", fontSize: "13px", margin: 0 }}>
-          Sign in to continue
+          سجّل الدخول بحساب PopCorn الخاص بك
         </p>
       </div>
 
@@ -137,6 +141,31 @@ function LoginScreen() {
           {loading ? "Signing in..." : "Sign In"}
         </button>
       </form>
+
+      {/* روابط بوابة PopCorn — التسجيل واستعادة كلمة السر تتمان هناك بالمفتاح */}
+      {(() => {
+        const portalUrl = import.meta.env.VITE_POPCORN_PORTAL_URL || '#';
+        return (
+          <div style={{ display: "flex", gap: "16px", justifyContent: "center", fontSize: "12px" }}>
+            <a
+              href={portalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "hsl(262 83% 65%)", textDecoration: "none" }}
+            >
+              تسجيل جديد
+            </a>
+            <a
+              href={portalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "hsl(240 5% 45%)", textDecoration: "none" }}
+            >
+              نسيت كلمة السر
+            </a>
+          </div>
+        );
+      })()}
     </div>
   );
 }

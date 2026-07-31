@@ -74,7 +74,7 @@ function TaskItem({ task, depth = 0 }: { task: Task; depth?: number }) {
 
         {task.assigned_model && (
           <span className="text-[9px] text-muted-foreground/40 font-mono hidden group-hover:inline shrink-0">
-            Requiem Agent 1
+            PopCorn AI Studio
           </span>
         )}
 

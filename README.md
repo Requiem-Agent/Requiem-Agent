@@ -113,7 +113,7 @@ openssl rand -hex 32
 |--------|------|-------------|
 | `GET` | `/api/healthz` | Health check |
 | `GET` | `/api/metrics` | Prometheus metrics |
-| `POST` | `/api/auth` | Telegram auth → JWT |
+| `POST` | `/api/auth/login` | PopCorn account login (username/password) |
 | `GET` | `/api/models` | List available LLM models |
 
 ### Protected (JWT required)
@@ -172,7 +172,7 @@ Connect to `wss://rayig-dev.hf.space/api/ws/agent` with a JWT token.
 
 - **AES-256-GCM** encryption for stored LLM API keys (random 96-bit nonce per encryption)
 - **Zeroizing** memory cleanup — decrypted keys are wiped from RAM after use
-- **JWT** authentication with Telegram Mini App integration
+- **Token** authentication with PopCorn accounts (username/password, Argon2id)
 - **Per-user rate limiting** — `RateLimitKey::User(user_id)` via sliding window
 - **Input validation** on all endpoints
 - **Sandbox isolation** — Landlock FS + seccomp-bpf + rlimit for code execution
@@ -212,7 +212,7 @@ Requiem-Agent/
 │   ├── src/
 │   │   ├── main.rs         # Server setup, routing
 │   │   ├── db.rs           # AppState, Turso connection
-│   │   ├── auth.rs         # JWT + Telegram auth
+│   │   ├── auth.rs         # PopCorn auth (username/password, Argon2id)
 │   │   ├── crypto.rs       # AES-256-GCM encryption
 │   │   ├── rate_limit.rs   # Per-user/IP rate limiting
 │   │   ├── metrics.rs      # Prometheus metrics

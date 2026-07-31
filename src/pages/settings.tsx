@@ -458,7 +458,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <h1 className="text-base font-semibold tracking-tight">Settings</h1>
-              <p className="text-xs text-muted-foreground">Requiem Agent 1 configuration</p>
+              <p className="text-xs text-muted-foreground">PopCorn AI Studio configuration</p>
             </div>
           </div>
 
@@ -632,8 +632,8 @@ export default function SettingsPage() {
                     <Bot className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold gradient-text">Requiem Agent 1</p>
-                    <p className="text-[10px] text-muted-foreground/50">Powered by Requiem AI</p>
+                    <p className="text-sm font-semibold gradient-text">PopCorn AI Studio</p>
+                    <p className="text-[10px] text-muted-foreground/50">Powered by PopCorn AI</p>
                   </div>
                 </div>
                 <div className="mt-3 pt-3 border-t border-border/40 flex items-center gap-3 text-[10px] text-muted-foreground/40 font-mono">

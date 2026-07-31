@@ -434,8 +434,8 @@ function MessageBubble({ message, isNew }: {
           <div className="h-4 w-4 rounded bg-primary/10 flex items-center justify-center">
             <Bot className="h-2.5 w-2.5 text-primary" />
           </div>
-          <span className="text-[10px] text-muted-foreground/50 font-mono">Requiem Agent 1</span>
-          {/* Model name intentionally hidden — brand is always "Requiem Agent 1" */}
+          <span className="text-[10px] text-muted-foreground/50 font-mono">PopCorn AI Studio</span>
+          {/* Model name intentionally hidden — brand is always "PopCorn AI Studio" */}
         </div>
         <div className="msg-assistant border rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed message-content">
           <FormattedMessage content={displayContent} />
@@ -491,7 +491,7 @@ function EmptyChat({ mode, onPrompt }: { mode: string; onPrompt: (t: string) => 
       <div className="space-y-1.5">
         <h2 className="text-base font-semibold tracking-tight">{m.label} <span className="gradient-text">Ready</span></h2>
         <p className="text-xs text-muted-foreground/60 max-w-56 leading-relaxed">
-          Requiem Agent 1 is listening. Start a conversation or pick a suggestion.
+          PopCorn AI Studio is listening. Start a conversation or pick a suggestion.
         </p>
       </div>
       <div className="flex flex-col gap-2 w-full max-w-xs">
@@ -742,7 +742,7 @@ export default function WorkspacePage() {
               <Terminal className="h-7 w-7 text-primary" />
             </div>
             <div className="space-y-1.5">
-              <h1 className="text-lg font-semibold gradient-text">Requiem Agent 1</h1>
+              <h1 className="text-lg font-semibold gradient-text">PopCorn AI Studio</h1>
               <p className="text-xs text-muted-foreground/60 max-w-52">Create a session to start.</p>
             </div>
             <button onClick={handleCreateSession} disabled={isCreating}
@@ -881,7 +881,7 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
       }
       // ── Path B: Standard zen chat (no workspace) ──────────────────────────
       else {
-        let systemPrompt = "You are Requiem Agent 1 — a powerful AI coding and research assistant. Be thorough, precise, and proactive.";
+        let systemPrompt = "You are PopCorn AI Studio — a powerful AI coding and research assistant. Be thorough, precise, and proactive.";
         try {
           const rag = await fetchRagContext(text, sessionId, 1200);
           if (rag?.systemContext) systemPrompt += `\n\nRelevant memory:\n${rag.systemContext}`;
@@ -1017,7 +1017,7 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
                         <div className="h-4 w-4 rounded bg-primary/10 flex items-center justify-center">
                           <Bot className="h-2.5 w-2.5 text-primary" />
                         </div>
-                        <span className="text-[10px] text-muted-foreground/50 font-mono">Requiem Agent 1.2</span>
+                        <span className="text-[10px] text-muted-foreground/50 font-mono">PopCorn AI Studio</span>
                         {workspaceId && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono ml-1">
                             workspace
@@ -1041,7 +1041,7 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
                     <div className="h-4 w-4 rounded bg-primary/10 flex items-center justify-center">
                       <Bot className="h-2.5 w-2.5 text-primary" />
                     </div>
-                    <span className="text-[10px] text-muted-foreground/50 font-mono">Requiem Agent 1</span>
+                    <span className="text-[10px] text-muted-foreground/50 font-mono">PopCorn AI Studio</span>
                   </div>
                   <div className="msg-assistant border rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed message-content">
                     <FormattedMessage content={pendingMessage} />
@@ -1107,7 +1107,7 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
             placeholder={
               isStreaming ? "Agent is responding…" :
               attachedImages.length > 0 ? "Ask about the image…" :
-              "Message Requiem Agent 1.2…"
+              "Message PopCorn AI Studio…"
             }
             disabled={isStreaming}
             rows={1}

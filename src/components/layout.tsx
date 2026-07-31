@@ -66,7 +66,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             border:     "1px solid hsl(262 83% 62% / 0.25)",
           }}
         >
-          Requiem Agent 1.2
+          PopCorn AI Studio
         </span>
       </div>
 

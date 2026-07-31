@@ -9,29 +9,6 @@ export interface HealthStatus {
   status: string;
 }
 
-export interface TelegramAuthInput {
-  /** Telegram WebApp.initData string */
-  initData: string;
-}
-
-export interface User {
-  id: string;
-  telegramId: number;
-  firstName: string;
-  /** @nullable */
-  lastName?: string | null;
-  /** @nullable */
-  username?: string | null;
-  quotaReadUsed?: number;
-  quotaWriteUsed?: number;
-  createdAt: string;
-}
-
-export interface AuthResult {
-  user: User;
-  token: string;
-}
-
 export type SessionMode = typeof SessionMode[keyof typeof SessionMode];
 
 

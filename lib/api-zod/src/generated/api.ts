@@ -17,28 +17,6 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * @summary Authenticate via Telegram initData
- */
-export const TelegramAuthBody = zod.object({
-  "initData": zod.string().describe('Telegram WebApp.initData string')
-})
-
-export const TelegramAuthResponse = zod.object({
-  "user": zod.object({
-  "id": zod.string(),
-  "telegramId": zod.number(),
-  "firstName": zod.string(),
-  "lastName": zod.string().nullish(),
-  "username": zod.string().nullish(),
-  "quotaReadUsed": zod.number().optional(),
-  "quotaWriteUsed": zod.number().optional(),
-  "createdAt": zod.string()
-}),
-  "token": zod.string()
-})
-
-
-/**
  * @summary List user sessions (max 3)
  */
 export const ListSessionsResponseItem = zod.object({

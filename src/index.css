@@ -119,10 +119,6 @@
   --chart-4: 0 84% 60%;
   --chart-5: 240 5% 60%;
 
-  /* Telegram safe-area vars */
-  --tg-top: env(safe-area-inset-top, 0px);
-  --tg-bottom: env(safe-area-inset-bottom, 0px);
-  --tg-header-height: 56px;
   --nav-height: 56px;
 
   --radius: 0.625rem;
@@ -146,8 +142,7 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
     height: 100%;
-    /* Safe area padding is handled by AppLayout via JS to read TG safeAreaInsets.
-       We only apply env() here for non-Telegram browsers as a fallback. */
+    /* Safe area padding is handled by AppLayout via JS. */
     padding-top: 0px;
     padding-bottom: 0px;
     overscroll-behavior: none;

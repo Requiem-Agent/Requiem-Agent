@@ -14,7 +14,7 @@ const LANGUAGES: { id: SandboxLanguage; label: string; color: string; placeholde
     label: "Python",
     color: "text-yellow-400",
     placeholder: `# Python sandbox
-print("Hello from Requiem Agent!")
+print("Hello from PopCorn AI Studio!")
 
 import sys
 print(f"Python {sys.version}")
@@ -28,7 +28,7 @@ print(f"Sum 1-100: {result}")`,
     label: "JavaScript",
     color: "text-cyan-400",
     placeholder: `// JavaScript / Node.js sandbox
-console.log("Hello from Requiem Agent!");
+console.log("Hello from PopCorn AI Studio!");
 
 const data = [1, 2, 3, 4, 5];
 const doubled = data.map(x => x * 2);
@@ -53,7 +53,7 @@ interface Agent {
 }
 
 const agent: Agent = {
-  name: "Requiem Agent",
+  name: "PopCorn AI Studio",
   version: 1,
   capabilities: ["code", "plan", "debug", "research"],
 };
@@ -66,7 +66,7 @@ agent.capabilities.forEach(cap => console.log(\` - \${cap}\`));`,
     label: "Bash",
     color: "text-emerald-400",
     placeholder: `#!/bin/bash
-echo "Hello from Requiem Agent!"
+echo "Hello from PopCorn AI Studio!"
 echo ""
 echo "System info:"
 uname -a

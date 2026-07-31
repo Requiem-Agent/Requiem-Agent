@@ -1,286 +1,169 @@
-//! # Auth Module — المصادقة البرمجية الصارمة
+//! # Auth Module — المصادقة عبر Popcorn Gateway
 //!
-//! - التحقق من Telegram initData باستخدام HMAC-SHA256
-//! - إنشاء وتحقّق التوكنات الموقّعة لكل مستخدم
-//! - رفض initData منتهي الصلاحية (أكثر من 24 ساعة)
-//! - عزل هوية المستخدم — كل طلب يحمل user_id مُتحقّق منه
+//! - نظام تسجيل دخول باسم مستخدم وكلمة سر
+//! - كلمات المرور مشفرة بـ Argon2id (معيار OWASP) مع salt عشوائي
+//! - إنشاء وتحقّق التوكنات الموقّعة
+//! - جلسات مستمرة 30 يوماً
+//! - ربط مع قاعدة بيانات Popcorn (customer_accounts)
 
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
+use argon2::{
+    password_hash::{rand_core::OsRng, PasswordHash, SaltString},
+    Argon2, PasswordHasher, PasswordVerifier,
+};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use sha2::{Digest, Sha256};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-type HmacSha256 = Hmac<Sha256>;
-
-/// الحد الأقصى لعمر initData من تلغرام (بالثواني)
-const INIT_DATA_MAX_AGE_SECS: u64 = 86400; // 24 ساعة
-
 /// مدة صلاحية التوكن (30 يوماً)
-const TOKEN_EXPIRY_DAYS: u64 = 30;
+const TOKEN_EXPIRY_SECS: u64 = 30 * 24 * 3600;
 
-// ─── Telegram User Data ──────────────────────────────────────────────────────
+// ─── User Data ─────────────────────────────────────────────────────────────────
 
-/// معلومات المستخدم المستخرجة من initData
+/// معلومات المستخدم
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TelegramUser {
-    pub id: i64,
-    pub first_name: String,
-    pub last_name: Option<String>,
-    pub username: Option<String>,
-    pub language_code: Option<String>,
-    pub is_premium: Option<bool>,
-    pub photo_url: Option<String>,
-}
-
-impl TelegramUser {
-    /// استخراج كائن المستخدم من JSON داخل initData
-    pub fn from_init_data(init_data: &BTreeMap<String, String>) -> Result<Self, String> {
-        let user_json = init_data.get("user").ok_or("Missing user in initData")?;
-        let user: TelegramUser = serde_json::from_str(user_json)
-            .map_err(|e| format!("Invalid user JSON: {e}"))?;
-        Ok(user)
-    }
-}
-
-// ─── User Session Context ───────────────────────────────────────────────────
-
-/// معلومات المُستخدم المُوثّقة التي تُرفق مع كل طلب
-#[derive(Debug, Clone)]
-pub struct AuthenticatedUser {
-    /// معرف المستخدم الفريد (UUID v4)
+pub struct AuthUser {
     pub user_id: String,
-    /// معرف تلغرام الرقمي
-    pub telegram_id: i64,
-    /// الاسم الأول
-    pub first_name: String,
-    /// التوكن المُستخدم
+    pub client_id: String,
+    pub username: String,
+    pub plan: String,
+}
+
+// ─── Login Request ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct LoginRequest {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LoginResponse {
+    pub status: String,
     pub token: String,
-    /// هل هو مستخدم ضيف (بدون initData)
-    pub is_guest: bool,
+    pub user: AuthUser,
 }
 
-// ─── InitData Validation ────────────────────────────────────────────────────
+// ─── Token Generation ─────────────────────────────────────────────────────────
 
-/// التحقق من صحة initData الواردة من Telegram WebApp
+/// إنشاء توكن موقع: `popcorn_{user_id}_{issued}_{hash16}`
 ///
-/// ## الخطوات:
-/// 1. استخراج `hash` من الـ query string
-/// 2. ترتيب الباراميترات أبجدياً
-/// 3. بناء `data_check_string` بالصيغة المطلوبة
-/// 4. حساب HMAC-SHA256 باستخدام مفتاح `WebAppData` + bot_token
-/// 5. مقارنة الـ hash
-/// 6. التحقق من أن `auth_date` ليس قديماً
-pub fn validate_telegram_init_data(
-    init_data: &str,
-    bot_token: &str,
-) -> Result<BTreeMap<String, String>, String> {
-    let params: Vec<(String, String)> = url::form_urlencoded::parse(init_data.as_bytes())
-        .into_owned()
-        .collect();
-
-    let hash = params
-        .iter()
-        .find(|(k, _)| k == "hash")
-        .map(|(_, v)| v.clone())
-        .ok_or_else(|| "Missing hash in initData".to_string())?;
-
-    let data_map: BTreeMap<String, String> =
-        params.into_iter().filter(|(k, _)| k != "hash").collect();
-
-    // 1. تحقق من auth_date expiration
-    if let Some(auth_date_str) = data_map.get("auth_date") {
-        let auth_date: u64 = auth_date_str.parse()
-            .map_err(|_| "Invalid auth_date format".to_string())?;
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        if now > auth_date && now - auth_date > INIT_DATA_MAX_AGE_SECS {
-            return Err("initData expired (older than 24 hours)".to_string());
-        }
-    }
-
-    // 2. بناء data_check_string
-    let data_check_string = data_map
-        .iter()
-        .map(|(k, v)| format!("{k}={v}"))
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    // 3. secret_key = HMAC-SHA256(bot_token, "WebAppData")
-    let mut mac = HmacSha256::new_from_slice(bot_token.as_bytes())
-        .map_err(|e| format!("HMAC init: {e}"))?;
-    mac.update(b"WebAppData");
-    let secret_key = mac.finalize().into_bytes();
-
-    // 4. expected_hash = HMAC-SHA256(data_check_string, secret_key)
-    let mut mac2 = HmacSha256::new_from_slice(&secret_key)
-        .map_err(|e| format!("HMAC verify: {e}"))?;
-    mac2.update(data_check_string.as_bytes());
-    let expected = hex::encode(mac2.finalize().into_bytes());
-
-    // 5. مقارنة
-    if expected != hash {
-        return Err("Invalid initData hash — data tampered".to_string());
-    }
-
-    let mut result = data_map;
-    result.insert("hash".to_string(), hash);
-    Ok(result)
-}
-
-// ─── Token Management ───────────────────────────────────────────────────────
-
-/// إنشاء توكن موقع: `base64url(user_id.timestamp.signature)`
-///
-/// التوقيع: HMAC-SHA256(payload, session_secret)
+/// - `issued`: وقت الإصدار بالثواني (epoch) — محمول صراحةً داخل التوكن
+/// - `hash16`: أول 16 حرفاً من sha256("{user_id}:{issued}:{secret}")
+/// - الصلاحية: TOKEN_EXPIRY_SECS (30 يوماً) من وقت الإصدار
 pub fn generate_token(user_id: &str, secret: &str) -> String {
-    let ts = SystemTime::now()
+    let issued = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
-        .as_millis();
-    let payload = format!("{user_id}.{ts}");
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .expect("HMAC key length valid");
-    mac.update(payload.as_bytes());
-    let sig = hex::encode(mac.finalize().into_bytes());
-    let full = format!("{payload}.{sig}");
-    base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, full)
+        .as_secs();
+    let hash = hex::encode(Sha256::digest(
+        format!("{}:{}:{}", user_id, issued, secret).as_bytes(),
+    ));
+    format!("popcorn_{}_{}_{}", user_id, issued, &hash[..16])
 }
 
-/// التحقق من صلاحية التوكن واستخراج user_id
-///
-/// ## التحققات:
-/// - فك base64url بنجاح
-/// - تنسيق `user_id.timestamp.signature`
-/// - تطابق HMAC-SHA256
-/// - عدم انتهاء الصلاحية (30 يوماً)
+/// التحقق من التوكن: تنسيق + توقيع + صلاحية (30 يوماً)
 pub fn verify_token(token: &str, secret: &str) -> Option<String> {
-    let decoded = base64::Engine::decode(
-        &base64::engine::general_purpose::URL_SAFE_NO_PAD,
-        token,
-    ).ok()?;
+    let parts: Vec<&str> = token.split('_').collect();
+    if parts.len() != 4 || parts[0] != "popcorn" {
+        return None;
+    }
+    let (user_id, issued_str, hash) = (parts[1], parts[2], parts[3]);
+    if hash.len() != 16 {
+        return None;
+    }
+    let issued: u64 = issued_str.parse().ok()?;
 
-    let s = String::from_utf8(decoded).ok()?;
-    let parts: Vec<&str> = s.splitn(3, '.').collect();
-    if parts.len() != 3 {
+    // إعادة حساب التوقيع
+    let expected = hex::encode(Sha256::digest(
+        format!("{}:{}:{}", user_id, issued, secret).as_bytes(),
+    ));
+    if hash != &expected[..16] {
         return None;
     }
 
-    let (user_id, ts_str, sig) = (parts[0], parts[1], parts[2]);
-
-    // تحقق من التوقيع
-    let payload = format!("{user_id}.{ts_str}");
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).ok()?;
-    mac.update(payload.as_bytes());
-    let expected = hex::encode(mac.finalize().into_bytes());
-    if expected != sig {
-        return None;
-    }
-
-    // تحقق من انتهاء الصلاحية
-    let ts_ms: u128 = ts_str.parse().ok()?;
-    let now_ms = SystemTime::now()
+    // التحقق من انتهاء الصلاحية
+    let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
-        .as_millis();
-    let expiry_ms = (TOKEN_EXPIRY_DAYS as u128) * 24 * 60 * 60 * 1000;
-    if now_ms - ts_ms > expiry_ms {
+        .as_secs();
+    if now.saturating_sub(issued) > TOKEN_EXPIRY_SECS {
         return None;
     }
 
     Some(user_id.to_string())
 }
 
-/// الحصول على وصف مختصر لحالة التوكن (للتسجيل)
-pub fn token_info(token: &str) -> String {
-    if let Ok(decoded) = base64::Engine::decode(
-        &base64::engine::general_purpose::URL_SAFE_NO_PAD,
-        token,
-    ) {
-        if let Ok(s) = String::from_utf8(decoded) {
-            let parts: Vec<&str> = s.splitn(3, '.').collect();
-            if parts.len() == 3 {
-                let user_id = parts[0];
-                let ts_str = parts[1];
-                if let Ok(ts_ms) = ts_str.parse::<u128>() {
-                    let now_ms = SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_millis();
-                    let age_days = (now_ms - ts_ms) / (24 * 60 * 60 * 1000);
-                    return format!("user={user_id}, age={age_days}d");
-                }
-                return format!("user={user_id}");
-            }
-        }
-    }
-    "invalid token".to_string()
+/// Hash كلمة المرور — Argon2id مع salt عشوائي لكل مستخدم
+/// الصيغة: $argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>
+pub fn hash_password(password: &str) -> String {
+    let salt = SaltString::generate(&mut OsRng);
+    Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map(|h| h.to_string())
+        .unwrap_or_else(|_| {
+            // Fallback آمن عند فشل Argon2 (لا نرجع النص الواضح أبداً)
+            hex::encode(Sha256::digest(
+                format!("popcorn-fallback:{}", password).as_bytes(),
+            ))
+        })
 }
 
-// ─── اختبارات ─────────────────────────────────────────────────────────────────
+/// التحقق من كلمة المرور ضد hash مخزن
+pub fn verify_password(password: &str, hash: &str) -> bool {
+    // دعم Argon2
+    if let Ok(parsed) = PasswordHash::new(hash) {
+        return Argon2::default()
+            .verify_password(password.as_bytes(), &parsed)
+            .is_ok();
+    }
+    // دعم النسخ القديمة (SHA-256 fallback)
+    let legacy = hex::encode(Sha256::digest(
+        format!("popcorn:{}:salt", password).as_bytes(),
+    ));
+    hash == legacy
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const TEST_SECRET: &str = "test-secret-key-for-unit-tests";
-
     #[test]
     fn test_token_roundtrip() {
-        let user_id = "550e8400-e29b-41d4-a716-446655440000";
-        let token = generate_token(user_id, TEST_SECRET);
-        assert!(!token.is_empty());
-
-        let verified = verify_token(&token, TEST_SECRET);
-        assert_eq!(verified.as_deref(), Some(user_id));
-    }
-
-    #[test]
-    fn test_token_wrong_secret() {
-        let token = generate_token("user1", "secret1");
-        let verified = verify_token(&token, "secret2");
-        assert!(verified.is_none());
-    }
-
-    #[test]
-    fn test_token_tampered() {
-        let token = generate_token("user1", TEST_SECRET);
-        // تغيير حرف في التوكن
-        let mut bytes: Vec<u8> = token.bytes().collect();
-        if bytes.len() > 10 {
-            bytes[5] = bytes[5].wrapping_add(1);
-        }
-        let tampered = String::from_utf8(bytes).unwrap();
-        let verified = verify_token(&tampered, TEST_SECRET);
-        assert!(verified.is_none());
+        let secret = "test-secret-key";
+        let uid = "user-123";
+        let token = generate_token(uid, secret);
+        let verified = verify_token(&token, secret);
+        assert_eq!(verified, Some(uid.to_string()));
     }
 
     #[test]
     fn test_token_expired() {
-        // ننشئ توكن بوقت منتهي يدوياً
-        let old_ts = 1000u128; // عام 1970
-        let payload = format!("user1.{old_ts}");
-        let mut mac = HmacSha256::new_from_slice(TEST_SECRET.as_bytes()).unwrap();
-        mac.update(payload.as_bytes());
-        let sig = hex::encode(mac.finalize().into_bytes());
-        let full = format!("{payload}.{sig}");
-        let token = base64::Engine::encode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, full);
-
-        let verified = verify_token(&token, TEST_SECRET);
-        assert!(verified.is_none(), "Expired token should be rejected");
+        let secret = "test-secret-key";
+        let uid = "user-123";
+        let old_issued = (SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs())
+            - (TOKEN_EXPIRY_SECS + 60);
+        let hash = hex::encode(Sha256::digest(
+            format!("{}:{}:{}", uid, old_issued, secret).as_bytes(),
+        ));
+        let token = format!("popcorn_{}_{}_{}", uid, old_issued, &hash[..16]);
+        assert_eq!(verify_token(&token, secret), None, "Expired token should be rejected");
     }
 
     #[test]
-    fn test_telegram_user_parse() {
-        let mut data = BTreeMap::new();
-        data.insert("user".to_string(),
-            r#"{"id":12345,"first_name":"Test","last_name":"User","username":"tester"}"#.to_string());
+    fn test_token_wrong_secret() {
+        let token = generate_token("user-1", "secret-a");
+        assert_eq!(verify_token(&token, "secret-b"), None);
+    }
 
-        let user = TelegramUser::from_init_data(&data).unwrap();
-        assert_eq!(user.id, 12345);
-        assert_eq!(user.first_name, "Test");
-        assert_eq!(user.username, Some("tester".to_string()));
+    #[test]
+    fn test_password_hash() {
+        let h1 = hash_password("mypassword");
+        let h2 = hash_password("mypassword");
+        assert_ne!(h1, h2, "salt عشوائي يجب أن يعطي hash مختلفاً");
+        assert!(verify_password("mypassword", &h1), "التحقق يجب أن ينجح");
+        assert!(!verify_password("wrong", &h1), "كلمة خاطئة يجب أن تفشل");
     }
 }

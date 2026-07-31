@@ -12,7 +12,7 @@ export default function NotFound() {
         <div className="space-y-1.5">
           <h1 className="text-4xl font-bold font-mono text-primary/80">404</h1>
           <p className="text-sm font-medium text-muted-foreground">Page not found</p>
-          <p className="text-xs text-muted-foreground/50">This route doesn't exist in Requiem Agent 1.</p>
+          <p className="text-xs text-muted-foreground/50">This route doesn't exist in PopCorn AI Studio.</p>
         </div>
         <Link
           href="/"

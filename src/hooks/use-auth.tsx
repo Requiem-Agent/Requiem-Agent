@@ -32,11 +32,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const storedToken = sessionStorage.getItem('rq_tok');
     const storedUser = sessionStorage.getItem('rq_user');
 
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+    if (!storedToken) {
+      setIsLoading(false);
+      return;
     }
-    setIsLoading(false);
+
+    const apiBase = import.meta.env.VITE_API_URL || '';
+
+    fetch(`${apiBase}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${storedToken}` },
+    })
+      .then((res) => {
+        if (res.status === 401) {
+          sessionStorage.removeItem('rq_tok');
+          sessionStorage.removeItem('rq_user');
+          setToken(null);
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
+        return res.json().then((data) => {
+          setToken(storedToken);
+          setUser({
+            id: data.user_id,
+            username: data.username || (storedUser ? JSON.parse(storedUser).username : undefined),
+            plan: data.plan || 'free',
+          });
+          setIsLoading(false);
+        });
+      })
+      .catch(() => {
+        // فشل الشبكة — نُبقي الجلسة المخزنة محلياً
+        if (storedUser) {
+          try { setUser(JSON.parse(storedUser)); } catch { setUser(null); }
+        }
+        setToken(storedToken);
+        setIsLoading(false);
+      });
   }, []);
 
   const login = async (username: string, password: string) => {
@@ -52,8 +84,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const authUser: AuthUser = {
         id: data.user_id,
-        username,
-        plan: 'premium',
+        username: data.username || username,
+        plan: data.plan || 'free',
       };
 
       setToken(data.token);

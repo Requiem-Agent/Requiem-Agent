@@ -73,6 +73,9 @@ base64 = "0.22"
 # === Cryptography (S5-03: AES-256-GCM for user API key encryption) ===
 aes-gcm = "0.10"
 zeroize = { version = "1", features = ["derive"] }
+# كلمات المرور — Argon2id (معيار OWASP)
+argon2 = "0.5"
+rand_core = { version = "0.6", features = ["std"] }
 
 # === Async Traits (needed by collaborative_agents, webhooks, plugins) ===
 async-trait = "0.1"

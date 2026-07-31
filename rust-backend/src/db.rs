@@ -11,6 +11,8 @@ use crate::routes::user_api_keys::{HasApiKeysDb, StoredApiKey};
 #[derive(Clone)]
 pub struct AppState {
     pub conn: Arc<Connection>,
+    // PopCorn Gateway unified DB — مصدر الحقيقة الوحيد للحسابات (customer_accounts + clients)
+    pub popcorn_conn: Arc<Connection>,
     pub bot_token: String,
     pub hf_token: String,
     pub hf_space_prdcn: String,
@@ -27,13 +29,38 @@ impl AppState {
         };
         let conn = db.connect()?;
 
+        // PopCorn Gateway DB — تُستخدم للمصادقة (customer_accounts/clients).
+        // إن غابت إعداداتها نعمل محلياً على نفس الاتصال حتى لا ينكسر التطوير.
+        let popcorn_conn = match (
+            std::env::var("TURSO_POPCORN_URL"),
+            std::env::var("TURSO_POPCORN_TOKEN"),
+        ) {
+            (Ok(url), Ok(token)) => match Builder::new_remote(url.clone(), token).build().await {
+                Ok(db) => match db.connect() {
+                    Ok(c) => Arc::new(c),
+                    Err(e) => {
+                        tracing::warn!("TURSO_POPCORN connect failed ({e}) — falling back to local conn");
+                        Arc::new(conn.clone())
+                    }
+                },
+                Err(e) => {
+                    tracing::warn!("TURSO_POPCORN build failed ({e}) — falling back to local conn");
+                    Arc::new(conn.clone())
+                }
+            },
+            _ => {
+                tracing::warn!("TURSO_POPCORN_URL/TURSO_POPCORN_TOKEN not set — using local conn for PopCorn auth");
+                Arc::new(conn.clone())
+            }
+        };
+
         Ok(Self {
             conn: Arc::new(conn),
-            bot_token: std::env::var("TELEGRAM_BOT_TOKEN")
-                .unwrap_or_else(|_| {
-                    tracing::warn!("TELEGRAM_BOT_TOKEN not set — bot features disabled");
-                    String::new()
-                }),
+            popcorn_conn,
+            bot_token: std::env::var("TELEGRAM_BOT_TOKEN").unwrap_or_else(|_| {
+                tracing::warn!("TELEGRAM_BOT_TOKEN not set — bot features disabled");
+                String::new()
+            }),
             hf_token: std::env::var("HF_TOKEN").unwrap_or_default(),
             hf_space_prdcn: std::env::var("HF_SPACE_PRDCN")
                 .unwrap_or_else(|_| "rayig/Prdcn".to_string()),
@@ -57,14 +84,21 @@ impl AppState {
         self.conn.execute_batch("
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
-                telegram_id INTEGER UNIQUE NOT NULL,
-                first_name TEXT NOT NULL,
-                last_name TEXT,
+                popcorn_client_id TEXT UNIQUE,
                 username TEXT,
+                plan TEXT NOT NULL DEFAULT 'free',
                 quota_read_used INTEGER NOT NULL DEFAULT 0,
                 quota_write_used INTEGER NOT NULL DEFAULT 0,
                 quota_reset_at TEXT NOT NULL,
                 created_at TEXT NOT NULL
+            );
+            -- ربط جدول العملاء من Popcorn (للوصول المباشر)
+            CREATE TABLE IF NOT EXISTS customer_accounts (
+                client_id TEXT PRIMARY KEY,
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                plan TEXT DEFAULT 'free',
+                created_at TEXT DEFAULT (datetime('now'))
             );
             CREATE TABLE IF NOT EXISTS sessions (
                 id TEXT PRIMARY KEY,

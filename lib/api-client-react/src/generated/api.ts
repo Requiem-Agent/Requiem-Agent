@@ -20,7 +20,6 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
-  AuthResult,
   Bot,
   BotInput,
   DeployResult,
@@ -32,7 +31,6 @@ import type {
   SessionDetail,
   SessionInput,
   SessionUpdate,
-  TelegramAuthInput,
   UsageStats
 } from './api.schemas';
 
@@ -136,80 +134,6 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
-
-
-
-
-export const getTelegramAuthUrl = () => {
-
-
-
-
-  return `/api/auth`
-}
-
-/**
- * @summary Authenticate via Telegram initData
- */
-export const telegramAuth = async (telegramAuthInput: TelegramAuthInput, options?: RequestInit): Promise<AuthResult> => {
-
-  return customFetch<AuthResult>(getTelegramAuthUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(telegramAuthInput)
-  }
-);}
-
-
-
-
-
-export const getTelegramAuthMutationOptions = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof telegramAuth>>, TError,{data: BodyType<TelegramAuthInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof telegramAuth>>, TError,{data: BodyType<TelegramAuthInput>}, TContext> => {
-
-const mutationKey = ['telegramAuth'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof telegramAuth>>, {data: BodyType<TelegramAuthInput>}> = (props) => {
-          const {data} = props ?? {};
-
-          return  telegramAuth(data,requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type TelegramAuthMutationResult = NonNullable<Awaited<ReturnType<typeof telegramAuth>>>
-    export type TelegramAuthMutationBody = BodyType<TelegramAuthInput>
-    export type TelegramAuthMutationError = ErrorType<void>
-
-    /**
- * @summary Authenticate via Telegram initData
- */
-export const useTelegramAuth = <TError = ErrorType<void>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof telegramAuth>>, TError,{data: BodyType<TelegramAuthInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof telegramAuth>>,
-        TError,
-        {data: BodyType<TelegramAuthInput>},
-        TContext
-      > => {
-      return useMutation(getTelegramAuthMutationOptions(options));
-    }
 
 export const getListSessionsUrl = () => {
 

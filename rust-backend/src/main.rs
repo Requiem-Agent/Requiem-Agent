@@ -179,7 +179,8 @@ async fn main() -> Result<()> {
 
     let public_router = Router::new()
         .route("/healthz", get(routes::health::health_check))
-        .route("/auth", post(routes::auth::telegram_auth))
+        .route("/auth/login", post(routes::auth::login_handler))
+        .route("/auth/me", get(routes::auth::me_handler))
         .route("/models", get(routes::models::list_models))
         // S3-04: Prometheus metrics endpoint (public — لا يحتاج auth)
         .route("/metrics", get(metrics::metrics_handler));

@@ -6,7 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export * from './authResult';
 export * from './bot';
 export * from './botInput';
 export * from './botStatus';
@@ -31,6 +30,4 @@ export * from './sessionMode';
 export * from './sessionUpdate';
 export * from './sessionUpdateEffort';
 export * from './sessionUpdateMode';
-export * from './telegramAuthInput';
 export * from './usageStats';
-export * from './user';
