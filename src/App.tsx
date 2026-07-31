@@ -80,18 +80,14 @@ function App() {
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                 <path d="M9 12l2 2 4-4"/>
               </svg>
-              <h1 style={{fontSize:'22px',fontWeight:700,margin:'8px 0 4px',color:'#fff'}}>وصول مقيد</h1>
+              <h1 style={{fontSize:'22px',fontWeight:700,margin:'8px 0 4px',color:'#fff'}}>خطأ في الاتصال</h1>
               <p style={{color:'#999',fontSize:'14px',lineHeight:'1.8',maxWidth:'360px',margin:'0'}}>
-                لا يمكن الوصول إلى <bdi style={{unicodeBidi:'embed'}}>Requiem Agent</bdi> إلا من داخل
-                تطبيق تلغرام عبر <bdi style={{unicodeBidi:'embed'}}>WebView</bdi>.
+                تعذر الاتصال بالخادم. يرجى المحاولة مرة أخرى.
               </p>
-              <p style={{color:'#777',fontSize:'13px',lineHeight:'1.7',maxWidth:'320px',margin:'12px 0 0'}}>
-                افتح البوت
-                <bdi style={{unicodeBidi:'embed',color:'#a855f7',fontWeight:600}}> @RequiemAgentBot </bdi>
-                في تلغرام ثم اضغط
-                <bdi style={{unicodeBidi:'embed',color:'#a855f7',fontWeight:600}}> Launch </bdi>
-                للبدء.
-              </p>
+              <button onClick={() => window.location.reload()} style={{
+                background:'#a855f7',color:'#fff',border:'none',borderRadius:'10px',
+                padding:'10px 24px',fontSize:'14px',fontWeight:600,cursor:'pointer',marginTop:'8px',
+              }}>إعادة المحاولة</button>
             </div>
           )}
           loading={
