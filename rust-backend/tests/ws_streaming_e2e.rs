@@ -57,7 +57,7 @@ async fn handle_mock_ws(mut socket: WebSocket) {
         match parsed["type"].as_str() {
             Some("ping") => {
                 let _ = socket
-                    .send(Message::Text(json!({"type": "pong"}).to_string()))
+                    .send(Message::Text(json!({"type": "pong"}).to_string().into()))
                     .await;
             }
             Some("start") => {

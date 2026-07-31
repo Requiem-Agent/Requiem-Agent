@@ -26,19 +26,19 @@ pub struct AgentMessage {
     pub to_agent: String,
     pub message_type: AgentMessageType,
     pub payload: serde_json::Value,
-    pub correlation_id: Option<String>,  // لربط الطلب بالرد
+    pub correlation_id: Option<String>, // لربط الطلب بالرد
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentMessageType {
-    TaskRequest,        // طلب تنفيذ مهمة
-    TaskResponse,       // رد على مهمة
-    StatusQuery,        // استعلام عن حالة agent
-    StatusResponse,     // رد على استعلام الحالة
-    Broadcast,          // رسالة لجميع الـ agents
-    Heartbeat,          // نبضة حياة
+    TaskRequest,    // طلب تنفيذ مهمة
+    TaskResponse,   // رد على مهمة
+    StatusQuery,    // استعلام عن حالة agent
+    StatusResponse, // رد على استعلام الحالة
+    Broadcast,      // رسالة لجميع الـ agents
+    Heartbeat,      // نبضة حياة
 }
 
 /// قدرات الـ agent
@@ -46,7 +46,7 @@ pub enum AgentMessageType {
 pub struct AgentCapabilities {
     pub agent_id: String,
     pub name: String,
-    pub specializations: Vec<String>,   // ["code", "research", "math", "writing"]
+    pub specializations: Vec<String>, // ["code", "research", "math", "writing"]
     pub max_concurrent_tasks: usize,
     pub current_load: usize,
     pub is_available: bool,
@@ -107,7 +107,10 @@ impl AgentBus {
         let agent_id = capabilities.agent_id.clone();
 
         self.senders.write().await.insert(agent_id.clone(), tx);
-        self.capabilities.write().await.insert(agent_id.clone(), capabilities);
+        self.capabilities
+            .write()
+            .await
+            .insert(agent_id.clone(), capabilities);
 
         info!("Agent {} registered on bus", agent_id);
         rx
@@ -121,7 +124,10 @@ impl AgentBus {
                 tx.send(message.clone())
                     .await
                     .map_err(|e| format!("Failed to send to agent {}: {}", message.to_agent, e))?;
-                debug!("Message sent from {} to {}", message.from_agent, message.to_agent);
+                debug!(
+                    "Message sent from {} to {}",
+                    message.from_agent, message.to_agent
+                );
                 Ok(())
             }
             None => Err(format!("Agent '{}' not found on bus", message.to_agent)),
@@ -272,8 +278,10 @@ mod tests {
     #[tokio::test]
     async fn test_register_and_list_agents() {
         let bus = AgentBus::new();
-        bus.register_agent(make_capabilities("agent-1", vec!["code"])).await;
-        bus.register_agent(make_capabilities("agent-2", vec!["research"])).await;
+        bus.register_agent(make_capabilities("agent-1", vec!["code"]))
+            .await;
+        bus.register_agent(make_capabilities("agent-2", vec!["research"]))
+            .await;
 
         let agents = bus.list_agents().await;
         assert_eq!(agents.len(), 2);
@@ -282,7 +290,9 @@ mod tests {
     #[tokio::test]
     async fn test_send_message_to_registered_agent() {
         let bus = AgentBus::new();
-        let mut rx = bus.register_agent(make_capabilities("agent-1", vec!["general"])).await;
+        let mut rx = bus
+            .register_agent(make_capabilities("agent-1", vec!["general"]))
+            .await;
 
         let msg = AgentMessage {
             id: "msg-1".into(),
@@ -318,10 +328,17 @@ mod tests {
     #[tokio::test]
     async fn test_delegate_task_to_best_agent() {
         let bus = AgentBus::new();
-        let _rx1 = bus.register_agent(make_capabilities("agent-code", vec!["code"])).await;
-        let _rx2 = bus.register_agent(make_capabilities("agent-research", vec!["research"])).await;
+        let _rx1 = bus
+            .register_agent(make_capabilities("agent-code", vec!["code"]))
+            .await;
+        let _rx2 = bus
+            .register_agent(make_capabilities("agent-research", vec!["research"]))
+            .await;
 
-        let task_id = bus.delegate_task("orchestrator", "code", "write a function").await.unwrap();
+        let task_id = bus
+            .delegate_task("orchestrator", "code", "write a function")
+            .await
+            .unwrap();
         assert!(!task_id.is_empty());
 
         let task = bus.get_task(&task_id).await.unwrap();
@@ -332,10 +349,16 @@ mod tests {
     #[tokio::test]
     async fn test_update_task_status() {
         let bus = AgentBus::new();
-        let _rx = bus.register_agent(make_capabilities("agent-1", vec!["general"])).await;
-        let task_id = bus.delegate_task("orchestrator", "general", "do something").await.unwrap();
+        let _rx = bus
+            .register_agent(make_capabilities("agent-1", vec!["general"]))
+            .await;
+        let task_id = bus
+            .delegate_task("orchestrator", "general", "do something")
+            .await
+            .unwrap();
 
-        bus.update_task_status(&task_id, TaskStatus::Completed, Some("done!".into())).await;
+        bus.update_task_status(&task_id, TaskStatus::Completed, Some("done!".into()))
+            .await;
 
         let task = bus.get_task(&task_id).await.unwrap();
         assert_eq!(task.status, TaskStatus::Completed);

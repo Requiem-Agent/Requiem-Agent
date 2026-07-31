@@ -79,7 +79,7 @@ pub enum Priority {
 pub struct SelfImprovementReport {
     pub generated_at: String,
     pub metrics_period_hours: u32,
-    pub overall_health_score: f64,   // 0.0 - 100.0
+    pub overall_health_score: f64, // 0.0 - 100.0
     pub suggestions: Vec<ImprovementSuggestion>,
     pub top_issues: Vec<String>,
     pub strengths: Vec<String>,
@@ -101,9 +101,9 @@ pub struct SelfImprovementEngine {
 impl Default for SelfImprovementEngine {
     fn default() -> Self {
         Self {
-            error_rate_threshold: 0.05,    // 5%
-            latency_threshold_ms: 2000.0,  // 2 ثانية
-            llm_failure_threshold: 0.10,   // 10%
+            error_rate_threshold: 0.05,   // 5%
+            latency_threshold_ms: 2000.0, // 2 ثانية
+            llm_failure_threshold: 0.10,  // 10%
         }
     }
 }
@@ -124,7 +124,11 @@ impl SelfImprovementEngine {
             ));
             suggestions.push(ImprovementSuggestion {
                 category: SuggestionCategory::Reliability,
-                priority: if metrics.error_rate() > 0.20 { Priority::Critical } else { Priority::High },
+                priority: if metrics.error_rate() > 0.20 {
+                    Priority::Critical
+                } else {
+                    Priority::High
+                },
                 title: "تقليل معدل الأخطاء".into(),
                 description: format!(
                     "معدل الأخطاء الحالي {:.1}% يتجاوز الحد المقبول {:.1}%",
@@ -135,7 +139,10 @@ impl SelfImprovementEngine {
                 implementation_hint: "راجع logs الأخطاء وحدّد الـ endpoints الأكثر فشلاً".into(),
             });
         } else {
-            strengths.push(format!("معدل النجاح ممتاز: {:.1}%", metrics.success_rate() * 100.0));
+            strengths.push(format!(
+                "معدل النجاح ممتاز: {:.1}%",
+                metrics.success_rate() * 100.0
+            ));
         }
 
         // ── تحليل الـ latency ─────────────────────────────────────────────
@@ -169,7 +176,8 @@ impl SelfImprovementEngine {
                 title: "تحسين موثوقية LLM calls".into(),
                 description: "معدل فشل LLM مرتفع يؤثر على جودة الردود".into(),
                 expected_impact: "ردود أكثر موثوقية وتقليل الأخطاء".into(),
-                implementation_hint: "أضف retry logic مع exponential backoff، وفعّل fallback models".into(),
+                implementation_hint: "أضف retry logic مع exponential backoff، وفعّل fallback models"
+                    .into(),
             });
         }
 
@@ -200,7 +208,8 @@ impl SelfImprovementEngine {
                     metrics.avg_tokens_per_request
                 ),
                 expected_impact: "تقليل تكلفة LLM API بنسبة 20-40%".into(),
-                implementation_hint: "اضغط الـ system prompt، وفعّل conversation summarization".into(),
+                implementation_hint: "اضغط الـ system prompt، وفعّل conversation summarization"
+                    .into(),
             });
         }
 
@@ -257,7 +266,10 @@ fn calculate_health_score(metrics: &PerformanceMetrics, engine: &SelfImprovement
 
     // خصم بسبب latency
     if metrics.p95_latency_ms > engine.latency_threshold_ms {
-        score -= ((metrics.p95_latency_ms - engine.latency_threshold_ms) / engine.latency_threshold_ms).min(1.0) * 20.0;
+        score -= ((metrics.p95_latency_ms - engine.latency_threshold_ms)
+            / engine.latency_threshold_ms)
+            .min(1.0)
+            * 20.0;
     }
 
     // خصم بسبب LLM failures
@@ -313,7 +325,10 @@ mod tests {
         metrics.failed_requests = 200;
         metrics.successful_requests = 800;
         let report = engine.analyze(&metrics);
-        assert!(report.suggestions.iter().any(|s| s.category == SuggestionCategory::Reliability));
+        assert!(report
+            .suggestions
+            .iter()
+            .any(|s| s.category == SuggestionCategory::Reliability));
         assert!(!report.top_issues.is_empty());
     }
 
@@ -323,7 +338,10 @@ mod tests {
         let mut metrics = healthy_metrics();
         metrics.p95_latency_ms = 5000.0;
         let report = engine.analyze(&metrics);
-        assert!(report.suggestions.iter().any(|s| s.category == SuggestionCategory::Performance));
+        assert!(report
+            .suggestions
+            .iter()
+            .any(|s| s.category == SuggestionCategory::Performance));
     }
 
     #[test]
@@ -332,7 +350,10 @@ mod tests {
         let mut metrics = healthy_metrics();
         metrics.avg_tokens_per_request = 5000.0;
         let report = engine.analyze(&metrics);
-        assert!(report.suggestions.iter().any(|s| s.category == SuggestionCategory::CostOptimization));
+        assert!(report
+            .suggestions
+            .iter()
+            .any(|s| s.category == SuggestionCategory::CostOptimization));
     }
 
     #[test]

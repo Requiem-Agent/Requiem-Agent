@@ -197,7 +197,9 @@ impl WebSearchTool {
 
 #[async_trait]
 impl AgentTool for WebSearchTool {
-    fn name(&self) -> &str { "web_search" }
+    fn name(&self) -> &str {
+        "web_search"
+    }
 
     fn description(&self) -> &str {
         "يبحث في الإنترنت عن معلومات حديثة. استخدمه عندما تحتاج معلومات لا تعرفها أو قد تكون قديمة."
@@ -238,9 +240,7 @@ impl AgentTool for WebSearchTool {
                     Err(e) => ToolResult::err(format!("Failed to parse search results: {}", e)),
                 }
             }
-            Ok(resp) => {
-                ToolResult::err(format!("Search API error: {}", resp.status()))
-            }
+            Ok(resp) => ToolResult::err(format!("Search API error: {}", resp.status())),
             Err(e) => ToolResult::err(format!("Search request failed: {}", e)),
         }
     }
@@ -251,13 +251,19 @@ fn format_search_results(data: &serde_json::Value) -> String {
 
     if let Some(organic) = data.get("organic").and_then(|v| v.as_array()) {
         for (i, result) in organic.iter().take(5).enumerate() {
-            let title = result.get("title").and_then(|v| v.as_str()).unwrap_or("بدون عنوان");
+            let title = result
+                .get("title")
+                .and_then(|v| v.as_str())
+                .unwrap_or("بدون عنوان");
             let snippet = result.get("snippet").and_then(|v| v.as_str()).unwrap_or("");
             let link = result.get("link").and_then(|v| v.as_str()).unwrap_or("");
 
             output.push_str(&format!(
                 "{}. **{}**\n{}\n🔗 {}\n\n",
-                i + 1, title, snippet, link
+                i + 1,
+                title,
+                snippet,
+                link
             ));
         }
     }
@@ -277,7 +283,9 @@ pub struct CalculatorTool;
 
 #[async_trait]
 impl AgentTool for CalculatorTool {
-    fn name(&self) -> &str { "calculator" }
+    fn name(&self) -> &str {
+        "calculator"
+    }
 
     fn description(&self) -> &str {
         "يحسب تعبيرات رياضية. يدعم: +، -، *، /، ^، sqrt، sin، cos، tan، log."
@@ -343,7 +351,9 @@ impl HttpFetchTool {
 
 #[async_trait]
 impl AgentTool for HttpFetchTool {
-    fn name(&self) -> &str { "http_fetch" }
+    fn name(&self) -> &str {
+        "http_fetch"
+    }
 
     fn description(&self) -> &str {
         "يجلب محتوى صفحة ويب أو API endpoint. يُرجع النص الخام."
@@ -405,7 +415,9 @@ impl CodeExecutorTool {
 
 #[async_trait]
 impl AgentTool for CodeExecutorTool {
-    fn name(&self) -> &str { "code_exec" }
+    fn name(&self) -> &str {
+        "code_exec"
+    }
 
     fn description(&self) -> &str {
         "ينفّذ كود Python في بيئة آمنة محدودة. مفيد للحسابات والتحليل."
@@ -440,7 +452,11 @@ impl AgentTool for CodeExecutorTool {
             Ok(Ok(out)) => {
                 if out.status.success() {
                     let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-                    ToolResult::ok(if stdout.is_empty() { "تم التنفيذ بنجاح (لا output)".into() } else { stdout })
+                    ToolResult::ok(if stdout.is_empty() {
+                        "تم التنفيذ بنجاح (لا output)".into()
+                    } else {
+                        stdout
+                    })
                 } else {
                     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
                     ToolResult::err(format!("خطأ في التنفيذ:\n{}", stderr))
@@ -457,7 +473,7 @@ impl AgentTool for CodeExecutorTool {
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub struct FileOpsTool {
-    allowed_dir: String,
+    pub allowed_dir: String,
 }
 
 impl FileOpsTool {
@@ -471,7 +487,9 @@ impl FileOpsTool {
 
 #[async_trait]
 impl AgentTool for FileOpsTool {
-    fn name(&self) -> &str { "file_ops" }
+    fn name(&self) -> &str {
+        "file_ops"
+    }
 
     fn description(&self) -> &str {
         "يقرأ ويكتب الملفات في مجلد آمن. الأوامر: read:<path>, write:<path>:<content>, list"
@@ -611,12 +629,18 @@ mod tests {
     #[tokio::test]
     async fn test_file_ops_write_and_read() {
         let dir = format!("/tmp/test_agent_{}", uuid::Uuid::new_v4());
-        let tool = FileOpsTool { allowed_dir: dir.clone() };
+        let tool = FileOpsTool {
+            allowed_dir: dir.clone(),
+        };
 
         let write_result = tool
             .execute(&ToolArgs::new("write:test.txt:مرحبا بالعالم"))
             .await;
-        assert!(write_result.success, "Write failed: {:?}", write_result.error);
+        assert!(
+            write_result.success,
+            "Write failed: {:?}",
+            write_result.error
+        );
 
         let read_result = tool.execute(&ToolArgs::new("read:test.txt")).await;
         assert!(read_result.success);

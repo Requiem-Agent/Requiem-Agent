@@ -449,63 +449,55 @@ mod webhook_tests {
 
 #[cfg(test)]
 mod rate_limit_tests {
-    use requiem_backend::rate_limit::{MultiEndpointRateLimiter, RateLimitConfig, RateLimitKey};
+    use requiem_backend::rate_limit::{MultiEndpointRateLimiter, RateLimitKey};
 
     #[test]
-    fn test_rate_limit_config_defaults() {
-        let config = RateLimitConfig::default();
-        assert!(config.auth_max > 0);
-        assert!(config.chat_max > 0);
-        assert!(config.api_max > config.chat_max);
+    fn test_defaults_allow_reasonable_traffic() {
+        let limiter = MultiEndpointRateLimiter::from_env();
+        let key = RateLimitKey::User("user-123".into());
+        for _ in 0..5 {
+            assert!(limiter.check("/auth/login", &key).is_ok());
+        }
+        assert!(limiter.check("/chat/send", &key).is_ok());
     }
 
     #[test]
     fn test_rate_limit_key_display() {
         let user_key = RateLimitKey::User("user-123".into());
-        let display = format!("{}", user_key);
+        let display = user_key.as_str();
         assert!(display.contains("user-123"));
     }
 
     #[test]
     fn test_allows_within_limit() {
-        let limiter = MultiEndpointRateLimiter::new(RateLimitConfig {
-            auth_max: 5,
-            ..Default::default()
-        });
+        let limiter = MultiEndpointRateLimiter::from_env();
         let key = RateLimitKey::User("test-user".into());
-        for _ in 0..5 {
-            assert!(limiter.check_and_increment("auth", &key));
+        for _ in 0..10 {
+            assert!(limiter.check("/auth/login", &key).is_ok());
         }
     }
 
     #[test]
     fn test_blocks_over_limit() {
-        let limiter = MultiEndpointRateLimiter::new(RateLimitConfig {
-            auth_max: 3,
-            ..Default::default()
-        });
+        let limiter = MultiEndpointRateLimiter::from_env();
         let key = RateLimitKey::User("test-user".into());
-        for _ in 0..3 {
-            limiter.check_and_increment("auth", &key);
+        for _ in 0..10 {
+            limiter.check("/auth/login", &key).ok();
         }
-        assert!(!limiter.check_and_increment("auth", &key));
+        assert!(limiter.check("/auth/login", &key).is_err());
     }
 
     #[test]
     fn test_per_user_isolation() {
-        let limiter = MultiEndpointRateLimiter::new(RateLimitConfig {
-            chat_max: 2,
-            ..Default::default()
-        });
+        let limiter = MultiEndpointRateLimiter::from_env();
         let user1 = RateLimitKey::User("user-1".into());
         let user2 = RateLimitKey::User("user-2".into());
 
-        limiter.check_and_increment("chat", &user1);
-        limiter.check_and_increment("chat", &user1);
-        // user1 وصل للحد
-        assert!(!limiter.check_and_increment("chat", &user1));
-        // user2 لا يزال يستطيع
-        assert!(limiter.check_and_increment("chat", &user2));
+        for _ in 0..10 {
+            limiter.check("/chat/send", &user1).ok();
+        }
+        assert!(limiter.check("/chat/send", &user1).is_err());
+        assert!(limiter.check("/chat/send", &user2).is_ok());
     }
 }
 

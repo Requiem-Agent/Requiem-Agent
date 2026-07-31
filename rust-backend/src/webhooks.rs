@@ -42,7 +42,7 @@ pub struct Webhook {
     pub user_id: String,
     pub url: String,
     pub events: Vec<WebhookEvent>,
-    pub secret: String,          // HMAC-SHA256 signing secret
+    pub secret: String, // HMAC-SHA256 signing secret
     pub is_active: bool,
     pub retry_count: u32,
     pub created_at: String,
@@ -81,12 +81,25 @@ pub struct WebhookDeliveryResult {
 
 #[async_trait]
 pub trait WebhookStore: Send + Sync {
-    async fn create_webhook(&self, user_id: &str, req: CreateWebhookRequest) -> Result<Webhook, String>;
+    async fn create_webhook(
+        &self,
+        user_id: &str,
+        req: CreateWebhookRequest,
+    ) -> Result<Webhook, String>;
     async fn list_webhooks(&self, user_id: &str) -> Result<Vec<Webhook>, String>;
     async fn get_webhook(&self, webhook_id: &str) -> Result<Option<Webhook>, String>;
     async fn delete_webhook(&self, user_id: &str, webhook_id: &str) -> Result<(), String>;
-    async fn get_webhooks_for_event(&self, user_id: &str, event: &WebhookEvent) -> Result<Vec<Webhook>, String>;
-    async fn update_webhook_status(&self, webhook_id: &str, status: u16, success: bool) -> Result<(), String>;
+    async fn get_webhooks_for_event(
+        &self,
+        user_id: &str,
+        event: &WebhookEvent,
+    ) -> Result<Vec<Webhook>, String>;
+    async fn update_webhook_status(
+        &self,
+        webhook_id: &str,
+        status: u16,
+        success: bool,
+    ) -> Result<(), String>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -146,11 +159,7 @@ impl WebhookDispatcher {
 
             // تحديث حالة الـ webhook في DB
             let _ = store
-                .update_webhook_status(
-                    &webhook.id,
-                    result.status_code.unwrap_or(0),
-                    result.success,
-                )
+                .update_webhook_status(&webhook.id, result.status_code.unwrap_or(0), result.success)
                 .await;
 
             if !result.success {
@@ -291,13 +300,19 @@ mod tests {
 
     impl MockWebhookStore {
         fn new() -> Self {
-            Self { webhooks: Mutex::new(Vec::new()) }
+            Self {
+                webhooks: Mutex::new(Vec::new()),
+            }
         }
     }
 
     #[async_trait]
     impl WebhookStore for MockWebhookStore {
-        async fn create_webhook(&self, user_id: &str, req: CreateWebhookRequest) -> Result<Webhook, String> {
+        async fn create_webhook(
+            &self,
+            user_id: &str,
+            req: CreateWebhookRequest,
+        ) -> Result<Webhook, String> {
             let webhook = Webhook {
                 id: Uuid::new_v4().to_string(),
                 user_id: user_id.to_string(),
@@ -314,22 +329,48 @@ mod tests {
             Ok(webhook)
         }
         async fn list_webhooks(&self, user_id: &str) -> Result<Vec<Webhook>, String> {
-            Ok(self.webhooks.lock().unwrap().iter().filter(|w| w.user_id == user_id).cloned().collect())
+            Ok(self
+                .webhooks
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|w| w.user_id == user_id)
+                .cloned()
+                .collect())
         }
         async fn get_webhook(&self, webhook_id: &str) -> Result<Option<Webhook>, String> {
-            Ok(self.webhooks.lock().unwrap().iter().find(|w| w.id == webhook_id).cloned())
+            Ok(self
+                .webhooks
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|w| w.id == webhook_id)
+                .cloned())
         }
         async fn delete_webhook(&self, _user_id: &str, webhook_id: &str) -> Result<(), String> {
             self.webhooks.lock().unwrap().retain(|w| w.id != webhook_id);
             Ok(())
         }
-        async fn get_webhooks_for_event(&self, user_id: &str, event: &WebhookEvent) -> Result<Vec<Webhook>, String> {
-            Ok(self.webhooks.lock().unwrap().iter()
+        async fn get_webhooks_for_event(
+            &self,
+            user_id: &str,
+            event: &WebhookEvent,
+        ) -> Result<Vec<Webhook>, String> {
+            Ok(self
+                .webhooks
+                .lock()
+                .unwrap()
+                .iter()
                 .filter(|w| w.user_id == user_id && w.is_active && w.events.contains(event))
                 .cloned()
                 .collect())
         }
-        async fn update_webhook_status(&self, webhook_id: &str, status: u16, _success: bool) -> Result<(), String> {
+        async fn update_webhook_status(
+            &self,
+            webhook_id: &str,
+            status: u16,
+            _success: bool,
+        ) -> Result<(), String> {
             let mut webhooks = self.webhooks.lock().unwrap();
             if let Some(w) = webhooks.iter_mut().find(|w| w.id == webhook_id) {
                 w.last_status = Some(status);
@@ -341,11 +382,17 @@ mod tests {
     #[tokio::test]
     async fn test_create_and_list_webhooks() {
         let store = MockWebhookStore::new();
-        store.create_webhook("user-1", CreateWebhookRequest {
-            url: "https://example.com/hook".into(),
-            events: vec![WebhookEvent::TaskComplete],
-            secret: None,
-        }).await.unwrap();
+        store
+            .create_webhook(
+                "user-1",
+                CreateWebhookRequest {
+                    url: "https://example.com/hook".into(),
+                    events: vec![WebhookEvent::TaskComplete],
+                    secret: None,
+                },
+            )
+            .await
+            .unwrap();
 
         let webhooks = store.list_webhooks("user-1").await.unwrap();
         assert_eq!(webhooks.len(), 1);
@@ -355,32 +402,56 @@ mod tests {
     #[tokio::test]
     async fn test_get_webhooks_for_event() {
         let store = MockWebhookStore::new();
-        store.create_webhook("user-1", CreateWebhookRequest {
-            url: "https://example.com/hook1".into(),
-            events: vec![WebhookEvent::TaskComplete, WebhookEvent::AgentError],
-            secret: None,
-        }).await.unwrap();
-        store.create_webhook("user-1", CreateWebhookRequest {
-            url: "https://example.com/hook2".into(),
-            events: vec![WebhookEvent::RateLimitHit],
-            secret: None,
-        }).await.unwrap();
+        store
+            .create_webhook(
+                "user-1",
+                CreateWebhookRequest {
+                    url: "https://example.com/hook1".into(),
+                    events: vec![WebhookEvent::TaskComplete, WebhookEvent::AgentError],
+                    secret: None,
+                },
+            )
+            .await
+            .unwrap();
+        store
+            .create_webhook(
+                "user-1",
+                CreateWebhookRequest {
+                    url: "https://example.com/hook2".into(),
+                    events: vec![WebhookEvent::RateLimitHit],
+                    secret: None,
+                },
+            )
+            .await
+            .unwrap();
 
-        let task_hooks = store.get_webhooks_for_event("user-1", &WebhookEvent::TaskComplete).await.unwrap();
+        let task_hooks = store
+            .get_webhooks_for_event("user-1", &WebhookEvent::TaskComplete)
+            .await
+            .unwrap();
         assert_eq!(task_hooks.len(), 1);
 
-        let rl_hooks = store.get_webhooks_for_event("user-1", &WebhookEvent::RateLimitHit).await.unwrap();
+        let rl_hooks = store
+            .get_webhooks_for_event("user-1", &WebhookEvent::RateLimitHit)
+            .await
+            .unwrap();
         assert_eq!(rl_hooks.len(), 1);
     }
 
     #[tokio::test]
     async fn test_delete_webhook() {
         let store = MockWebhookStore::new();
-        let webhook = store.create_webhook("user-1", CreateWebhookRequest {
-            url: "https://example.com/hook".into(),
-            events: vec![WebhookEvent::TaskComplete],
-            secret: None,
-        }).await.unwrap();
+        let webhook = store
+            .create_webhook(
+                "user-1",
+                CreateWebhookRequest {
+                    url: "https://example.com/hook".into(),
+                    events: vec![WebhookEvent::TaskComplete],
+                    secret: None,
+                },
+            )
+            .await
+            .unwrap();
 
         store.delete_webhook("user-1", &webhook.id).await.unwrap();
         let webhooks = store.list_webhooks("user-1").await.unwrap();

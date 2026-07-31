@@ -199,15 +199,20 @@ impl PoolHealth {
 /// يبني ORDER BY clause آمن (whitelist-based)
 pub fn safe_order_by(field: &str, direction: &str) -> Option<String> {
     let allowed_fields = [
-        "created_at", "updated_at", "last_message_at",
-        "message_count", "total_tokens", "title",
+        "created_at",
+        "updated_at",
+        "last_message_at",
+        "message_count",
+        "total_tokens",
+        "title",
     ];
     let allowed_directions = ["ASC", "DESC"];
 
     let field = field.to_lowercase();
     let direction = direction.to_uppercase();
 
-    if allowed_fields.contains(&field.as_str()) && allowed_directions.contains(&direction.as_str()) {
+    if allowed_fields.contains(&field.as_str()) && allowed_directions.contains(&direction.as_str())
+    {
         Some(format!("{} {}", field, direction))
     } else {
         warn!("Rejected unsafe ORDER BY: {} {}", field, direction);
@@ -295,16 +300,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_monitor_tracks_success() {
-        let monitor = QueryMonitor { slow_query_threshold_ms: 1000 };
-        let result: Result<i32, String> = monitor
-            .track("test_query", async { Ok(42) })
-            .await;
+        let monitor = QueryMonitor {
+            slow_query_threshold_ms: 1000,
+        };
+        let result: Result<i32, String> = monitor.track("test_query", async { Ok(42) }).await;
         assert_eq!(result.unwrap(), 42);
     }
 
     #[tokio::test]
     async fn test_query_monitor_tracks_failure() {
-        let monitor = QueryMonitor { slow_query_threshold_ms: 1000 };
+        let monitor = QueryMonitor {
+            slow_query_threshold_ms: 1000,
+        };
         let result: Result<i32, String> = monitor
             .track("failing_query", async { Err("DB error".to_string()) })
             .await;
