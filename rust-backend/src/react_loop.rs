@@ -660,7 +660,7 @@ mod tests {
             result.final_answer.is_some(),
             "يجب أن تكون هناك إجابة نهائية"
         );
-        assert_eq!(result.stop_reason as u8, StopReason::Completed as u8);
+        assert_eq!(result.stop_reason, StopReason::Completed);
     }
 }
 

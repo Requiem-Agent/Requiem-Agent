@@ -6,7 +6,7 @@
 //! - كشف التكرار في الكود
 //! - دعم كامل للمسارات الآمنة (path_safety)
 
-use crate::orchestrator::{FileEditOperation, FileEditResult, MultiFileEditor};
+use crate::orchestrator::{FileEditOperation, FileEditResult, FileOp, MultiFileEditor};
 use crate::storage;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

@@ -283,7 +283,7 @@ mod tests {
         let report = d.analyze(
             "هذا أمر بفتح الملف",
             &[serde_json::json!({"tool": "read_file"})],
-            &["فكر"],
+            &["فكر".to_string()],
         );
         assert!(!report.has_issues);
         assert_eq!(report.quality_score, 1.0);

@@ -105,7 +105,7 @@ mod agent_chat_tests {
 
 #[cfg(test)]
 mod preferences_tests {
-    use crate::requiem_backend::routes::preferences::{UpdatePreferencesRequest, UserPreferences};
+    use requiem_backend::routes::preferences::{UpdatePreferencesRequest, UserPreferences};
 
     #[test]
     fn test_preferences_default_values() {
@@ -147,7 +147,7 @@ mod preferences_tests {
 
     #[test]
     fn test_patch_only_updates_provided_fields() {
-        use crate::requiem_backend::routes::preferences::build_update_fields;
+        use requiem_backend::routes::preferences::build_update_fields;
         let req = UpdatePreferencesRequest {
             theme: Some("light".into()),
             ..Default::default()
@@ -165,7 +165,7 @@ mod preferences_tests {
 
 #[cfg(test)]
 mod crypto_tests {
-    use crate::requiem_backend::crypto::{decrypt_api_key, encrypt_api_key};
+    use requiem_backend::crypto::{decrypt_api_key, encrypt_api_key};
 
     #[test]
     fn test_encrypt_decrypt_round_trip() {
@@ -232,7 +232,7 @@ mod crypto_tests {
 
 #[cfg(test)]
 mod plugin_tests {
-    use crate::requiem_backend::plugins::{ToolArgs, ToolRegistry};
+    use requiem_backend::plugins::{ToolArgs, ToolRegistry};
 
     #[test]
     fn test_default_registry_has_5_tools() {
@@ -249,8 +249,8 @@ mod plugin_tests {
 
     #[tokio::test]
     async fn test_file_ops_write_read_delete() {
-        use crate::requiem_backend::plugins::AgentTool;
-        use crate::requiem_backend::plugins::FileOpsTool;
+        use requiem_backend::plugins::AgentTool;
+        use requiem_backend::plugins::FileOpsTool;
 
         let dir = format!("/tmp/test_plugin_{}", uuid::Uuid::new_v4());
         let tool = FileOpsTool {
@@ -282,7 +282,7 @@ mod plugin_tests {
 
 #[cfg(test)]
 mod self_improvement_tests {
-    use crate::requiem_backend::self_improvement::{PerformanceMetrics, SelfImprovementEngine};
+    use requiem_backend::self_improvement::{PerformanceMetrics, SelfImprovementEngine};
     use std::collections::HashMap;
 
     fn make_metrics(error_rate: f64, p95_ms: f64) -> PerformanceMetrics {
@@ -339,7 +339,7 @@ mod self_improvement_tests {
 
 #[cfg(test)]
 mod collaborative_tests {
-    use crate::requiem_backend::collaborative_agents::{AgentBus, AgentCapabilities, TaskStatus};
+    use requiem_backend::collaborative_agents::{AgentBus, AgentCapabilities, TaskStatus};
 
     fn make_caps(id: &str, specs: Vec<&str>) -> AgentCapabilities {
         AgentCapabilities {
@@ -413,7 +413,7 @@ mod collaborative_tests {
 
 #[cfg(test)]
 mod webhook_tests {
-    use crate::requiem_backend::webhooks::{CreateWebhookRequest, WebhookEvent};
+    use requiem_backend::webhooks::{CreateWebhookRequest, WebhookEvent};
 
     #[test]
     fn test_all_webhook_events_have_string_representation() {
@@ -449,9 +449,7 @@ mod webhook_tests {
 
 #[cfg(test)]
 mod rate_limit_tests {
-    use crate::requiem_backend::rate_limit::{
-        MultiEndpointRateLimiter, RateLimitConfig, RateLimitKey,
-    };
+    use requiem_backend::rate_limit::{MultiEndpointRateLimiter, RateLimitConfig, RateLimitKey};
 
     #[test]
     fn test_rate_limit_config_defaults() {
@@ -517,9 +515,7 @@ mod rate_limit_tests {
 
 #[cfg(test)]
 mod db_pool_tests {
-    use crate::requiem_backend::db_pool::{
-        safe_order_by, safe_pagination, PoolHealth, QueryMonitor,
-    };
+    use requiem_backend::db_pool::{safe_order_by, safe_pagination, PoolHealth, QueryMonitor};
 
     #[test]
     fn test_pool_health_utilization() {

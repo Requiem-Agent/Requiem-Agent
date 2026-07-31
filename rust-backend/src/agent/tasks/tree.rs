@@ -374,7 +374,9 @@ mod tests {
     #[test]
     fn test_add_task() {
         let mut tree = TaskTree::new("الرئيسية", "user1");
-        let id = tree.add_task("مهمة فرعية", Some(&tree.root_id)).unwrap();
+        let id = tree
+            .add_task("مهمة فرعية", Some(&tree.root_id.clone()))
+            .unwrap();
         assert_eq!(tree.nodes.len(), 2);
         assert_eq!(tree.nodes[&id].parent_id, Some(tree.root_id.clone()));
     }
@@ -382,8 +384,12 @@ mod tests {
     #[test]
     fn test_dependency() {
         let mut tree = TaskTree::new("الرئيسية", "user1");
-        let a = tree.add_task("المهمة أ", Some(&tree.root_id)).unwrap();
-        let b = tree.add_task("المهمة ب", Some(&tree.root_id)).unwrap();
+        let a = tree
+            .add_task("المهمة أ", Some(&tree.root_id.clone()))
+            .unwrap();
+        let b = tree
+            .add_task("المهمة ب", Some(&tree.root_id.clone()))
+            .unwrap();
         tree.add_dependency(&b, &a).unwrap();
         assert!(tree.nodes[&b].depends_on.contains(&a));
 
@@ -400,7 +406,7 @@ mod tests {
     #[test]
     fn test_progress() {
         let mut tree = TaskTree::new("الرئيسية", "user1");
-        let a = tree.add_task("أ", Some(&tree.root_id)).unwrap();
+        let a = tree.add_task("أ", Some(&tree.root_id.clone())).unwrap();
         tree.update_status(&a, TaskStatus::Completed).unwrap();
         let progress = tree.progress_report();
         assert_eq!(progress.total, 2);
@@ -411,8 +417,8 @@ mod tests {
     #[test]
     fn test_block_on_failure() {
         let mut tree = TaskTree::new("الرئيسية", "user1");
-        let a = tree.add_task("أ", Some(&tree.root_id)).unwrap();
-        let b = tree.add_task("ب", Some(&tree.root_id)).unwrap();
+        let a = tree.add_task("أ", Some(&tree.root_id.clone())).unwrap();
+        let b = tree.add_task("ب", Some(&tree.root_id.clone())).unwrap();
         tree.add_dependency(&b, &a).unwrap();
         tree.update_status(&a, TaskStatus::Failed("خطأ".into()))
             .unwrap();

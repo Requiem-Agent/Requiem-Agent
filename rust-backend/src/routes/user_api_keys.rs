@@ -293,6 +293,7 @@ mod tests {
         }
     }
 
+    #[async_trait::async_trait]
     impl HasApiKeysDb for MockApiKeysDb {
         async fn list_api_keys(&self, user_id: &str) -> Result<Vec<StoredApiKey>, AppError> {
             let keys = self.keys.lock().await;

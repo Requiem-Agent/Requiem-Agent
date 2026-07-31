@@ -7,6 +7,10 @@ edition = "2021"
 name = "requiem-server"
 path = "src/main.rs"
 
+[lib]
+name = "requiem_backend"
+path = "src/lib.rs"
+
 [dependencies]
 # === Core Framework ===
 axum = { version = "0.8", features = ["ws", "macros", "multipart"] }

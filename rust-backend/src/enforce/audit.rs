@@ -194,7 +194,8 @@ mod tests {
         let mut log = AuditLog::new(100);
         let params = serde_json::json!({"api_key": "sk-1234567890abcdef", "code": "print('hi')"});
         log.record("user1", "code_exec", &params, true);
-        let entry = log.all().first().unwrap();
+        let all = log.all();
+        let entry = all.first().unwrap();
         assert_eq!(entry.params["api_key"], "***");
         assert_eq!(entry.params["code"], "print('hi')");
     }

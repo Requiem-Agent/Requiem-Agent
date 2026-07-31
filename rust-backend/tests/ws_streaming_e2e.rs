@@ -45,7 +45,9 @@ async fn handle_mock_ws(mut socket: WebSocket) {
             Err(_) => {
                 let _ = socket
                     .send(Message::Text(
-                        json!({"type": "error", "message": "Invalid JSON"}).to_string(),
+                        json!({"type": "error", "message": "Invalid JSON"})
+                            .to_string()
+                            .into(),
                     ))
                     .await;
                 continue;
@@ -65,7 +67,7 @@ async fn handle_mock_ws(mut socket: WebSocket) {
                 for word in ["Hello", " world", "!"] {
                     let _ = socket
                         .send(Message::Text(
-                            json!({"type": "token", "content": word}).to_string(),
+                            json!({"type": "token", "content": word}).to_string().into(),
                         ))
                         .await;
                 }
@@ -78,14 +80,17 @@ async fn handle_mock_ws(mut socket: WebSocket) {
                             "content": format!("Hello world! (echo: {})", message),
                             "steps": 0
                         })
-                        .to_string(),
+                        .to_string()
+                        .into(),
                     ))
                     .await;
             }
             Some("cancel") => {
                 let _ = socket
                     .send(Message::Text(
-                        json!({"type": "error", "message": "Cancelled by client"}).to_string(),
+                        json!({"type": "error", "message": "Cancelled by client"})
+                            .to_string()
+                            .into(),
                     ))
                     .await;
                 break;
@@ -95,31 +100,38 @@ async fn handle_mock_ws(mut socket: WebSocket) {
                 let _ = socket
                     .send(Message::Text(
                         json!({"type": "step", "step": 1, "thought": "Analyzing request..."})
-                            .to_string(),
+                            .to_string()
+                            .into(),
                     ))
                     .await;
                 let _ = socket
                     .send(Message::Text(
                         json!({"type": "tool_call", "name": "search", "args": {"query": "test"}})
-                            .to_string(),
+                            .to_string()
+                            .into(),
                     ))
                     .await;
                 let _ = socket
                     .send(Message::Text(
                         json!({"type": "tool_result", "name": "search", "output": "Found results"})
-                            .to_string(),
+                            .to_string()
+                            .into(),
                     ))
                     .await;
                 let _ = socket
                     .send(Message::Text(
-                        json!({"type": "done", "content": "Task complete", "steps": 1}).to_string(),
+                        json!({"type": "done", "content": "Task complete", "steps": 1})
+                            .to_string()
+                            .into(),
                     ))
                     .await;
             }
             _ => {
                 let _ = socket
                     .send(Message::Text(
-                        json!({"type": "error", "message": "Unknown message type"}).to_string(),
+                        json!({"type": "error", "message": "Unknown message type"})
+                            .to_string()
+                            .into(),
                     ))
                     .await;
             }
@@ -191,7 +203,9 @@ async fn test_ws_start_receives_tokens_then_done() {
 
     // إرسال start
     sink.send(TungsteniteMessage::Text(
-        json!({"type": "start", "message": "hello", "mode": "chat"}).to_string(),
+        json!({"type": "start", "message": "hello", "mode": "chat"})
+            .to_string()
+            .into(),
     ))
     .await
     .unwrap();
@@ -228,7 +242,9 @@ async fn test_ws_done_message_has_content() {
     let (mut sink, mut stream) = connect_ws(addr).await;
 
     sink.send(TungsteniteMessage::Text(
-        json!({"type": "start", "message": "test-input", "mode": "chat"}).to_string(),
+        json!({"type": "start", "message": "test-input", "mode": "chat"})
+            .to_string()
+            .into(),
     ))
     .await
     .unwrap();
@@ -306,7 +322,8 @@ async fn test_ws_orchestrator_mode_receives_steps() {
 
     sink.send(TungsteniteMessage::Text(
         json!({"type": "start_orchestrator", "message": "do task", "mode": "orchestrator"})
-            .to_string(),
+            .to_string()
+            .into(),
     ))
     .await
     .unwrap();
@@ -362,7 +379,9 @@ async fn test_ws_done_steps_is_number() {
     let (mut sink, mut stream) = connect_ws(addr).await;
 
     sink.send(TungsteniteMessage::Text(
-        json!({"type": "start", "message": "test", "mode": "chat"}).to_string(),
+        json!({"type": "start", "message": "test", "mode": "chat"})
+            .to_string()
+            .into(),
     ))
     .await
     .unwrap();

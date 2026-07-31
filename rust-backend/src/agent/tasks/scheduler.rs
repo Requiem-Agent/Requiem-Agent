@@ -223,7 +223,7 @@ mod tests {
     #[test]
     fn test_scheduler_flow() {
         let mut tree = TaskTree::new("الرئيسية", "user1");
-        let task_id = tree.add_task("مهمة", Some(&tree.root_id)).unwrap();
+        let task_id = tree.add_task("مهمة", Some(&tree.root_id.clone())).unwrap();
         let mut scheduler = TaskScheduler::new(SchedulerConfig::default());
 
         scheduler.start_task(&task_id, &mut tree).unwrap();
@@ -238,7 +238,7 @@ mod tests {
     #[test]
     fn test_retry_on_failure() {
         let mut tree = TaskTree::new("الرئيسية", "user1");
-        let task_id = tree.add_task("مهمة", Some(&tree.root_id)).unwrap();
+        let task_id = tree.add_task("مهمة", Some(&tree.root_id.clone())).unwrap();
         let mut scheduler = TaskScheduler::new(SchedulerConfig {
             retry_limit: 2,
             ..Default::default()
@@ -268,8 +268,8 @@ mod tests {
     #[test]
     fn test_prioritization() {
         let mut tree = TaskTree::new("الرئيسية", "user1");
-        let low = tree.add_task("منخفض", Some(&tree.root_id)).unwrap();
-        let high = tree.add_task("مرتفع", Some(&tree.root_id)).unwrap();
+        let low = tree.add_task("منخفض", Some(&tree.root_id.clone())).unwrap();
+        let high = tree.add_task("مرتفع", Some(&tree.root_id.clone())).unwrap();
 
         if let Some(task) = tree.nodes.get_mut(&high) {
             task.priority = Priority::High;

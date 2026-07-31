@@ -41,7 +41,7 @@ pub struct SubAgentSpec {
 }
 
 /// حالة الوكيل الفرعي
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum SubAgentStatus {
     Pending,
     Spawning,

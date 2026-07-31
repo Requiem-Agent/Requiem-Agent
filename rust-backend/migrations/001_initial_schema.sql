@@ -7,17 +7,16 @@
 -- ─── Users ───────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS users (
     id              TEXT        PRIMARY KEY,
-    telegram_id     INTEGER     UNIQUE NOT NULL,
-    first_name      TEXT        NOT NULL,
-    last_name       TEXT,
+    popcorn_client_id TEXT      UNIQUE,
     username        TEXT,
+    plan            TEXT        NOT NULL DEFAULT 'free',
     quota_read_used  INTEGER    NOT NULL DEFAULT 0,
     quota_write_used INTEGER    NOT NULL DEFAULT 0,
     quota_reset_at  TEXT        NOT NULL,
     created_at      TEXT        NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id);
+-- ─── Sessions ────────────────────────────────────────────────────────────────
 
 -- ─── Sessions ────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS sessions (
