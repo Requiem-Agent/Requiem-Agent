@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Requiem Agent 1</title>
+  <script>
+    // GitHub Pages SPA redirect trick:
+    // Store the full path in sessionStorage then redirect to index.html
+    var path = window.location.pathname;
+    var base = '/Requiem-Agent';
+    var route = path.replace(base, '') || '/';
+    sessionStorage.setItem('spa_redirect', route + window.location.search + window.location.hash);
+    window.location.replace(base + '/');
+  </script>
+</head>
+<body>Loading Requiem Agent...</body>
+</html>

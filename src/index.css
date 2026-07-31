@@ -1,0 +1,499 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Cairo:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card-border: hsl(var(--card-border));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover-border: hsl(var(--popover-border));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-border: hsl(var(--primary-border));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-secondary-border: hsl(var(--secondary-border));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-muted-border: hsl(var(--muted-border));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-accent-border: hsl(var(--accent-border));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-destructive-border: hsl(var(--destructive-border));
+
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-primary-border: hsl(var(--sidebar-primary-border));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-accent-border: hsl(var(--sidebar-accent-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --font-sans: var(--app-font-sans);
+  --font-serif: var(--app-font-serif);
+  --font-mono: var(--app-font-mono);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --background: 240 7% 6%;
+  --foreground: 0 0% 95%;
+  --border: 240 6% 14%;
+  --input: 240 6% 13%;
+  --ring: 262 83% 58%;
+
+  --card: 240 6% 8%;
+  --card-foreground: 0 0% 95%;
+  --card-border: 240 6% 14%;
+
+  --popover: 240 6% 9%;
+  --popover-foreground: 0 0% 95%;
+  --popover-border: 240 6% 16%;
+
+  --primary: 262 83% 62%;
+  --primary-foreground: 0 0% 100%;
+  --primary-border: 262 83% 50%;
+
+  --secondary: 188 94% 38%;
+  --secondary-foreground: 0 0% 100%;
+  --secondary-border: 188 94% 28%;
+
+  --muted: 240 5% 15%;
+  --muted-foreground: 240 5% 60%;
+  --muted-border: 240 4% 20%;
+
+  --accent: 262 83% 62%;
+  --accent-foreground: 0 0% 100%;
+  --accent-border: 262 83% 50%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --destructive-border: 0 84% 50%;
+
+  --sidebar: 240 7% 6%;
+  --sidebar-foreground: 0 0% 95%;
+  --sidebar-border: 240 6% 14%;
+  --sidebar-primary: 262 83% 62%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-primary-border: 262 83% 50%;
+  --sidebar-accent: 240 4% 16%;
+  --sidebar-accent-foreground: 0 0% 95%;
+  --sidebar-accent-border: 240 4% 20%;
+  --sidebar-ring: 262 83% 62%;
+
+  --chart-1: 262 83% 62%;
+  --chart-2: 188 94% 38%;
+  --chart-3: 38 92% 50%;
+  --chart-4: 0 84% 60%;
+  --chart-5: 240 5% 60%;
+
+  /* Telegram safe-area vars */
+  --tg-top: env(safe-area-inset-top, 0px);
+  --tg-bottom: env(safe-area-inset-bottom, 0px);
+  --tg-header-height: 56px;
+  --nav-height: 56px;
+
+  --radius: 0.625rem;
+  --app-font-sans: 'Inter', 'Cairo', 'Noto Sans Arabic', system-ui, sans-serif;
+  --app-font-serif: Georgia, serif;
+  --app-font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html {
+    height: 100%;
+    /* Prevent bounce/overscroll on iOS */
+    overscroll-behavior: none;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    height: 100%;
+    /* Safe area padding is handled by AppLayout via JS to read TG safeAreaInsets.
+       We only apply env() here for non-Telegram browsers as a fallback. */
+    padding-top: 0px;
+    padding-bottom: 0px;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    /* Prevent text selection in app-like interface */
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  /* Allow text selection in message content and inputs */
+  p, pre, code, textarea, input, [contenteditable] {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  #root {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* ── Scrollbar ─────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.4); }
+
+/* ── Keyframes ─────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; box-shadow: 0 0 8px hsl(var(--primary) / 0.3); }
+  50% { opacity: 1; box-shadow: 0 0 20px hsl(var(--primary) / 0.6); }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes typing-dot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30%           { transform: translateY(-4px); opacity: 1; }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes progress-bar {
+  0%   { width: 5%; }
+  50%  { width: 70%; }
+  100% { width: 92%; }
+}
+@keyframes border-pulse {
+  0%, 100% { border-color: hsl(var(--primary) / 0.2); }
+  50%       { border-color: hsl(var(--primary) / 0.6); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-6px); }
+}
+
+/* ── Animation utilities ───────────────────────────── */
+.animate-slide-up        { animation: slide-up 0.3s cubic-bezier(0.22,1,0.36,1) forwards; }
+.animate-slide-in-right  { animation: slide-in-right 0.25s cubic-bezier(0.22,1,0.36,1) forwards; }
+.animate-fade-in         { animation: fade-in 0.25s ease forwards; }
+.animate-scale-in        { animation: scale-in 0.2s cubic-bezier(0.22,1,0.36,1) forwards; }
+.animate-spin            { animation: spin 0.75s linear infinite; }
+.animate-pulse-glow      { animation: pulse-glow 2s ease-in-out infinite; }
+.animate-float           { animation: float 3s ease-in-out infinite; }
+.animate-shimmer {
+  background: linear-gradient(90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--card)) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Stagger children */
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 60ms; }
+.stagger > *:nth-child(3) { animation-delay: 120ms; }
+.stagger > *:nth-child(4) { animation-delay: 180ms; }
+.stagger > *:nth-child(5) { animation-delay: 240ms; }
+.stagger > *:nth-child(6) { animation-delay: 300ms; }
+
+/* ── Typing indicator ──────────────────────────────── */
+.typing-dot {
+  display: inline-block;
+  animation: typing-dot 1.2s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* ── Glass effect ──────────────────────────────────── */
+.glass {
+  background: hsl(var(--card) / 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ── Gradient text ─────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Code block ────────────────────────────────────── */
+.code-block {
+  font-family: var(--app-font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+/* ── Focus ring override ───────────────────────────── */
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring) / 0.6);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Button press feedback ─────────────────────────── */
+button:active:not(:disabled) {
+  transform: scale(0.97);
+  transition: transform 0.08s ease;
+}
+
+/* ── Message bubble glow ───────────────────────────── */
+.msg-user {
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.18), hsl(var(--primary) / 0.08));
+  border-color: hsl(var(--primary) / 0.25);
+}
+.msg-assistant {
+  background: hsl(var(--card) / 0.6);
+  border-color: hsl(var(--border));
+}
+
+/* ── Streaming container — prevent overflow during stream ── */
+.stream-container {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* ── Dropdown panels — ensure they render above all content ── */
+.dropdown-panel {
+  z-index: 100;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* ── Chat scroll area — prevent horizontal scroll ── */
+.chat-scroll-area {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Message content — break long words/URLs ── */
+.message-content {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+
+/* ── Code blocks in messages — prevent expansion ── */
+.message-content pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* ── Progress bar ──────────────────────────────────── */
+.progress-indeterminate {
+  animation: progress-bar 2.5s ease-in-out infinite;
+}
+
+/* ── Streaming cursor ──────────────────────────────── */
+.stream-cursor::after {
+  content: '▋';
+  animation: pulse-glow 0.8s ease-in-out infinite;
+  color: hsl(var(--primary));
+  font-size: 0.9em;
+  margin-left: 1px;
+}
+
+.font-mono { font-family: var(--app-font-mono); }
+.font-sans { font-family: var(--app-font-sans); }
+
+/* ── Requiem Agent 1.2 Design System ── */
+/* Thinking box animation */
+@keyframes thinking-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); }
+}
+.thinking-box {
+  animation: thinking-pulse 2s ease-in-out infinite;
+}
+
+/* Stream cursor blink (replaces pulse-glow version above) */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Agent message appear animation */
+@keyframes msg-appear {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.msg-appear {
+  animation: msg-appear 0.25s ease-out forwards;
+}
+
+/* Tool use card shimmer (active streaming) */
+@keyframes tool-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.tool-active {
+  background: linear-gradient(90deg, transparent 25%, hsl(var(--primary) / 0.08) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: tool-shimmer 1.5s ease-in-out infinite;
+}
+
+/* Slide up (finer version for feature lists) */
+@keyframes slide-up-fine {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up-fine {
+  animation: slide-up-fine 0.3s ease-out forwards;
+}
+
+/* Fade in alias (same keyframe, kept for compat) */
+.animate-fade-in-quick {
+  animation: fade-in 0.2s ease-out forwards;
+}
+
+/* ── Requiem Agent 1.2 — Advanced Animations ── */
+
+/* Agent brain pulse (thinking state) */
+@keyframes brain-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(262 83% 58% / 0); }
+  50% { box-shadow: 0 0 0 6px hsl(262 83% 58% / 0.15); }
+}
+.brain-pulse { animation: brain-pulse 2s ease-in-out infinite; }
+
+/* Progress bar shimmer */
+@keyframes progress-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+.progress-bar-glow::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 25%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, hsl(262 83% 58% / 0.6), transparent);
+  animation: progress-shimmer 1.8s ease-in-out infinite;
+}
+
+/* Tool chip appear */
+@keyframes chip-in {
+  from { opacity: 0; transform: scale(0.8) translateX(-4px); }
+  to { opacity: 1; transform: scale(1) translateX(0); }
+}
+.chip-in { animation: chip-in 0.15s ease-out forwards; }
+
+/* Code token highlight */
+.code-rust   .keyword { color: #ff7b72; }
+.code-rust   .string  { color: #a5d6ff; }
+.code-rust   .comment { color: #8b949e; }
+.code-rust   .number  { color: #79c0ff; }
+
+/* Message stream fade-in line by line */
+@keyframes line-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.stream-line { animation: line-in 0.1s ease-out forwards; }
+
+/* Thinking dot wave (improved) */
+@keyframes wave-dot {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-4px); }
+}
+.wave-dot { animation: wave-dot 1.4s ease-in-out infinite; }
+.wave-dot:nth-child(2) { animation-delay: 0.15s; }
+.wave-dot:nth-child(3) { animation-delay: 0.30s; }
+
+/* Sidebar glow on active */
+.nav-active-glow {
+  box-shadow: 0 0 12px hsl(262 83% 58% / 0.3);
+}
+
+/* Agent status card */
+.agent-status-card {
+  background: linear-gradient(135deg, hsl(262 83% 58% / 0.06), hsl(262 83% 58% / 0.02));
+  border: 1px solid hsl(262 83% 58% / 0.18);
+  backdrop-filter: blur(8px);
+}
+
+/* Code block with syntax highlight hint */
+.code-block-rust { border-left: 2px solid hsl(25 95% 53% / 0.6); }
+.code-block-typescript { border-left: 2px solid hsl(210 100% 66% / 0.6); }
+.code-block-python { border-left: 2px solid hsl(48 96% 53% / 0.6); }
+.code-block-sh,
+.code-block-bash { border-left: 2px solid hsl(142 71% 45% / 0.6); }
+.code-block-json { border-left: 2px solid hsl(291 64% 42% / 0.6); }
+.code-block-sql { border-left: 2px solid hsl(195 100% 50% / 0.6); }
+
+/* Effort badge */
+.effort-lite    { color: hsl(142 71% 45%); background: hsl(142 71% 45% / 0.1); border-color: hsl(142 71% 45% / 0.25); }
+.effort-medium  { color: hsl(210 100% 66%); background: hsl(210 100% 66% / 0.1); border-color: hsl(210 100% 66% / 0.25); }
+.effort-high    { color: hsl(48 96% 53%); background: hsl(48 96% 53% / 0.1); border-color: hsl(48 96% 53% / 0.25); }
+.effort-max     { color: hsl(262 83% 70%); background: hsl(262 83% 70% / 0.12); border-color: hsl(262 83% 70% / 0.3); }
+
+/* Message actions toolbar (copy/expand) */
+.msg-actions {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.group:hover .msg-actions { opacity: 1; }
+
+/* Stagger animation children */
+.stagger > *:nth-child(1) { animation-delay: 0ms; }
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }
+.stagger > *:nth-child(5) { animation-delay: 160ms; }
+.stagger > *:nth-child(n+6) { animation-delay: 200ms; }

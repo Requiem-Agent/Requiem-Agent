@@ -1,0 +1,46 @@
+# Manual Deploy Only — CI/CD is handled by ci.yml
+name: Manual Deploy to GitHub Pages
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: 'VITE_API_URL'
+        required: false
+        default: 'https://rayig-dev.hf.space'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+      - name: Install and build
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm exec vite build
+        env:
+          VITE_API_URL: ${{ github.event.inputs.api_url || 'https://rayig-dev.hf.space' }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/public
+      - id: deployment
+        uses: actions/deploy-pages@v4
