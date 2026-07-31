@@ -164,7 +164,12 @@ impl AgentOutputCompiler {
         // بحث عن أول { أو [
         if let Some(json_start) = trimmed.find(|c| c == '{' || c == '[') {
             let text = trimmed[..json_start].trim();
-            let json = trimmed[json_start..].to_string();
+            let json = trimmed[json_start..].trim_end();
+            // اقطع علامة إغلاق ``` إن وُجدت بعد الـ JSON (كتلة markdown)
+            let json = json
+                .strip_suffix("```")
+                .map(|s| s.trim_end().to_string())
+                .unwrap_or_else(|| json.to_string());
             let text_response = if text.is_empty() {
                 None
             } else {
@@ -174,7 +179,14 @@ impl AgentOutputCompiler {
         }
 
         // لا يوجد JSON — كل النص هو response
-        (Some(trimmed.to_string()), String::new())
+        (
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            },
+            String::new(),
+        )
     }
 
     /// فحص أمني
