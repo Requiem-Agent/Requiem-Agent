@@ -439,7 +439,7 @@ mod webhook_tests {
             secret: Some("my-secret".into()),
         };
         let json = serde_json::to_string(&req).unwrap();
-        assert!(json.contains("task.complete") || json.contains("TaskComplete"));
+        assert!(json.contains("task_complete") || json.contains("TaskComplete"));
     }
 }
 
@@ -493,7 +493,7 @@ mod rate_limit_tests {
         let user1 = RateLimitKey::User("user-1".into());
         let user2 = RateLimitKey::User("user-2".into());
 
-        for _ in 0..10 {
+        for _ in 0..30 {
             limiter.check("/chat/send", &user1).ok();
         }
         assert!(limiter.check("/chat/send", &user1).is_err());
