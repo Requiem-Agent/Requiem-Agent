@@ -20,7 +20,7 @@ use std::sync::Arc;
 use tracing::{error, info};
 
 use crate::{
-    crypto::{encrypt_api_key, decrypt_api_key},
+    crypto::{decrypt_api_key, encrypt_api_key},
     error::AppError,
     routes::AuthUser,
     AppState,
@@ -150,7 +150,15 @@ where
     let user_id = &auth.0.user_id;
 
     // Validate provider
-    let valid_providers = ["anthropic", "openai", "gemini", "mistral", "groq", "cohere", "together"];
+    let valid_providers = [
+        "anthropic",
+        "openai",
+        "gemini",
+        "mistral",
+        "groq",
+        "cohere",
+        "together",
+    ];
     if !valid_providers.contains(&body.provider.as_str()) {
         return Err(AppError::Validation(format!(
             "Unknown provider '{}'. Supported: {}",
@@ -164,7 +172,9 @@ where
         return Err(AppError::Validation("API key is too short".to_string()));
     }
     if body.api_key.len() > 512 {
-        return Err(AppError::Validation("API key is too long (max 512 chars)".to_string()));
+        return Err(AppError::Validation(
+            "API key is too long (max 512 chars)".to_string(),
+        ));
     }
 
     // بناء key_hint — آخر 4 أحرف فقط
@@ -241,10 +251,9 @@ where
     let encrypted = state
         .get_encrypted_key(user_id, &body.provider)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!(
-            "No API key found for provider '{}'",
-            body.provider
-        )))?;
+        .ok_or_else(|| {
+            AppError::NotFound(format!("No API key found for provider '{}'", body.provider))
+        })?;
 
     let plaintext = decrypt_api_key(&encrypted).map_err(|e| {
         error!("Failed to decrypt API key for user {}: {}", user_id, e);
@@ -252,7 +261,10 @@ where
     })?;
 
     // ⚠️ لا تُسجَّل المفاتيح في الـ logs أبداً
-    info!("API key decrypted: user={}, provider={}", user_id, body.provider);
+    info!(
+        "API key decrypted: user={}, provider={}",
+        user_id, body.provider
+    );
 
     Ok(Json(DecryptKeyResponse {
         provider: body.provider,
@@ -275,14 +287,17 @@ mod tests {
 
     impl MockApiKeysDb {
         fn new() -> Self {
-            Self { keys: Mutex::new(HashMap::new()) }
+            Self {
+                keys: Mutex::new(HashMap::new()),
+            }
         }
     }
 
     impl HasApiKeysDb for MockApiKeysDb {
         async fn list_api_keys(&self, user_id: &str) -> Result<Vec<StoredApiKey>, AppError> {
             let keys = self.keys.lock().await;
-            Ok(keys.values()
+            Ok(keys
+                .values()
                 .filter(|k| k.id.starts_with(user_id))
                 .cloned()
                 .collect())

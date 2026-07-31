@@ -7,13 +7,13 @@
 //! GET  /api/tasks/:id/progress     → تقرير التقدم
 //! GET  /api/tasks/:id/ready        → المهام الجاهزة للتنفيذ
 
+use crate::agent::tasks::scheduler::{SchedulerConfig, TaskScheduler};
+use crate::agent::tasks::tree::TaskTree;
+use crate::routes::AuthUser;
 use axum::{Extension, Json};
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use crate::routes::AuthUser;
-use crate::agent::tasks::tree::TaskTree;
-use crate::agent::tasks::scheduler::{TaskScheduler, SchedulerConfig};
 
 /// مشاركة حالة المهام عبر التطبيق
 pub type SharedTaskState = Arc<RwLock<TaskState>>;
@@ -22,7 +22,7 @@ pub type SharedTaskState = Arc<RwLock<TaskState>>;
 pub struct TaskState {
     pub tree: Option<TaskTree>,
     pub scheduler: TaskScheduler,
-    pub trees: Vec<(String, TaskTree)>,  // تاريخ الأشجار (للتتبع)
+    pub trees: Vec<(String, TaskTree)>, // تاريخ الأشجار (للتتبع)
 }
 
 impl TaskState {
@@ -76,7 +76,9 @@ pub async fn get_task_tree(
     } else {
         match task_state.trees.iter().find(|(tid, _)| tid == &id) {
             Some((_, tree)) => Json(json!({ "success": true, "tree": tree.to_json() })),
-            None => Json(json!({ "success": false, "error": format!("شجرة المهام {} غير موجودة", id) })),
+            None => {
+                Json(json!({ "success": false, "error": format!("شجرة المهام {} غير موجودة", id) }))
+            }
         }
     }
 }
@@ -97,14 +99,22 @@ pub async fn update_task_status(
         "in_progress" => TaskStatus::InProgress,
         "completed" => TaskStatus::Completed,
         "cancelled" => TaskStatus::Cancelled,
-        _ => return Json(json!({ "success": false, "error": format!("حالة غير معروفة: {status_str}") })),
+        _ => {
+            return Json(
+                json!({ "success": false, "error": format!("حالة غير معروفة: {status_str}") }),
+            )
+        }
     };
 
     let mut task_state = state.write().await;
     let tree = if tree_id == "current" {
         task_state.tree.as_mut()
     } else {
-        task_state.trees.iter_mut().find(|(tid, _)| tid == tree_id).map(|(_, t)| t)
+        task_state
+            .trees
+            .iter_mut()
+            .find(|(tid, _)| tid == tree_id)
+            .map(|(_, t)| t)
     };
 
     match tree {
@@ -161,7 +171,11 @@ pub async fn task_progress(
     let tree = if tree_id == "current" {
         task_state.tree.as_ref()
     } else {
-        task_state.trees.iter().find(|(tid, _)| tid == &tree_id).map(|(_, t)| t)
+        task_state
+            .trees
+            .iter()
+            .find(|(tid, _)| tid == &tree_id)
+            .map(|(_, t)| t)
     };
 
     match tree {

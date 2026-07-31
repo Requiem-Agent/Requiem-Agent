@@ -42,7 +42,7 @@ pub async fn search_in_code(
         .filter(|e| e.file_type().is_file())
     {
         let path = entry.path();
-        
+
         // تصفية حسب أنماط الملفات
         if let Some(ref patterns) = file_patterns {
             let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
@@ -78,13 +78,16 @@ pub async fn search_in_code(
     }
 
     let duration = start.elapsed().as_millis() as u64;
-    
+
     let total_matches = results.len();
-    Ok((results, SearchStats {
-        total_matches,
-        files_searched,
-        duration_ms: duration,
-    }))
+    Ok((
+        results,
+        SearchStats {
+            total_matches,
+            files_searched,
+            duration_ms: duration,
+        },
+    ))
 }
 
 #[cfg(test)]

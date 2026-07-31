@@ -11,12 +11,6 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.90.0
         version: 5.101.3(react@19.1.0)
-      '@tma.js/sdk':
-        specifier: ^1.0.0
-        version: 1.5.3
-      '@tma.js/sdk-react':
-        specifier: ^1.0.0
-        version: 1.2.2(@tma.js/sdk@1.5.3)(@types/react@19.2.17)(react@19.1.0)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -24,7 +18,7 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       date-fns:
-        specifier: ^3.0.0
+        specifier: ^3.6.0
         version: 3.6.0
       lucide-react:
         specifier: ^0.545.0
@@ -33,19 +27,19 @@ importers:
         specifier: 19.1.0
         version: 19.1.0
       react-day-picker:
-        specifier: ^9.0.0
+        specifier: ^9.11.1
         version: 9.14.0(react@19.1.0)
       react-dom:
         specifier: 19.1.0
         version: 19.1.0(react@19.1.0)
       recharts:
-        specifier: ^2.15.0
+        specifier: ^2.15.2
         version: 2.15.4(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
       wouter:
-        specifier: ^3.0.0
+        specifier: ^3.3.5
         version: 3.10.0(react@19.1.0)
       zod:
         specifier: ^4.4.3
@@ -1356,19 +1350,6 @@ packages:
     resolution: {integrity: sha512-ZjgcRwmQUSCythDPj6pE2NKFi9bpQegxIBxgt3hPytXI1ElFHNaa3A7aWW8vFaLCIRjPv467rbREYHbxcdgQbg==}
     peerDependencies:
       react: ^18 || ^19
-
-  '@tma.js/sdk-react@1.2.2':
-    resolution: {integrity: sha512-eoBg+AMtrkyEUwSQgeheCU7+yZjV7bWyOeeM/xn4rnqnTXvRCat1+Yeqfa7gPph4xCmbZ9PITVDN9YPetgc7Yg==}
-    peerDependencies:
-      '@tma.js/sdk': 1.4.9
-      '@types/react': ^17.0.0 || ^18.0.0
-      react: ^17.0.0 || ^18.0.0
-    peerDependenciesMeta:
-      '@types/react':
-        optional: true
-
-  '@tma.js/sdk@1.5.3':
-    resolution: {integrity: sha512-oXWtFoiiJCzsueOrX7FFQhpljUOLY3BkxNen6J6Ri0r1gZrlu1uFKZVeCpV7KUzsNTLfIK9VQEOcNxI3zuejJA==}
 
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
@@ -3077,15 +3058,6 @@ snapshots:
     dependencies:
       '@tanstack/query-core': 5.101.3
       react: 19.1.0
-
-  '@tma.js/sdk-react@1.2.2(@tma.js/sdk@1.5.3)(@types/react@19.2.17)(react@19.1.0)':
-    dependencies:
-      '@tma.js/sdk': 1.5.3
-      react: 19.1.0
-    optionalDependencies:
-      '@types/react': 19.2.17
-
-  '@tma.js/sdk@1.5.3': {}
 
   '@types/babel__core@7.20.5':
     dependencies:

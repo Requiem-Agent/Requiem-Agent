@@ -2,11 +2,8 @@
 // Phase 16.3: يربط Synergy Patterns + SmartRouter + AgentEngine
 
 use super::{
-    ModelOutput, SynergyRound, SynergyPattern,
-    ConsensusPattern, ConsensusResult,
-    CritiquePattern, CritiqueResult,
-    PipelinePattern,
-    AdaptiveRouter, LoadBalancer,
+    AdaptiveRouter, ConsensusPattern, ConsensusResult, CritiquePattern, CritiqueResult,
+    LoadBalancer, ModelOutput, PipelinePattern, SynergyPattern, SynergyRound,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -41,7 +38,9 @@ impl Default for ModelSynergyCoordinator {
 }
 
 impl ModelSynergyCoordinator {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// تشغيل جولة تآزر كاملة
     pub async fn run_round(
@@ -69,7 +68,13 @@ impl ModelSynergyCoordinator {
             outputs.push(output.clone());
 
             self.load_balancer.end_task(model_name);
-            self.router.record(model_name, task_type, output.success, output.latency_ms, output.tokens_used);
+            self.router.record(
+                model_name,
+                task_type,
+                output.success,
+                output.latency_ms,
+                output.tokens_used,
+            );
         }
 
         // تطبيق النمط المختار
@@ -105,26 +110,39 @@ impl ModelSynergyCoordinator {
     /// تطبيق نمط الإجماع
     fn apply_consensus(&self, question: &str, outputs: &[ModelOutput]) -> (String, f64) {
         match self.consensus.execute(question, outputs) {
-            ConsensusResult::Agreed(agreement) => {
-                (agreement.consensus_choice.clone(), agreement.average_confidence)
-            }
-            ConsensusResult::NoConsensus { highest_agreement, .. } => {
+            ConsensusResult::Agreed(agreement) => (
+                agreement.consensus_choice.clone(),
+                agreement.average_confidence,
+            ),
+            ConsensusResult::NoConsensus {
+                highest_agreement, ..
+            } => {
                 // خذ أعلى خيار
-                let best = outputs.iter().max_by(|a, b| a.confidence.partial_cmp(&b.confidence).unwrap_or(std::cmp::Ordering::Equal));
+                let best = outputs.iter().max_by(|a, b| {
+                    a.confidence
+                        .partial_cmp(&b.confidence)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
                 match best {
                     Some(o) => (o.output.clone(), highest_agreement),
                     None => ("No consensus reached".to_string(), 0.0),
                 }
             }
-            ConsensusResult::InsufficientModels { .. } => {
-                (outputs.first().map(|o| o.output.clone()).unwrap_or_default(), 0.0)
-            }
+            ConsensusResult::InsufficientModels { .. } => (
+                outputs
+                    .first()
+                    .map(|o| o.output.clone())
+                    .unwrap_or_default(),
+                0.0,
+            ),
         }
     }
 
     /// تطبيق نمط النقد
     fn apply_critique(&self, _question: &str, outputs: &[ModelOutput]) -> (String, f64) {
-        if outputs.is_empty() { return ("No output".to_string(), 0.0); }
+        if outputs.is_empty() {
+            return ("No output".to_string(), 0.0);
+        }
         let primary = &outputs[0];
         let critics: Vec<ModelOutput> = outputs.iter().skip(1).cloned().collect();
         if critics.is_empty() {
@@ -156,8 +174,12 @@ impl ModelSynergyCoordinator {
 
     /// تطبيق نمط الزوج
     fn apply_pair(&self, outputs: &[ModelOutput]) -> (String, f64) {
-        if outputs.is_empty() { return ("No output".to_string(), 0.0); }
-        if outputs.len() == 1 { return (outputs[0].output.clone(), outputs[0].confidence); }
+        if outputs.is_empty() {
+            return ("No output".to_string(), 0.0);
+        }
+        if outputs.len() == 1 {
+            return (outputs[0].output.clone(), outputs[0].confidence);
+        }
         let a = &outputs[0];
         let b = &outputs[1];
         if a.confidence >= b.confidence {
@@ -174,7 +196,11 @@ impl ModelSynergyCoordinator {
         tokio::time::sleep(std::time::Duration::from_millis(10)).await; // محاكاة
         ModelOutput {
             model_name: model.to_string(),
-            output: format!("{} response to: {}", model, question.chars().take(50).collect::<String>()),
+            output: format!(
+                "{} response to: {}",
+                model,
+                question.chars().take(50).collect::<String>()
+            ),
             confidence: 0.5 + rand::random::<f64>() * 0.5,
             latency_ms: latency,
             tokens_used: tokens,
@@ -182,7 +208,9 @@ impl ModelSynergyCoordinator {
         }
     }
 
-    pub fn set_pattern(&mut self, pattern: SynergyPattern) { self.active_pattern = pattern; }
+    pub fn set_pattern(&mut self, pattern: SynergyPattern) {
+        self.active_pattern = pattern;
+    }
     pub fn recent_rounds(&self, n: usize) -> Vec<SynergyRound> {
         self.history.iter().rev().take(n).cloned().collect()
     }

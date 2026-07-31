@@ -1,7 +1,7 @@
 // ─── Synergy Patterns ────────────────────────────────────────────────────
 // Phase 16.1: Consensus + Critique + Pipeline
 
-use super::{ModelOutput, SynergyRound, SynergyPattern, ConsensusVote};
+use super::{ConsensusVote, ModelOutput, SynergyPattern, SynergyRound};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -29,7 +29,9 @@ impl Default for ConsensusPattern {
 }
 
 impl ConsensusPattern {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// تشغيل جولة إجماع
     pub fn execute(&self, _question: &str, outputs: &[ModelOutput]) -> ConsensusResult {
@@ -48,21 +50,28 @@ impl ConsensusPattern {
         }
 
         // إيجاد الإجماع
-        let best_group = choice_groups.iter()
-            .max_by_key(|(_, group)| group.len());
+        let best_group = choice_groups.iter().max_by_key(|(_, group)| group.len());
         let total = outputs.len() as f64;
 
         match best_group {
             Some((consensus_choice, group)) => {
                 let agreement = group.len() as f64 / total;
                 if agreement >= self.consensus_threshold {
-                    let avg_confidence = group.iter().map(|o| o.confidence).sum::<f64>() / group.len() as f64;
-                    let votes: Vec<ConsensusVote> = outputs.iter().map(|o| ConsensusVote {
-                        model: o.model_name.clone(),
-                        choice: self.extract_choice(&o.output),
-                        confidence: o.confidence,
-                        reasoning: if self.require_reasoning { o.output.chars().take(200).collect() } else { String::new() },
-                    }).collect();
+                    let avg_confidence =
+                        group.iter().map(|o| o.confidence).sum::<f64>() / group.len() as f64;
+                    let votes: Vec<ConsensusVote> = outputs
+                        .iter()
+                        .map(|o| ConsensusVote {
+                            model: o.model_name.clone(),
+                            choice: self.extract_choice(&o.output),
+                            confidence: o.confidence,
+                            reasoning: if self.require_reasoning {
+                                o.output.chars().take(200).collect()
+                            } else {
+                                String::new()
+                            },
+                        })
+                        .collect();
 
                     ConsensusResult::Agreed(ConsensusAgreement {
                         consensus_choice: consensus_choice.clone(),
@@ -90,7 +99,11 @@ impl ConsensusPattern {
     /// استخراج الخيار من النص (بساطة: أول 50 حرف كمفتاح)
     fn extract_choice(&self, text: &str) -> String {
         let cleaned = text.trim().chars().take(100).collect::<String>();
-        if cleaned.len() > 50 { cleaned[..50].to_string() } else { cleaned }
+        if cleaned.len() > 50 {
+            cleaned[..50].to_string()
+        } else {
+            cleaned
+        }
     }
 }
 
@@ -98,8 +111,15 @@ impl ConsensusPattern {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ConsensusResult {
     Agreed(ConsensusAgreement),
-    NoConsensus { highest_agreement: f64, threshold: f64, total_models: usize },
-    InsufficientModels { required: usize, got: usize },
+    NoConsensus {
+        highest_agreement: f64,
+        threshold: f64,
+        total_models: usize,
+    },
+    InsufficientModels {
+        required: usize,
+        got: usize,
+    },
 }
 
 impl ConsensusResult {
@@ -141,7 +161,9 @@ impl Default for CritiquePattern {
 }
 
 impl CritiquePattern {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// تقييم مخرجات بواسطة نماذج ناقدة
     pub fn critique(&self, original_output: &str, critics: &[ModelOutput]) -> CritiqueResult {
@@ -157,9 +179,15 @@ impl CritiquePattern {
             let score = self.score_critique(&critic.output);
             total_score += score;
             if score < self.acceptance_threshold {
-                issues.push(format!("{}: {}", critic.model_name, critic.output.chars().take(100).collect::<String>()));
+                issues.push(format!(
+                    "{}: {}",
+                    critic.model_name,
+                    critic.output.chars().take(100).collect::<String>()
+                ));
             }
-            if self.accept_suggestions && critic.output.contains("suggest") || critic.output.contains("تحسين") {
+            if self.accept_suggestions && critic.output.contains("suggest")
+                || critic.output.contains("تحسين")
+            {
                 suggestions.push(critic.output.clone());
             }
         }
@@ -170,7 +198,11 @@ impl CritiquePattern {
             average_score: avg_score,
             passed: avg_score >= self.acceptance_threshold,
             issues,
-            suggestions: if self.accept_suggestions { suggestions } else { vec![] },
+            suggestions: if self.accept_suggestions {
+                suggestions
+            } else {
+                vec![]
+            },
             critics_used: critics.len(),
         })
     }
@@ -178,11 +210,38 @@ impl CritiquePattern {
     /// تسجيل نقدي بسيط: بحث عن كلمات إيجابية/سلبية
     fn score_critique(&self, text: &str) -> f64 {
         let lower = text.to_lowercase();
-        let positive = ["good", "correct", "excellent", "works", "right", "perfect", "fine", "great", "صحيح", "تمام", "ممتاز"];
-        let negative = ["wrong", "incorrect", "bad", "error", "bug", "issue", "problem", "fix", "fail", "خطأ", "غلط", "مشكلة"];
+        let positive = [
+            "good",
+            "correct",
+            "excellent",
+            "works",
+            "right",
+            "perfect",
+            "fine",
+            "great",
+            "صحيح",
+            "تمام",
+            "ممتاز",
+        ];
+        let negative = [
+            "wrong",
+            "incorrect",
+            "bad",
+            "error",
+            "bug",
+            "issue",
+            "problem",
+            "fix",
+            "fail",
+            "خطأ",
+            "غلط",
+            "مشكلة",
+        ];
         let pos_count = positive.iter().filter(|w| lower.contains(*w)).count();
         let neg_count = negative.iter().filter(|w| lower.contains(*w)).count();
-        if pos_count + neg_count == 0 { return 0.5; }
+        if pos_count + neg_count == 0 {
+            return 0.5;
+        }
         pos_count as f64 / (pos_count + neg_count) as f64
     }
 }
@@ -250,7 +309,8 @@ impl PipelinePattern {
                 PipelineStage_ {
                     name: "generation".to_string(),
                     model: "claude-3-opus".to_string(),
-                    prompt_template: "Based on analysis: {analysis}, produce final answer".to_string(),
+                    prompt_template: "Based on analysis: {analysis}, produce final answer"
+                        .to_string(),
                     input_key: "analysis".to_string(),
                     output_key: "output".to_string(),
                 },
@@ -258,7 +318,9 @@ impl PipelinePattern {
         }
     }
 
-    pub fn stage_count(&self) -> usize { self.stages.len() }
+    pub fn stage_count(&self) -> usize {
+        self.stages.len()
+    }
 }
 
 // ─── Pair Pattern ───────────────────────────────────────────────────────
@@ -299,9 +361,30 @@ mod tests {
     fn test_consensus_agreement() {
         let pattern = ConsensusPattern::default();
         let outputs = vec![
-            ModelOutput { model_name: "m1".into(), output: "A".into(), confidence: 0.9, latency_ms: 100, tokens_used: 50, success: true },
-            ModelOutput { model_name: "m2".into(), output: "A".into(), confidence: 0.8, latency_ms: 100, tokens_used: 50, success: true },
-            ModelOutput { model_name: "m3".into(), output: "A".into(), confidence: 0.7, latency_ms: 100, tokens_used: 50, success: true },
+            ModelOutput {
+                model_name: "m1".into(),
+                output: "A".into(),
+                confidence: 0.9,
+                latency_ms: 100,
+                tokens_used: 50,
+                success: true,
+            },
+            ModelOutput {
+                model_name: "m2".into(),
+                output: "A".into(),
+                confidence: 0.8,
+                latency_ms: 100,
+                tokens_used: 50,
+                success: true,
+            },
+            ModelOutput {
+                model_name: "m3".into(),
+                output: "A".into(),
+                confidence: 0.7,
+                latency_ms: 100,
+                tokens_used: 50,
+                success: true,
+            },
         ];
         let result = pattern.execute("test", &outputs);
         assert!(result.is_agreed());
@@ -310,9 +393,14 @@ mod tests {
     #[test]
     fn test_critique_passed() {
         let pattern = CritiquePattern::default();
-        let critics = vec![
-            ModelOutput { model_name: "critic-1".into(), output: "This is good and correct".into(), confidence: 0.8, latency_ms: 50, tokens_used: 30, success: true },
-        ];
+        let critics = vec![ModelOutput {
+            model_name: "critic-1".into(),
+            output: "This is good and correct".into(),
+            confidence: 0.8,
+            latency_ms: 50,
+            tokens_used: 30,
+            success: true,
+        }];
         let result = pattern.critique("original", &critics);
         assert!(result.passed());
     }

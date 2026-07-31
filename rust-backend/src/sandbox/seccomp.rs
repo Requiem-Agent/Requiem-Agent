@@ -18,7 +18,7 @@
 //! - IoHeavy (~130): + file I/O, mkdir, chmod
 //! - Network (~160): + sockets (للكود الذي يحتاج شبكة)
 
-use crate::sandbox::layer::{SandboxLayer, LayerResult};
+use crate::sandbox::layer::{LayerResult, SandboxLayer};
 
 /// مستويات تقييد seccomp
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,7 +45,9 @@ impl SeccompLayer {
 }
 
 impl SandboxLayer for SeccompLayer {
-    fn name(&self) -> &'static str { "seccomp" }
+    fn name(&self) -> &'static str {
+        "seccomp"
+    }
 
     fn apply_child(&self) -> LayerResult {
         // seccomp يُطبق في child process بعد fork

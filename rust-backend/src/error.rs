@@ -78,43 +78,47 @@ impl IntoResponse for AppError {
             AppError::Database(msg) => {
                 // لا نكشف تفاصيل قاعدة البيانات للعميل
                 error!("Database error: {msg}");
-                (StatusCode::INTERNAL_SERVER_ERROR, "DATABASE_ERROR", "Internal server error")
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "DATABASE_ERROR",
+                    "Internal server error",
+                )
             }
-            AppError::Auth(msg) => {
-                (StatusCode::UNAUTHORIZED, "AUTH_ERROR", msg.as_str())
-            }
-            AppError::BadRequest(msg) => {
-                (StatusCode::BAD_REQUEST, "BAD_REQUEST", msg.as_str())
-            }
-            AppError::NotFound(msg) => {
-                (StatusCode::NOT_FOUND, "NOT_FOUND", msg.as_str())
-            }
+            AppError::Auth(msg) => (StatusCode::UNAUTHORIZED, "AUTH_ERROR", msg.as_str()),
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "BAD_REQUEST", msg.as_str()),
+            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, "NOT_FOUND", msg.as_str()),
             AppError::Internal(msg) => {
                 error!("Internal error: {msg}");
-                (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Internal server error")
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "INTERNAL_ERROR",
+                    "Internal server error",
+                )
             }
-            AppError::RateLimit(msg) => {
-                (StatusCode::TOO_MANY_REQUESTS, "RATE_LIMIT", msg.as_str())
-            }
-            AppError::Forbidden(msg) => {
-                (StatusCode::FORBIDDEN, "FORBIDDEN", msg.as_str())
-            }
+            AppError::RateLimit(msg) => (StatusCode::TOO_MANY_REQUESTS, "RATE_LIMIT", msg.as_str()),
+            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, "FORBIDDEN", msg.as_str()),
             AppError::Serialization(msg) => {
                 (StatusCode::BAD_REQUEST, "SERIALIZATION_ERROR", msg.as_str())
             }
             AppError::Storage(msg) => {
                 error!("Storage error: {msg}");
-                (StatusCode::INTERNAL_SERVER_ERROR, "STORAGE_ERROR", "Storage operation failed")
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "STORAGE_ERROR",
+                    "Storage operation failed",
+                )
             }
-            AppError::Sandbox(msg) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "SANDBOX_ERROR", msg.as_str())
-            }
-            AppError::Validation(msg) => {
-                (StatusCode::UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", msg.as_str())
-            }
-            AppError::Unauthorized(msg) => {
-                (StatusCode::UNAUTHORIZED, "UNAUTHORIZED", msg.as_str())
-            }
+            AppError::Sandbox(msg) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "SANDBOX_ERROR",
+                msg.as_str(),
+            ),
+            AppError::Validation(msg) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "VALIDATION_ERROR",
+                msg.as_str(),
+            ),
+            AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, "UNAUTHORIZED", msg.as_str()),
         };
 
         let body = Json(json!({

@@ -14,16 +14,16 @@
 //! POST /api/agent/sub/merge               → دمج النتائج
 //! GET  /api/agent/sub/list                → قائمة الوكلاء الفرعيين
 
+use crate::agent::compiler::auto_correct::JsonAutoCorrect;
+use crate::agent::compiler::output::{AgentOutputCompiler, CompilerConfig};
+use crate::agent::protocol::mode::{AgentMode, ModeController};
+use crate::agent::protocol::sub_agent::{IsolationLevel, SubAgentSpec};
+use crate::agent::protocol::thinking::{ThinkingStage, ThinkingStep};
+use crate::routes::AuthUser;
 use axum::{Extension, Json};
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use crate::routes::AuthUser;
-use crate::agent::protocol::mode::{AgentMode, ModeController};
-use crate::agent::protocol::thinking::{ThinkingStep, ThinkingStage};
-use crate::agent::compiler::auto_correct::JsonAutoCorrect;
-use crate::agent::compiler::output::{AgentOutputCompiler, CompilerConfig};
-use crate::agent::protocol::sub_agent::{SubAgentSpec, IsolationLevel};
 
 /// مشاركة المحرك عبر التطبيق (يُدار في main.rs)
 pub type SharedEngine = Arc<RwLock<crate::agent::AgentEngine>>;
@@ -51,10 +51,12 @@ pub async fn set_mode(
         "audit" => AgentMode::Audit,
         "tutorial" => AgentMode::Tutorial,
         "turbo" => AgentMode::Turbo,
-        _ => return Json(json!({
-            "success": false,
-            "error": format!("وضع غير معروف: '{}'. الخيارات: autonomous, supervised, audit, tutorial, turbo", mode_str)
-        })),
+        _ => {
+            return Json(json!({
+                "success": false,
+                "error": format!("وضع غير معروف: '{}'. الخيارات: autonomous, supervised, audit, tutorial, turbo", mode_str)
+            }))
+        }
     };
 
     let mut engine = engine.write().await;
@@ -232,9 +234,17 @@ pub async fn spawn_sub_agent(
     Json(body): Json<Value>,
 ) -> Json<Value> {
     let task = body["task"].as_str().unwrap_or("").to_string();
-    let model_id = body["model_id"].as_str().unwrap_or("deepseek-v4-flash-free").to_string();
-    let tools: Vec<String> = body["tools"].as_array()
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+    let model_id = body["model_id"]
+        .as_str()
+        .unwrap_or("deepseek-v4-flash-free")
+        .to_string();
+    let tools: Vec<String> = body["tools"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
 
     if task.is_empty() {
@@ -265,7 +275,9 @@ pub async fn spawn_sub_agent(
         },
         parent_id: Some(engines.user_id.clone()),
         isolation: IsolationLevel::TaskOnly,
-        context: body["context"].as_object().map(|o| serde_json::Value::Object(o.clone())),
+        context: body["context"]
+            .as_object()
+            .map(|o| serde_json::Value::Object(o.clone())),
         priority: body["priority"].as_u64().unwrap_or(5) as u8,
         timeout_minutes: body["timeout_minutes"].as_u64().unwrap_or(30) as u32,
     };
@@ -323,12 +335,19 @@ pub async fn merge_sub_agents(
     Extension(engine): Extension<SharedEngine>,
     Json(body): Json<Value>,
 ) -> Json<Value> {
-    let ids: Vec<String> = body["ids"].as_array()
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+    let ids: Vec<String> = body["ids"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
 
     if ids.is_empty() {
-        return Json(json!({ "success": false, "error": "ids مطلوب (قائمة معرفات الوكلاء الفرعيين)" }));
+        return Json(
+            json!({ "success": false, "error": "ids مطلوب (قائمة معرفات الوكلاء الفرعيين)" }),
+        );
     }
 
     let engine = engine.read().await;

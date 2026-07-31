@@ -158,12 +158,23 @@ impl ModeController {
         }
     }
 
-    pub fn current(&self) -> AgentMode { self.current }
-    pub fn constraints(&self) -> ModeConstraints { self.current.constraints() }
-    pub fn history(&self) -> &[ModeChange] { &self.history }
+    pub fn current(&self) -> AgentMode {
+        self.current
+    }
+    pub fn constraints(&self) -> ModeConstraints {
+        self.current.constraints()
+    }
+    pub fn history(&self) -> &[ModeChange] {
+        &self.history
+    }
 
     /// تغيير الوضع — يسجل التغيير ويعيد القيود الجديدة
-    pub fn switch(&mut self, new_mode: AgentMode, reason: &str, triggered_by: &str) -> ModeConstraints {
+    pub fn switch(
+        &mut self,
+        new_mode: AgentMode,
+        reason: &str,
+        triggered_by: &str,
+    ) -> ModeConstraints {
         let old = self.current;
         self.current = new_mode;
 
@@ -184,17 +195,34 @@ impl ModeController {
     /// اقتراح الوضع المناسب بناءً على المهمة
     pub fn suggest_mode(task: &str) -> AgentMode {
         let lower = task.to_lowercase();
-        if lower.contains("urgent") || lower.contains("سريع") || lower.contains("quick")
-            || lower.contains("simple") || lower.contains("بسيط") {
+        if lower.contains("urgent")
+            || lower.contains("سريع")
+            || lower.contains("quick")
+            || lower.contains("simple")
+            || lower.contains("بسيط")
+        {
             AgentMode::Turbo
-        } else if lower.contains("تعلم") || lower.contains("learn") || lower.contains("أتعلم")
-            || lower.contains("شرح") || lower.contains("explain") {
+        } else if lower.contains("تعلم")
+            || lower.contains("learn")
+            || lower.contains("أتعلم")
+            || lower.contains("شرح")
+            || lower.contains("explain")
+        {
             AgentMode::Tutorial
-        } else if lower.contains("audit") || lower.contains("تدقيق") || lower.contains("مراجعة")
-            || lower.contains("review") || lower.contains("فحص") {
+        } else if lower.contains("audit")
+            || lower.contains("تدقيق")
+            || lower.contains("مراجعة")
+            || lower.contains("review")
+            || lower.contains("فحص")
+        {
             AgentMode::Audit
-        } else if lower.contains("danger") || lower.contains("delete") || lower.contains("حذف")
-            || lower.contains("rm ") || lower.contains("drop") || lower.contains("format") {
+        } else if lower.contains("danger")
+            || lower.contains("delete")
+            || lower.contains("حذف")
+            || lower.contains("rm ")
+            || lower.contains("drop")
+            || lower.contains("format")
+        {
             AgentMode::Supervised
         } else {
             AgentMode::Autonomous
@@ -233,17 +261,35 @@ mod tests {
     #[test]
     fn test_suggest_mode() {
         assert_eq!(ModeController::suggest_mode("quick fix"), AgentMode::Turbo);
-        assert_eq!(ModeController::suggest_mode("تعلم Rust"), AgentMode::Tutorial);
-        assert_eq!(ModeController::suggest_mode("audit the code"), AgentMode::Audit);
-        assert_eq!(ModeController::suggest_mode("حذف قاعدة البيانات"), AgentMode::Supervised);
-        assert_eq!(ModeController::suggest_mode("اكتب تطبيق ويب"), AgentMode::Autonomous);
+        assert_eq!(
+            ModeController::suggest_mode("تعلم Rust"),
+            AgentMode::Tutorial
+        );
+        assert_eq!(
+            ModeController::suggest_mode("audit the code"),
+            AgentMode::Audit
+        );
+        assert_eq!(
+            ModeController::suggest_mode("حذف قاعدة البيانات"),
+            AgentMode::Supervised
+        );
+        assert_eq!(
+            ModeController::suggest_mode("اكتب تطبيق ويب"),
+            AgentMode::Autonomous
+        );
     }
 
     #[test]
     fn test_audit_levels() {
         use crate::agent::protocol::thinking::ProtocolMode;
         assert_eq!(AgentMode::Audit.constraints().audit_level, AuditLevel::Full);
-        assert_eq!(AgentMode::Audit.constraints().thinking_mode, ProtocolMode::Strict);
-        assert_eq!(AgentMode::Turbo.constraints().thinking_mode, ProtocolMode::Disabled);
+        assert_eq!(
+            AgentMode::Audit.constraints().thinking_mode,
+            ProtocolMode::Strict
+        );
+        assert_eq!(
+            AgentMode::Turbo.constraints().thinking_mode,
+            ProtocolMode::Disabled
+        );
     }
 }

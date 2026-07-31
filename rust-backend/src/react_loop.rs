@@ -22,10 +22,10 @@
 //! ## الحد الأقصى للدورات: 10 (منع infinite loops)
 //! ## Timeout لكل دورة: 45 ثانية
 
+use crate::orchestrator::{Effort, ParallelExecutor, TaskClassifier};
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
-use crate::orchestrator::{TaskClassifier, Effort, ParallelExecutor};
 
 // ─── الثوابت ───────────────────────────────────────────────────────────────
 
@@ -189,19 +189,24 @@ impl ReActEngine {
 
         // بناء الـ prompt الأولي
         let initial_prompt = self.build_initial_prompt(user_query, context);
-        let mut conversation_history = vec![
-            serde_json::json!({
-                "role": "user",
-                "content": initial_prompt,
-            })
-        ];
+        let mut conversation_history = vec![serde_json::json!({
+            "role": "user",
+            "content": initial_prompt,
+        })];
 
-        info!("ReAct loop started: query={:?}, max_iter={}", &user_query[..user_query.len().min(50)], self.max_iterations);
+        info!(
+            "ReAct loop started: query={:?}, max_iter={}",
+            &user_query[..user_query.len().min(50)],
+            self.max_iterations
+        );
 
         loop {
             // التحقق من الـ timeout الإجمالي
             if total_start.elapsed() > self.total_timeout {
-                warn!("ReAct loop total timeout after {}s", total_start.elapsed().as_secs());
+                warn!(
+                    "ReAct loop total timeout after {}s",
+                    total_start.elapsed().as_secs()
+                );
                 return ReActResult {
                     success: false,
                     final_answer: None,
@@ -214,7 +219,10 @@ impl ReActEngine {
 
             // التحقق من الحد الأقصى للدورات
             if iteration >= self.max_iterations {
-                warn!("ReAct loop max iterations ({}) reached", self.max_iterations);
+                warn!(
+                    "ReAct loop max iterations ({}) reached",
+                    self.max_iterations
+                );
                 return ReActResult {
                     success: false,
                     final_answer: self.extract_best_answer(&steps),
@@ -234,7 +242,8 @@ impl ReActEngine {
             let think_result = tokio::time::timeout(
                 self.iteration_timeout,
                 self.call_llm_think(&conversation_history),
-            ).await;
+            )
+            .await;
 
             let think_content = match think_result {
                 Err(_) => {
@@ -315,11 +324,15 @@ impl ReActEngine {
                 let tool_result = tokio::time::timeout(
                     self.iteration_timeout,
                     tool_executor(tool_name.clone(), tool_input),
-                ).await;
+                )
+                .await;
 
                 let observe_content = match tool_result {
                     Err(_) => {
-                        format!("Tool '{tool_name}' timed out after {}s", self.iteration_timeout.as_secs())
+                        format!(
+                            "Tool '{tool_name}' timed out after {}s",
+                            self.iteration_timeout.as_secs()
+                        )
                     }
                     Ok(result) => {
                         if result.success {
@@ -359,7 +372,9 @@ impl ReActEngine {
 
     /// بناء الـ prompt الأولي للـ ReAct loop
     fn build_initial_prompt(&self, query: &str, context: Option<&str>) -> String {
-        let tools_desc = self.tools.iter()
+        let tools_desc = self
+            .tools
+            .iter()
             .map(|t| format!("- **{}**: {}", t.name, t.description))
             .collect::<Vec<_>>()
             .join("\n");
@@ -388,36 +403,31 @@ Begin your reasoning:"#
     }
 
     /// استدعاء LLM حقيقي عبر Orchestrator — Sprint 1 Alpha
-    async fn call_llm_think(
-        &self,
-        conversation: &[serde_json::Value],
-    ) -> Result<String, String> {
+    async fn call_llm_think(&self, conversation: &[serde_json::Value]) -> Result<String, String> {
         // استخراج query من آخر رسالة
         let query = conversation
             .last()
             .and_then(|m| m["content"].as_str())
             .unwrap_or("");
-        
+
         // تصنيف المهمة واختيار النماذج المناسبة
         let category = TaskClassifier::classify(query);
         let models = TaskClassifier::suggest_models(category, Effort::Medium);
-        
+
         let model_refs: Vec<&str> = models.iter().map(|s| s.as_ref()).collect();
-        
+
         info!(
             "ReAct calling LLM: category={}, models={:?}, query_len={}",
-            category, model_refs, query.len()
+            category,
+            model_refs,
+            query.len()
         );
-        
+
         let user_id = std::env::var("DEFAULT_USER_ID").unwrap_or_else(|_| "default".to_string());
-        
+
         // تنفيذ متوازي على عدة نماذج واختيار الأفضل
-        let result = ParallelExecutor::execute_parallel(
-            &model_refs,
-            conversation,
-            &user_id,
-        ).await;
-        
+        let result = ParallelExecutor::execute_parallel(&model_refs, conversation, &user_id).await;
+
         match result.best_content {
             Some(content) if !content.is_empty() => {
                 info!(
@@ -435,9 +445,11 @@ Begin your reasoning:"#
                     &["deepseek-v4-flash-free"],
                     conversation,
                     &user_id,
-                ).await;
-                
-                fallback_result.best_content
+                )
+                .await;
+
+                fallback_result
+                    .best_content
                     .filter(|c| !c.is_empty())
                     .ok_or_else(|| "All LLM models failed to respond".to_string())
             }
@@ -462,13 +474,11 @@ Begin your reasoning:"#
     /// استخراج tool call من رد LLM
     fn extract_tool_call(&self, content: &str) -> Option<(String, serde_json::Value)> {
         // البحث عن "Tool: <name>" و "Input: <json>"
-        let tool_line = content.lines()
+        let tool_line = content
+            .lines()
             .find(|l| l.trim_start().starts_with("Tool:"))?;
 
-        let tool_name = tool_line
-            .trim_start_matches("Tool:")
-            .trim()
-            .to_string();
+        let tool_name = tool_line.trim_start_matches("Tool:").trim().to_string();
 
         // التحقق من أن الأداة موجودة في السجل
         if !self.tools.iter().any(|t| t.name == tool_name) {
@@ -477,12 +487,11 @@ Begin your reasoning:"#
         }
 
         // استخراج الـ input
-        let input_line = content.lines()
+        let input_line = content
+            .lines()
             .find(|l| l.trim_start().starts_with("Input:"))?;
 
-        let input_str = input_line
-            .trim_start_matches("Input:")
-            .trim();
+        let input_str = input_line.trim_start_matches("Input:").trim();
 
         let input: serde_json::Value = serde_json::from_str(input_str)
             .unwrap_or_else(|_| serde_json::json!({"raw": input_str}));
@@ -493,7 +502,8 @@ Begin your reasoning:"#
     /// استخراج أفضل إجابة من الخطوات المنفذة (عند الوصول للحد الأقصى)
     fn extract_best_answer(&self, steps: &[ReActStep]) -> Option<String> {
         // أخذ آخر خطوة Think كإجابة تقريبية
-        steps.iter()
+        steps
+            .iter()
             .rev()
             .find(|s| s.step_type == StepType::Think)
             .map(|s| s.content.clone())
@@ -623,11 +633,7 @@ mod tests {
 
     #[test]
     fn test_engine_config() {
-        let engine = ReActEngine::with_config(
-            default_requiem_tools(),
-            5,
-            30,
-        );
+        let engine = ReActEngine::with_config(default_requiem_tools(), 5, 30);
         assert_eq!(engine.max_iterations, 5);
         assert_eq!(engine.iteration_timeout, Duration::from_secs(30));
     }
@@ -637,10 +643,8 @@ mod tests {
         let engine = make_engine();
 
         // الـ stub يُرجع "Final Answer:" مباشرة
-        let result = engine.run(
-            "What is 2 + 2?",
-            None,
-            |_tool, _input| async {
+        let result = engine
+            .run("What is 2 + 2?", None, |_tool, _input| async {
                 ToolResult {
                     tool_name: "test".to_string(),
                     success: true,
@@ -648,11 +652,14 @@ mod tests {
                     error: None,
                     duration_ms: 10,
                 }
-            },
-        ).await;
+            })
+            .await;
 
         assert!(result.success, "يجب أن تنجح الدورة");
-        assert!(result.final_answer.is_some(), "يجب أن تكون هناك إجابة نهائية");
+        assert!(
+            result.final_answer.is_some(),
+            "يجب أن تكون هناك إجابة نهائية"
+        );
         assert_eq!(result.stop_reason as u8, StopReason::Completed as u8);
     }
 }

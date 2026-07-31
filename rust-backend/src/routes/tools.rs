@@ -3,11 +3,11 @@
 //! GET  /api/tools → قائمة جميع الأدوات مع JSON Schema
 //! POST /api/tools/validate → التحقق من صحة معاملات الأداة
 
+use crate::routes::AuthUser;
+use crate::tools::{JsonSchema, Strictness, ToolRegistry};
 use axum::{Extension, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use crate::tools::{ToolRegistry, JsonSchema, Strictness};
-use crate::routes::AuthUser;
 
 /// تعريف أداة للإخراج
 #[derive(Serialize)]
@@ -28,26 +28,47 @@ pub struct ToolsStats {
 }
 
 /// GET /api/tools — قائمة بجميع الأدوات
-pub async fn list_tools(
-    Extension(_auth): Extension<AuthUser>,
-) -> Json<Value> {
+pub async fn list_tools(Extension(_auth): Extension<AuthUser>) -> Json<Value> {
     let registry = ToolRegistry::new();
-    let tools: Vec<ToolResponse> = registry.list_all().iter().map(|t| {
-        ToolResponse {
+    let tools: Vec<ToolResponse> = registry
+        .list_all()
+        .iter()
+        .map(|t| ToolResponse {
             name: t.name.clone(),
             description: t.description.clone(),
             parameters: t.parameters.clone(),
             returns: t.returns.clone(),
             strictness: format!("{:?}", t.strictness),
-        }
-    }).collect();
+        })
+        .collect();
 
     let stats = ToolsStats {
         total: registry.count(),
         by_strictness: vec![
-            ("Normal".into(), registry.list_all().iter().filter(|t| t.strictness == Strictness::Normal).count()),
-            ("Strict".into(), registry.list_all().iter().filter(|t| t.strictness == Strictness::Strict).count()),
-            ("Critical".into(), registry.list_all().iter().filter(|t| t.strictness == Strictness::Critical).count()),
+            (
+                "Normal".into(),
+                registry
+                    .list_all()
+                    .iter()
+                    .filter(|t| t.strictness == Strictness::Normal)
+                    .count(),
+            ),
+            (
+                "Strict".into(),
+                registry
+                    .list_all()
+                    .iter()
+                    .filter(|t| t.strictness == Strictness::Strict)
+                    .count(),
+            ),
+            (
+                "Critical".into(),
+                registry
+                    .list_all()
+                    .iter()
+                    .filter(|t| t.strictness == Strictness::Critical)
+                    .count(),
+            ),
         ],
         names: registry.list_all().iter().map(|t| t.name.clone()).collect(),
     };
@@ -90,7 +111,7 @@ pub async fn classify_task(
     Extension(_auth): Extension<AuthUser>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Json<Value> {
-    use crate::orchestrator::{TaskClassifier, TaskCategory, Effort};
+    use crate::orchestrator::{Effort, TaskCategory, TaskClassifier};
 
     let query = params.get("q").map(|s| s.as_str()).unwrap_or("");
     let effort = params.get("effort").map(|s| s.as_str()).unwrap_or("medium");
@@ -164,25 +185,31 @@ pub struct ParseRequest {
     pub language: String,
 }
 
-fn default_language() -> String { "rust".to_string() }
+fn default_language() -> String {
+    "rust".to_string()
+}
 
 /// POST /api/tools/parse — تحليل AST
 pub async fn parse_code_handler(
     Extension(_auth): Extension<AuthUser>,
     Json(body): Json<ParseRequest>,
 ) -> Json<Value> {
-    use crate::tools::parser_tools::{parse_code, extract_functions, extract_classes};
+    use crate::tools::parser_tools::{extract_classes, extract_functions, parse_code};
 
     // قراءة الكود من الملف أو من الطلب مباشرة
     let code = match (&body.code, &body.file_path) {
         (Some(c), _) => c.clone(),
-        (None, Some(fp)) => {
-            match std::fs::read_to_string(fp) {
-                Ok(content) => content,
-                Err(e) => return Json(json!({ "success": false, "error": format!("Cannot read file: {e}") })),
+        (None, Some(fp)) => match std::fs::read_to_string(fp) {
+            Ok(content) => content,
+            Err(e) => {
+                return Json(json!({ "success": false, "error": format!("Cannot read file: {e}") }))
             }
+        },
+        (None, None) => {
+            return Json(
+                json!({ "success": false, "error": "Provide either 'code' or 'file_path'" }),
+            )
         }
-        (None, None) => return Json(json!({ "success": false, "error": "Provide either 'code' or 'file_path'" })),
     };
 
     let lang = body.language.as_str();

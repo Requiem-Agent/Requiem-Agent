@@ -1,10 +1,12 @@
 // ─── Phase 15 — Anti-Printer & Compiler Advanced Routes ───────────────────
 // 12 endpoints: semantic analysis, anti-printer detection, pipeline, router
 
+use crate::agent::anti_printer::{
+    CompilerPipeline, ContextRouter, DistributionStrategy, PatternDetector, SemanticEngine,
+};
+use crate::routes::AuthUser;
 use axum::{Extension, Json};
 use serde_json::{json, Value};
-use crate::routes::AuthUser;
-use crate::agent::anti_printer::{CompilerPipeline, PatternDetector, SemanticEngine, ContextRouter, DistributionStrategy};
 
 /// نوع المشاركات للتطبيق
 use std::sync::Arc;
@@ -48,14 +50,19 @@ pub async fn semantic_context(
 ) -> Json<Value> {
     let engine = semantic.read().await;
     let context = engine.context();
-    let frames: Vec<Value> = context.iter().map(|f| json!({
-        "step_id": f.step_id,
-        "intent": f.intent.name(),
-        "confidence": f.confidence,
-        "keywords": f.keywords,
-        "entities": f.entities,
-        "timestamp": f.timestamp,
-    })).collect();
+    let frames: Vec<Value> = context
+        .iter()
+        .map(|f| {
+            json!({
+                "step_id": f.step_id,
+                "intent": f.intent.name(),
+                "confidence": f.confidence,
+                "keywords": f.keywords,
+                "entities": f.entities,
+                "timestamp": f.timestamp,
+            })
+        })
+        .collect();
     Json(json!({ "success": true, "frames": frames, "total": frames.len() }))
 }
 
@@ -68,9 +75,17 @@ pub async fn anti_printer_check(
     Json(body): Json<Value>,
 ) -> Json<Value> {
     let text = body["text"].as_str().unwrap_or("");
-    let tool_calls = body["tool_calls"].as_array().map(|a| a.clone()).unwrap_or_default();
-    let history: Vec<String> = body["history"].as_array()
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+    let tool_calls = body["tool_calls"]
+        .as_array()
+        .map(|a| a.clone())
+        .unwrap_or_default();
+    let history: Vec<String> = body["history"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
         .unwrap_or_default();
     if text.is_empty() {
         return Json(json!({ "success": false, "error": "text مطلوب" }));
@@ -103,8 +118,13 @@ pub async fn anti_printer_pipeline(
 ) -> Json<Value> {
     let thinking = body["thinking"].as_str().unwrap_or("");
     let tool_calls = body["tool_calls"].as_str().unwrap_or("");
-    let history: Vec<String> = body["history"].as_array()
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+    let history: Vec<String> = body["history"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
         .unwrap_or_default();
     let step_id = body["step_id"].as_u64().unwrap_or(0);
     if thinking.is_empty() {
@@ -189,7 +209,11 @@ pub async fn router_strategy(
         "fastest" => DistributionStrategy::Fastest,
         "most_reliable" => DistributionStrategy::MostReliable,
         "load_balance" => DistributionStrategy::LoadBalance,
-        _ => return Json(json!({ "success": false, "error": format!("استراتيجية غير معروفة: {strategy_name}") })),
+        _ => {
+            return Json(
+                json!({ "success": false, "error": format!("استراتيجية غير معروفة: {strategy_name}") }),
+            )
+        }
     };
     let mut rtr = router.write().await;
     rtr.set_strategy(strategy);

@@ -8,9 +8,9 @@
 //! POST /api/formats/chart         → توليد SVG chart
 //! POST /api/formats/sql/exec      → تنفيذ SQL
 
+use crate::formats::{sql_fmt, FormatRegistry};
 use axum::Json;
 use serde_json::{json, Value};
-use crate::formats::{FormatRegistry, sql_fmt};
 
 /// GET /api/formats
 pub async fn list_formats() -> Json<Value> {
@@ -58,7 +58,9 @@ pub async fn validate_format(
     }
     match reg.get(&name) {
         Some(h) => match h.validate(content) {
-            Ok(msg) => Json(json!({ "success": true, "valid": true, "message": msg, "format": name })),
+            Ok(msg) => {
+                Json(json!({ "success": true, "valid": true, "message": msg, "format": name }))
+            }
             Err(e) => Json(json!({ "success": true, "valid": false, "error": e, "format": name })),
         },
         None => Json(json!({ "success": false, "error": format!("تنسيق '{}' غير مدعوم", name) })),
@@ -147,9 +149,7 @@ pub async fn preview_markdown(Json(body): Json<Value>) -> Json<Value> {
 // }
 
 /// POST /api/formats/sql/exec — تنفيذ SQL
-pub async fn execute_sql(
-    Json(body): Json<Value>,
-) -> Json<Value> {
+pub async fn execute_sql(Json(body): Json<Value>) -> Json<Value> {
     let query = body["query"].as_str().unwrap_or("");
     let db_url = body["db_url"].as_str().unwrap_or("");
     let db_token = body["db_token"].as_str();

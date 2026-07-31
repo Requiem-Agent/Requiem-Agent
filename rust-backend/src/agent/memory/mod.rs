@@ -7,17 +7,17 @@
 //! - `embeddings.rs` — توليد التضمينات الدلالية
 //! - `context_window.rs` — إدارة نافذة السياق (4M توكن)
 
-pub mod vector_store;
+pub mod context_window;
+pub mod embeddings;
 pub mod rag;
 pub mod session_memory;
-pub mod embeddings;
-pub mod context_window;
+pub mod vector_store;
 
-pub use vector_store::*;
+pub use context_window::*;
+pub use embeddings::*;
 pub use rag::*;
 pub use session_memory::*;
-pub use embeddings::*;
-pub use context_window::*;
+pub use vector_store::*;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

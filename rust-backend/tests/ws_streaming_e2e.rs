@@ -112,8 +112,7 @@ async fn handle_mock_ws(mut socket: WebSocket) {
                     .await;
                 let _ = socket
                     .send(Message::Text(
-                        json!({"type": "done", "content": "Task complete", "steps": 1})
-                            .to_string(),
+                        json!({"type": "done", "content": "Task complete", "steps": 1}).to_string(),
                     ))
                     .await;
             }
@@ -142,7 +141,9 @@ async fn start_mock_server() -> SocketAddr {
 }
 
 /// يُنشئ اتصال WebSocket بالـ server
-async fn connect_ws(addr: SocketAddr) -> (
+async fn connect_ws(
+    addr: SocketAddr,
+) -> (
     impl futures_util::Sink<TungsteniteMessage, Error = tokio_tungstenite::tungstenite::Error>,
     impl futures_util::Stream<Item = Result<TungsteniteMessage, tokio_tungstenite::tungstenite::Error>>,
 ) {
@@ -153,8 +154,11 @@ async fn connect_ws(addr: SocketAddr) -> (
 
 /// يُرسل رسالة JSON ويُعيد الرد التالي كـ Value
 async fn send_and_recv(
-    sink: &mut (impl futures_util::Sink<TungsteniteMessage, Error = tokio_tungstenite::tungstenite::Error> + Unpin),
-    stream: &mut (impl futures_util::Stream<Item = Result<TungsteniteMessage, tokio_tungstenite::tungstenite::Error>> + Unpin),
+    sink: &mut (impl futures_util::Sink<TungsteniteMessage, Error = tokio_tungstenite::tungstenite::Error>
+              + Unpin),
+    stream: &mut (impl futures_util::Stream<
+        Item = Result<TungsteniteMessage, tokio_tungstenite::tungstenite::Error>,
+    > + Unpin),
     msg: Value,
 ) -> Value {
     sink.send(TungsteniteMessage::Text(msg.to_string()))
@@ -202,7 +206,10 @@ async fn test_ws_start_receives_tokens_then_done() {
             let v: Value = serde_json::from_str(&t).unwrap();
             match v["type"].as_str() {
                 Some("token") => tokens.push(v["content"].as_str().unwrap_or("").to_string()),
-                Some("done") => { done_msg = Some(v); break; }
+                Some("done") => {
+                    done_msg = Some(v);
+                    break;
+                }
                 _ => {}
             }
         }
@@ -239,7 +246,10 @@ async fn test_ws_done_message_has_content() {
     }
 
     let done = done_msg.expect("Should receive done");
-    assert!(done["content"].as_str().unwrap_or("").contains("test-input"));
+    assert!(done["content"]
+        .as_str()
+        .unwrap_or("")
+        .contains("test-input"));
     assert_eq!(done["steps"], 0);
 }
 
@@ -309,14 +319,28 @@ async fn test_ws_orchestrator_mode_receives_steps() {
             let t = v["type"].as_str().unwrap_or("").to_string();
             let is_done = t == "done";
             msg_types.push(t);
-            if is_done { break; }
+            if is_done {
+                break;
+            }
         }
     }
 
-    assert!(msg_types.contains(&"step".to_string()), "Should receive step");
-    assert!(msg_types.contains(&"tool_call".to_string()), "Should receive tool_call");
-    assert!(msg_types.contains(&"tool_result".to_string()), "Should receive tool_result");
-    assert!(msg_types.contains(&"done".to_string()), "Should receive done");
+    assert!(
+        msg_types.contains(&"step".to_string()),
+        "Should receive step"
+    );
+    assert!(
+        msg_types.contains(&"tool_call".to_string()),
+        "Should receive tool_call"
+    );
+    assert!(
+        msg_types.contains(&"tool_result".to_string()),
+        "Should receive tool_result"
+    );
+    assert!(
+        msg_types.contains(&"done".to_string()),
+        "Should receive done"
+    );
 }
 
 /// E2E-08: multiple ping-pong in sequence

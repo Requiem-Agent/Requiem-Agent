@@ -1,21 +1,21 @@
 //! Tools module for Requiem Agent
-//! 
+//!
 //! This module provides all the tools available to the agent,
 //! including search, parsing, diffing, version control, and more.
 
-pub mod search;
-pub mod parser;
 pub mod diff;
-pub mod vcs;
 pub mod file_finder;
+pub mod parser;
+pub mod search;
+pub mod vcs;
 pub mod workspace;
-pub use workspace::{workspace_tools_schema, execute_workspace_tool};
+pub use workspace::{execute_workspace_tool, workspace_tools_schema};
 
-pub use search::SearchTool;
-pub use parser::ParserTool;
 pub use diff::DiffTool;
-pub use vcs::VcsTool;
 pub use file_finder::FileFinderTool;
+pub use parser::ParserTool;
+pub use search::SearchTool;
+pub use vcs::VcsTool;
 
 /// Configuration for all tools
 #[derive(Debug, Clone)]
@@ -53,7 +53,7 @@ impl AgentTools {
     pub fn default() -> Self {
         Self::new(ToolsConfig::default())
     }
-    
+
     /// Create a new collection of tools with given configuration
     pub fn new(config: ToolsConfig) -> Self {
         Self {

@@ -7,20 +7,22 @@
 //! POST /api/enforce/check-security → فحص أمني للكود
 //! POST /api/enforce/validate-path  → التحقق من أمان مسار
 
+use crate::enforce::scanner::SecurityScanner;
+use crate::enforce::Enforcer;
+use crate::routes::AuthUser;
 use axum::{Extension, Json};
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use crate::routes::AuthUser;
-use crate::enforce::scanner::SecurityScanner;
-use crate::enforce::Enforcer;
 
 /// مشاركة AuditLog عبر التطبيق
 pub type SharedAuditLog = Arc<RwLock<crate::enforce::audit::AuditLog>>;
 
 /// إنشاء AuditLog مشترك
 pub fn create_audit_log(max_entries: usize) -> SharedAuditLog {
-    Arc::new(RwLock::new(crate::enforce::audit::AuditLog::new(max_entries)))
+    Arc::new(RwLock::new(crate::enforce::audit::AuditLog::new(
+        max_entries,
+    )))
 }
 
 /// GET /api/enforce/audit — كل السجلات
@@ -81,7 +83,9 @@ pub async fn check_security(
     }
     let scanner = SecurityScanner::new();
     let violations = scanner.scan_all(content);
-    let has_critical = violations.iter().any(|v| v.severity == crate::enforce::Severity::Critical);
+    let has_critical = violations
+        .iter()
+        .any(|v| v.severity == crate::enforce::Severity::Critical);
 
     Json(json!({
         "success": !has_critical,

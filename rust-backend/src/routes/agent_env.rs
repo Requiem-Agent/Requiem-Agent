@@ -5,10 +5,10 @@
 //! POST /api/agent/skills/suggest    → اقتراح المهارات لمهمة
 //! POST /api/agent/skills/execute    → تنفيذ مهارة
 
+use crate::agent::skills::{SkillContext, SkillRegistry};
+use crate::routes::AuthUser;
 use axum::{Extension, Json};
 use serde_json::{json, Value};
-use crate::routes::AuthUser;
-use crate::agent::skills::{SkillRegistry, SkillContext};
 
 /// GET /api/agent/environment — وثيقة البيئة الكاملة
 pub async fn get_environment() -> Json<Value> {
@@ -107,11 +107,21 @@ pub async fn execute_skill(
             let context = SkillContext {
                 user_id: body["user_id"].as_str().unwrap_or("unknown").to_string(),
                 task: task.to_string(),
-                available_tools: body["tools"].as_array()
-                    .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                available_tools: body["tools"]
+                    .as_array()
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
                     .unwrap_or_default(),
-                available_models: body["models"].as_array()
-                    .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                available_models: body["models"]
+                    .as_array()
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect()
+                    })
                     .unwrap_or_default(),
                 environment: body["environment"].clone(),
             };

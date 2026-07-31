@@ -39,10 +39,7 @@ pub struct DiffStats {
 }
 
 /// مقارنة نصين
-pub async fn compare_texts(
-    old_text: &str,
-    new_text: &str,
-) -> Result<DiffResult, String> {
+pub async fn compare_texts(old_text: &str, new_text: &str) -> Result<DiffResult, String> {
     let old_lines: Vec<&str> = old_text.lines().collect();
     let new_lines: Vec<&str> = new_text.lines().collect();
     let mut changes = Vec::new();
@@ -112,10 +109,10 @@ pub async fn compare_files(
     new_file: &str,
     file_path: &str,
 ) -> Result<DiffResult, String> {
-    let old_content = std::fs::read_to_string(old_file)
-        .map_err(|e| format!("Failed to read old file: {}", e))?;
-    let new_content = std::fs::read_to_string(new_file)
-        .map_err(|e| format!("Failed to read new file: {}", e))?;
+    let old_content =
+        std::fs::read_to_string(old_file).map_err(|e| format!("Failed to read old file: {}", e))?;
+    let new_content =
+        std::fs::read_to_string(new_file).map_err(|e| format!("Failed to read new file: {}", e))?;
 
     let mut result = compare_texts(&old_content, &new_content).await?;
     result.file = file_path.to_string();

@@ -16,10 +16,7 @@ pub struct AstNode {
 }
 
 /// تحليل كود إلى AST
-pub async fn parse_code(
-    code: &str,
-    language: &str,
-) -> Result<AstNode, String> {
+pub async fn parse_code(code: &str, language: &str) -> Result<AstNode, String> {
     // محاكاة تحليل AST
     let root = AstNode {
         node_type: "program".to_string(),
@@ -34,20 +31,24 @@ pub async fn parse_code(
 }
 
 /// استخراج الدوال من الكود
-pub async fn extract_functions(
-    code: &str,
-    language: &str,
-) -> Result<Vec<AstNode>, String> {
+pub async fn extract_functions(code: &str, language: &str) -> Result<Vec<AstNode>, String> {
     let mut functions = Vec::new();
     let lines: Vec<&str> = code.lines().collect();
 
     for (idx, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         // كشف بسيط للدوال
-        if trimmed.starts_with("fn ") || trimmed.starts_with("function ") || trimmed.starts_with("pub fn ") {
+        if trimmed.starts_with("fn ")
+            || trimmed.starts_with("function ")
+            || trimmed.starts_with("pub fn ")
+        {
             functions.push(AstNode {
                 node_type: "function".to_string(),
-                name: trimmed.split_whitespace().nth(1).unwrap_or("unknown").to_string(),
+                name: trimmed
+                    .split_whitespace()
+                    .nth(1)
+                    .unwrap_or("unknown")
+                    .to_string(),
                 start_line: idx + 1,
                 end_line: idx + 1,
                 children: Vec::new(),
@@ -60,20 +61,24 @@ pub async fn extract_functions(
 }
 
 /// استخراج الفئات من الكود
-pub async fn extract_classes(
-    code: &str,
-    language: &str,
-) -> Result<Vec<AstNode>, String> {
+pub async fn extract_classes(code: &str, language: &str) -> Result<Vec<AstNode>, String> {
     let mut classes = Vec::new();
     let lines: Vec<&str> = code.lines().collect();
 
     for (idx, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         // كشف بسيط للفئات
-        if trimmed.starts_with("struct ") || trimmed.starts_with("class ") || trimmed.starts_with("pub struct ") {
+        if trimmed.starts_with("struct ")
+            || trimmed.starts_with("class ")
+            || trimmed.starts_with("pub struct ")
+        {
             classes.push(AstNode {
                 node_type: "class".to_string(),
-                name: trimmed.split_whitespace().nth(1).unwrap_or("unknown").to_string(),
+                name: trimmed
+                    .split_whitespace()
+                    .nth(1)
+                    .unwrap_or("unknown")
+                    .to_string(),
                 start_line: idx + 1,
                 end_line: idx + 1,
                 children: Vec::new(),

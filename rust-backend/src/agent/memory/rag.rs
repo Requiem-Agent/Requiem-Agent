@@ -3,14 +3,16 @@
 //! كل instance مرتبط بـ user_id واحد.
 //! جميع الاستعلامات تشمل WHERE user_id = ? — لا تسرب بين المستخدمين.
 
-use std::sync::Arc;
 use anyhow::Result;
-use uuid::Uuid;
 use chrono::Utc;
 use libsql::Connection;
+use std::sync::Arc;
 use tracing::{debug, warn};
+use uuid::Uuid;
 
-use super::embeddings::{generate_embedding, cosine_similarity, priority_weight, recency_weight_from_iso};
+use super::embeddings::{
+    cosine_similarity, generate_embedding, priority_weight, recency_weight_from_iso,
+};
 
 pub const MIN_SIMILARITY: f32 = 0.25;
 pub const MAX_FETCH: usize = 500;
@@ -76,12 +78,18 @@ fn auto_extract(user_msg: &str, assistant_msg: &str) -> Vec<(String, &'static st
                 results.push((code.to_string(), "code", "high"));
             }
             rest = &rest[end + 3..];
-        } else { break; }
+        } else {
+            break;
+        }
     }
 
     // Extract facts (Arabic + English patterns)
     let fact_patterns = [
-        "يستخدم ", "يعتمد على ", "المشروع ", "the project uses ", "depends on ",
+        "يستخدم ",
+        "يعتمد على ",
+        "المشروع ",
+        "the project uses ",
+        "depends on ",
     ];
     for pattern in &fact_patterns {
         let lower = assistant_msg.to_lowercase();
@@ -97,7 +105,11 @@ fn auto_extract(user_msg: &str, assistant_msg: &str) -> Vec<(String, &'static st
 
     // User preference detection
     let pref_signals = ["أفضّل", "أحب", "دائماً", "prefer", "always use", "i like"];
-    if pref_signals.iter().any(|s| user_msg.to_lowercase().contains(s)) && user_msg.len() < 300 {
+    if pref_signals
+        .iter()
+        .any(|s| user_msg.to_lowercase().contains(s))
+        && user_msg.len() < 300
+    {
         results.push((user_msg.to_string(), "preference", "high"));
     }
 
@@ -114,11 +126,20 @@ pub struct RagEngine {
 impl RagEngine {
     /// Create a per-user RAG engine — every query scoped to user_id
     pub fn new(conn: Arc<Connection>, user_id: impl Into<String>) -> Self {
-        Self { conn, user_id: user_id.into() }
+        Self {
+            conn,
+            user_id: user_id.into(),
+        }
     }
 
     /// Store one memory, returns id
-    pub async fn store(&self, content: &str, memory_type: &str, priority: &str, session_id: Option<&str>) -> Result<String> {
+    pub async fn store(
+        &self,
+        content: &str,
+        memory_type: &str,
+        priority: &str,
+        session_id: Option<&str>,
+    ) -> Result<String> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
         let embedding = serde_json::to_string(&generate_embedding(content))?;
@@ -140,12 +161,23 @@ impl RagEngine {
             ],
         ).await?;
 
-        debug!("RAG store: user={} type={} id={}", self.user_id, memory_type, &id[..8]);
+        debug!(
+            "RAG store: user={} type={} id={}",
+            self.user_id,
+            memory_type,
+            &id[..8]
+        );
         Ok(id)
     }
 
     /// Semantic search — hybrid score = similarity * priority_w * recency_w
-    pub async fn retrieve(&self, query: &str, limit: usize, max_tokens: usize, session_id: Option<&str>) -> Result<Vec<RetrievedMemory>> {
+    pub async fn retrieve(
+        &self,
+        query: &str,
+        limit: usize,
+        max_tokens: usize,
+        session_id: Option<&str>,
+    ) -> Result<Vec<RetrievedMemory>> {
         let limit = limit.min(50);
 
         let mut rows = self.conn.query(
@@ -165,7 +197,9 @@ impl RagEngine {
             let priority: String = row.get(5).unwrap_or_default();
 
             let sim = cosine_similarity(&query_emb, &emb);
-            if sim < MIN_SIMILARITY { continue; }
+            if sim < MIN_SIMILARITY {
+                continue;
+            }
 
             let score = sim * priority_weight(&priority) * recency_weight_from_iso(&created_at);
 
@@ -198,15 +232,22 @@ impl RagEngine {
         let mut tokens_used = 0usize;
         for (score, mem) in scored.into_iter().take(limit * 3) {
             let est_tokens = mem.content.len() / 4;
-            if tokens_used + est_tokens > max_tokens { continue; }
+            if tokens_used + est_tokens > max_tokens {
+                continue;
+            }
             tokens_used += est_tokens;
             results.push(RetrievedMemory { score, memory: mem });
-            if results.len() >= limit { break; }
+            if results.len() >= limit {
+                break;
+            }
         }
 
         // Update access counts (fire and forget)
         if !results.is_empty() {
-            let ids: Vec<String> = results.iter().map(|r| format!("'{}'", r.memory.id)).collect();
+            let ids: Vec<String> = results
+                .iter()
+                .map(|r| format!("'{}'", r.memory.id))
+                .collect();
             let sql = format!(
                 "UPDATE memories SET access_count = access_count + 1, last_accessed = '{}' WHERE id IN ({})",
                 Utc::now().to_rfc3339(), ids.join(",")
@@ -220,8 +261,15 @@ impl RagEngine {
     }
 
     /// Build `<memory>...</memory>` system context block
-    pub async fn build_context(&self, query: &str, session_id: Option<&str>, max_tokens: usize) -> Result<RagBuildResult> {
-        let memories = self.retrieve(query, DEFAULT_LIMIT, max_tokens, session_id).await?;
+    pub async fn build_context(
+        &self,
+        query: &str,
+        session_id: Option<&str>,
+        max_tokens: usize,
+    ) -> Result<RagBuildResult> {
+        let memories = self
+            .retrieve(query, DEFAULT_LIMIT, max_tokens, session_id)
+            .await?;
 
         if memories.is_empty() {
             return Ok(RagBuildResult {
@@ -258,11 +306,19 @@ impl RagEngine {
     }
 
     /// Auto-extract + store memories from a conversation turn
-    pub async fn auto_store(&self, user_msg: &str, assistant_msg: &str, session_id: &str) -> Vec<String> {
+    pub async fn auto_store(
+        &self,
+        user_msg: &str,
+        assistant_msg: &str,
+        session_id: &str,
+    ) -> Vec<String> {
         let extracted = auto_extract(user_msg, assistant_msg);
         let mut ids = Vec::new();
         for (content, mtype, priority) in extracted {
-            match self.store(&content, mtype, priority, Some(session_id)).await {
+            match self
+                .store(&content, mtype, priority, Some(session_id))
+                .await
+            {
                 Ok(id) => ids.push(id),
                 Err(e) => warn!("RAG auto_store failed: {}", e),
             }
@@ -272,25 +328,32 @@ impl RagEngine {
 
     /// Delete a memory (only if it belongs to this user)
     pub async fn forget(&self, memory_id: &str) -> Result<bool> {
-        let affected = self.conn.execute(
-            "DELETE FROM memories WHERE id=?1 AND user_id=?2",
-            libsql::params![memory_id.to_string(), self.user_id.clone()],
-        ).await?;
+        let affected = self
+            .conn
+            .execute(
+                "DELETE FROM memories WHERE id=?1 AND user_id=?2",
+                libsql::params![memory_id.to_string(), self.user_id.clone()],
+            )
+            .await?;
         Ok(affected > 0)
     }
 
     /// Clear all memories for this user (optionally scoped to session)
     pub async fn clear(&self, session_id: Option<&str>) -> Result<u64> {
         let affected = if let Some(sid) = session_id {
-            self.conn.execute(
-                "DELETE FROM memories WHERE user_id=?1 AND session_id=?2",
-                libsql::params![self.user_id.clone(), sid.to_string()],
-            ).await?
+            self.conn
+                .execute(
+                    "DELETE FROM memories WHERE user_id=?1 AND session_id=?2",
+                    libsql::params![self.user_id.clone(), sid.to_string()],
+                )
+                .await?
         } else {
-            self.conn.execute(
-                "DELETE FROM memories WHERE user_id=?1",
-                libsql::params![self.user_id.clone()],
-            ).await?
+            self.conn
+                .execute(
+                    "DELETE FROM memories WHERE user_id=?1",
+                    libsql::params![self.user_id.clone()],
+                )
+                .await?
         };
         Ok(affected)
     }
@@ -315,11 +378,21 @@ impl RagEngine {
             total += c;
         }
 
-        Ok(RagStats { total, by_type, by_priority })
+        Ok(RagStats {
+            total,
+            by_type,
+            by_priority,
+        })
     }
 
     /// List memories (paginated)
-    pub async fn list(&self, limit: usize, offset: usize, session_id: Option<&str>, memory_type: Option<&str>) -> Result<Vec<StoredMemory>> {
+    pub async fn list(
+        &self,
+        limit: usize,
+        offset: usize,
+        session_id: Option<&str>,
+        memory_type: Option<&str>,
+    ) -> Result<Vec<StoredMemory>> {
         let mut memories = Vec::new();
 
         let (sql, _params_str): (String, Option<String>) = match (session_id, memory_type) {
@@ -341,10 +414,13 @@ impl RagEngine {
             ),
         };
 
-        let mut rows = self.conn.query(
-            &sql,
-            libsql::params![self.user_id.clone(), limit as i64, offset as i64],
-        ).await?;
+        let mut rows = self
+            .conn
+            .query(
+                &sql,
+                libsql::params![self.user_id.clone(), limit as i64, offset as i64],
+            )
+            .await?;
 
         while let Ok(Some(row)) = rows.next().await {
             memories.push(StoredMemory {
@@ -366,21 +442,28 @@ impl RagEngine {
 
 // Keep old type aliases so existing code compiles
 pub use super::context_window::ContextManagerStats;
-use super::{MemoryEntry, MemoryType, MemoryPriority, RetrievalContext};
+use super::{MemoryEntry, MemoryPriority, MemoryType, RetrievalContext};
 
 /// Legacy RagEngine wrapper — keeps routes/rag.rs compiling during migration
 pub struct LegacyRagEngine;
 impl LegacyRagEngine {
-    pub fn new(_dim: usize) -> Self { Self }
+    pub fn new(_dim: usize) -> Self {
+        Self
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum RagError {
-    #[error("Storage error: {0}")] StorageError(String),
-    #[error("Search error: {0}")] SearchError(String),
-    #[error("Embedding error: {0}")] EmbeddingError(String),
-    #[error("Context error: {0}")] ContextError(String),
-    #[error("DB error: {0}")] DbError(String),
+    #[error("Storage error: {0}")]
+    StorageError(String),
+    #[error("Search error: {0}")]
+    SearchError(String),
+    #[error("Embedding error: {0}")]
+    EmbeddingError(String),
+    #[error("Context error: {0}")]
+    ContextError(String),
+    #[error("DB error: {0}")]
+    DbError(String),
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

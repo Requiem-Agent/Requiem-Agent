@@ -76,10 +76,9 @@ pub fn load_master_key() -> Result<Zeroizing<[u8; KEY_SIZE]>, AppError> {
             );
             // Deterministic dev key: sha256("requiem-dev-key-do-not-use-in-prod")
             let dev_key: [u8; KEY_SIZE] = [
-                0x7f, 0x83, 0xb1, 0x65, 0x7f, 0xf1, 0xfc, 0x53,
-                0xb9, 0x2d, 0xc1, 0x81, 0x48, 0xa1, 0xd6, 0x5d,
-                0xfc, 0x2d, 0x4b, 0x1f, 0xa3, 0xd6, 0x77, 0x28,
-                0x4a, 0xdd, 0xd2, 0x00, 0x12, 0x6d, 0x90, 0x69,
+                0x7f, 0x83, 0xb1, 0x65, 0x7f, 0xf1, 0xfc, 0x53, 0xb9, 0x2d, 0xc1, 0x81, 0x48, 0xa1,
+                0xd6, 0x5d, 0xfc, 0x2d, 0x4b, 0x1f, 0xa3, 0xd6, 0x77, 0x28, 0x4a, 0xdd, 0xd2, 0x00,
+                0x12, 0x6d, 0x90, 0x69,
             ];
             Ok(Zeroizing::new(dev_key))
         }
@@ -109,12 +108,10 @@ pub fn encrypt_api_key(plaintext: &str) -> Result<String, AppError> {
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
 
     // Encrypt (returns ciphertext || tag)
-    let ciphertext = cipher
-        .encrypt(&nonce, plaintext.as_bytes())
-        .map_err(|e| {
-            error!("AES-GCM encryption failed: {}", e);
-            AppError::Internal("Encryption failed".into())
-        })?;
+    let ciphertext = cipher.encrypt(&nonce, plaintext.as_bytes()).map_err(|e| {
+        error!("AES-GCM encryption failed: {}", e);
+        AppError::Internal("Encryption failed".into())
+    })?;
 
     // Prepend nonce to ciphertext: nonce || ciphertext
     let mut payload = Vec::with_capacity(NONCE_SIZE + ciphertext.len());
@@ -158,12 +155,10 @@ pub fn decrypt_api_key(encoded: &str) -> Result<Zeroizing<String>, AppError> {
     let nonce = Nonce::from_slice(nonce_bytes);
 
     // Decrypt and authenticate
-    let plaintext_bytes = cipher
-        .decrypt(nonce, ciphertext)
-        .map_err(|_| {
-            // Don't leak details — just say decryption failed
-            AppError::Internal("Decryption failed — key may be tampered or wrong master key".into())
-        })?;
+    let plaintext_bytes = cipher.decrypt(nonce, ciphertext).map_err(|_| {
+        // Don't leak details — just say decryption failed
+        AppError::Internal("Decryption failed — key may be tampered or wrong master key".into())
+    })?;
 
     let plaintext = String::from_utf8(plaintext_bytes).map_err(|e| {
         error!("Decrypted bytes are not valid UTF-8: {}", e);
@@ -187,9 +182,8 @@ pub fn rotate_api_key(
     new_key_hex: &str,
 ) -> Result<String, AppError> {
     // Decrypt with old key
-    let old_bytes = hex::decode(old_key_hex.trim()).map_err(|_| {
-        AppError::Internal("Invalid old key hex".into())
-    })?;
+    let old_bytes = hex::decode(old_key_hex.trim())
+        .map_err(|_| AppError::Internal("Invalid old key hex".into()))?;
     if old_bytes.len() != KEY_SIZE {
         return Err(AppError::Internal("Old key wrong length".into()));
     }
@@ -197,9 +191,9 @@ pub fn rotate_api_key(
     let old_key = Key::<Aes256Gcm>::from_slice(&old_bytes);
     let old_cipher = Aes256Gcm::new(old_key);
 
-    let payload = B64.decode(encoded).map_err(|_| {
-        AppError::Internal("Invalid encoded key".into())
-    })?;
+    let payload = B64
+        .decode(encoded)
+        .map_err(|_| AppError::Internal("Invalid encoded key".into()))?;
     if payload.len() < NONCE_SIZE {
         return Err(AppError::Internal("Payload too short".into()));
     }
@@ -211,9 +205,8 @@ pub fn rotate_api_key(
         .map_err(|_| AppError::Internal("Rotation: decryption with old key failed".into()))?;
 
     // Re-encrypt with new key
-    let new_bytes = hex::decode(new_key_hex.trim()).map_err(|_| {
-        AppError::Internal("Invalid new key hex".into())
-    })?;
+    let new_bytes = hex::decode(new_key_hex.trim())
+        .map_err(|_| AppError::Internal("Invalid new key hex".into()))?;
     if new_bytes.len() != KEY_SIZE {
         return Err(AppError::Internal("New key wrong length".into()));
     }
@@ -254,7 +247,10 @@ mod tests {
         // Same plaintext → different ciphertext (due to random nonce)
         let enc1 = encrypt_api_key(TEST_API_KEY).unwrap();
         let enc2 = encrypt_api_key(TEST_API_KEY).unwrap();
-        assert_ne!(enc1, enc2, "Same plaintext should produce different ciphertext");
+        assert_ne!(
+            enc1, enc2,
+            "Same plaintext should produce different ciphertext"
+        );
     }
 
     #[test]
@@ -264,7 +260,10 @@ mod tests {
         let bytes = unsafe { encrypted.as_bytes_mut() };
         bytes[20] ^= 0xFF;
         let result = decrypt_api_key(&encrypted);
-        assert!(result.is_err(), "Tampered ciphertext should fail decryption");
+        assert!(
+            result.is_err(),
+            "Tampered ciphertext should fail decryption"
+        );
     }
 
     #[test]

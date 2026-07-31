@@ -5,11 +5,11 @@
 //! GET  /api/sandbox/status   → حالة الساندبوكس
 //! GET  /api/sandbox/stats    → إحصائيات النظام
 
+use crate::routes::AuthUser;
+use crate::sandbox::{get_sandbox_stats, SandboxExecutor, SandboxRequest};
 use axum::{Extension, Json};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use crate::routes::AuthUser;
-use crate::sandbox::{SandboxExecutor, SandboxRequest, get_sandbox_stats};
 
 /// POST /api/sandbox/exec — تنفيذ كود مع الجدولة الذكية
 pub async fn execute_code(
@@ -70,7 +70,10 @@ pub async fn sandbox_status(
     Extension(auth): Extension<AuthUser>,
     axum::extract::Query(params): axum::extract::Query<HashMap<String, String>>,
 ) -> Json<Value> {
-    let sid = params.get("session_id").map(|s| s.as_str()).unwrap_or("default");
+    let sid = params
+        .get("session_id")
+        .map(|s| s.as_str())
+        .unwrap_or("default");
     let sp = SandboxExecutor::spath(&auth.user_id, sid);
     let exists = sp.exists();
     let size = SandboxExecutor::size(&auth.user_id, sid).await.unwrap_or(0);
@@ -83,9 +86,7 @@ pub async fn sandbox_status(
 }
 
 /// GET /api/sandbox/stats — إحصائيات الساندبوكس العالمية
-pub async fn sandbox_stats(
-    Extension(_auth): Extension<AuthUser>,
-) -> Json<Value> {
+pub async fn sandbox_stats(Extension(_auth): Extension<AuthUser>) -> Json<Value> {
     let stats = get_sandbox_stats();
     Json(json!({
         "active_sandboxes": stats.active_sandboxes,
@@ -103,7 +104,11 @@ fn count_files(dir: &std::path::Path) -> usize {
     let mut c = 0;
     if let Ok(e) = std::fs::read_dir(dir) {
         for entry in e.flatten() {
-            if entry.path().is_dir() { c += count_files(&entry.path()); } else { c += 1; }
+            if entry.path().is_dir() {
+                c += count_files(&entry.path());
+            } else {
+                c += 1;
+            }
         }
     }
     c

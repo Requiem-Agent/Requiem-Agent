@@ -10,32 +10,34 @@
 //! - إدارة المهام (Tasks)
 //! - الأدوات (Tools) - search, parser, diff, vcs, file_finder
 
-pub mod protocol;
-pub mod compiler;
-pub mod tasks;
-pub mod skills;
-pub mod user_questions;
 pub mod anti_printer;
-pub mod synergy;
-pub mod memory;
+pub mod compiler;
 pub mod identity_shield;
+pub mod memory;
+pub mod protocol;
+pub mod skills;
+pub mod synergy;
+pub mod tasks;
 pub mod tools;
+pub mod user_questions;
 
+use crate::agent::anti_printer::{
+    AntiPrinterReport, CompilerPipeline, ContextRouter, PatternDetector, SemanticEngine,
+};
+use crate::agent::compiler::auto_correct::JsonAutoCorrect;
+use crate::agent::compiler::output::{AgentOutputCompiler, CompiledOutput, CompilerConfig};
+use crate::agent::identity_shield::{IdentityCheckResult, IdentityShieldV3};
+use crate::agent::memory::{RagEngine, SessionMemory, UserMemory};
+use crate::agent::protocol::mode::{AgentMode, ModeConstraints, ModeController};
+use crate::agent::protocol::sub_agent::{SubAgentOrchestrator, SubAgentProgress, SubAgentSpec};
+use crate::agent::protocol::thinking::{ProtocolMode, ThinkingProtocol, ThinkingValidation};
+use crate::agent::synergy::{ModelSynergyCoordinator, SynergyPattern, SynergyRound};
+use crate::agent::tools::AgentTools;
+use crate::enforce::audit::AuditLog;
+use libsql::Connection;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use crate::agent::protocol::mode::{AgentMode, ModeController, ModeConstraints};
-use crate::agent::protocol::thinking::{ThinkingProtocol, ProtocolMode, ThinkingValidation};
-use crate::agent::protocol::sub_agent::{SubAgentOrchestrator, SubAgentSpec, SubAgentProgress};
-use crate::agent::compiler::output::{AgentOutputCompiler, CompiledOutput, CompilerConfig};
-use crate::agent::compiler::auto_correct::JsonAutoCorrect;
-use crate::agent::anti_printer::{CompilerPipeline, AntiPrinterReport, ContextRouter, PatternDetector, SemanticEngine};
-use crate::agent::synergy::{ModelSynergyCoordinator, SynergyPattern, SynergyRound};
-use crate::agent::memory::{RagEngine, SessionMemory, UserMemory};
-use crate::agent::identity_shield::{IdentityShieldV3, IdentityCheckResult};
-use crate::enforce::audit::AuditLog;
-use libsql::Connection;
-use crate::agent::tools::AgentTools;
 
 /// محرك الوكيل الرئيسي
 pub struct AgentEngine {
@@ -61,7 +63,12 @@ pub struct AgentEngine {
 
 impl AgentEngine {
     /// إنشاء محرك وكيل جديد
-    pub fn new(user_id: &str, mode: AgentMode, audit_log: Arc<RwLock<AuditLog>>, conn: Arc<Connection>) -> Self {
+    pub fn new(
+        user_id: &str,
+        mode: AgentMode,
+        audit_log: Arc<RwLock<AuditLog>>,
+        conn: Arc<Connection>,
+    ) -> Self {
         let thinking_mode = mode.constraints().thinking_mode;
         Self {
             orchestrator_active: true,
@@ -110,13 +117,18 @@ impl AgentEngine {
     /// تسجيل خطوة — يسجل في audit log
     pub async fn record_step(&mut self, action: &str, params: &serde_json::Value, success: bool) {
         self.steps_taken += 1;
-        self.audit_log.write().await.record(
-            &self.user_id, action, params, success,
-        );
+        self.audit_log
+            .write()
+            .await
+            .record(&self.user_id, action, params, success);
     }
 
     /// تصنيف مهمة وتوجيهها عبر Orchestrator — Sprint 1B
-    pub fn classify_and_route(&mut self, query: &str, effort: Option<crate::orchestrator::Effort>) -> (crate::orchestrator::TaskCategory, Vec<String>) {
+    pub fn classify_and_route(
+        &mut self,
+        query: &str,
+        effort: Option<crate::orchestrator::Effort>,
+    ) -> (crate::orchestrator::TaskCategory, Vec<String>) {
         let category = crate::orchestrator::TaskClassifier::classify(query);
         let effort = effort.unwrap_or(crate::orchestrator::Effort::Medium);
         let models = crate::orchestrator::TaskClassifier::suggest_models(category, effort);
@@ -173,24 +185,47 @@ impl AgentEngine {
     }
 
     /// تشغيل Pipeline التصحيح الكامل
-    pub async fn run_pipeline(&mut self, thinking: &str, tool_calls: &str, history: &[String], step_id: u64) -> AntiPrinterReport {
-        let report = self.pipeline.run(thinking, tool_calls, history, step_id).await;
+    pub async fn run_pipeline(
+        &mut self,
+        thinking: &str,
+        tool_calls: &str,
+        history: &[String],
+        step_id: u64,
+    ) -> AntiPrinterReport {
+        let report = self
+            .pipeline
+            .run(thinking, tool_calls, history, step_id)
+            .await;
         if report.anti_printer.requires_retry {
-            self.audit_log.write().await.record(&self.user_id, "anti_printer_retry", &serde_json::json!({
-                "patterns": report.anti_printer.patterns.len(),
-                "quality": report.anti_printer.quality_score,
-            }), false);
+            self.audit_log.write().await.record(
+                &self.user_id,
+                "anti_printer_retry",
+                &serde_json::json!({
+                    "patterns": report.anti_printer.patterns.len(),
+                    "quality": report.anti_printer.quality_score,
+                }),
+                false,
+            );
         }
         report.anti_printer
     }
 
     /// توزيع مهمة على نموذج
-    pub fn route_task(&mut self, description: &str, task_id: &str, tokens: usize) -> crate::agent::anti_printer::TaskDistribution {
+    pub fn route_task(
+        &mut self,
+        description: &str,
+        task_id: &str,
+        tokens: usize,
+    ) -> crate::agent::anti_printer::TaskDistribution {
         self.context_router.route(description, task_id, tokens)
     }
 
     /// تحليل دلالي لنص
-    pub fn analyze_semantic(&mut self, text: &str, step_id: u64) -> crate::agent::anti_printer::SemanticResult {
+    pub fn analyze_semantic(
+        &mut self,
+        text: &str,
+        step_id: u64,
+    ) -> crate::agent::anti_printer::SemanticResult {
         self.pipeline.semantic.analyze(text, step_id)
     }
 
@@ -208,7 +243,12 @@ impl AgentEngine {
     }
 
     /// حفظ ذاكرة في RAG
-    pub async fn store_rag_memory(&self, content: &str, memory_type: memory::MemoryType, priority: memory::MemoryPriority) -> anyhow::Result<String> {
+    pub async fn store_rag_memory(
+        &self,
+        content: &str,
+        memory_type: memory::MemoryType,
+        priority: memory::MemoryPriority,
+    ) -> anyhow::Result<String> {
         let rag = self.rag.read().await;
         let priority_str = match priority {
             memory::MemoryPriority::Low => "low",
@@ -216,7 +256,8 @@ impl AgentEngine {
             memory::MemoryPriority::High => "high",
             memory::MemoryPriority::Critical => "critical",
         };
-        rag.store(content, memory_type.name(), priority_str, None).await
+        rag.store(content, memory_type.name(), priority_str, None)
+            .await
     }
 
     /// إحصائيات RAG
@@ -264,11 +305,17 @@ impl AgentEngine {
         root_path: &str,
         extensions: Option<Vec<String>>,
     ) -> Result<Vec<tools::search::SearchResult>, tools::search::SearchError> {
-        self.tools.search.search(pattern, root_path, extensions).await
+        self.tools
+            .search
+            .search(pattern, root_path, extensions)
+            .await
     }
 
     /// Parse a file using tree-sitter
-    pub fn parse_file(&self, file_path: &str) -> Result<tools::parser::AstNode, tools::parser::ParserError> {
+    pub fn parse_file(
+        &self,
+        file_path: &str,
+    ) -> Result<tools::parser::AstNode, tools::parser::ParserError> {
         self.tools.parser.parse_file(file_path)
     }
 
@@ -278,7 +325,11 @@ impl AgentEngine {
     }
 
     /// Compare two files and generate diff
-    pub fn compare_files(&self, old_file: &str, new_file: &str) -> Result<tools::diff::DiffResult, tools::diff::DiffError> {
+    pub fn compare_files(
+        &self,
+        old_file: &str,
+        new_file: &str,
+    ) -> Result<tools::diff::DiffResult, tools::diff::DiffError> {
         self.tools.diff.compare_files(old_file, new_file)
     }
 
@@ -298,17 +349,29 @@ impl AgentEngine {
     }
 
     /// Find files in the project
-    pub fn find_files(&self, root_path: &str) -> Result<Vec<tools::file_finder::FoundFile>, tools::file_finder::FileFinderError> {
+    pub fn find_files(
+        &self,
+        root_path: &str,
+    ) -> Result<Vec<tools::file_finder::FoundFile>, tools::file_finder::FileFinderError> {
         self.tools.file_finder.find_files(root_path)
     }
 
     /// Find files by extension
-    pub fn find_files_by_extension(&self, root_path: &str, extension: &str) -> Result<Vec<tools::file_finder::FoundFile>, tools::file_finder::FileFinderError> {
-        self.tools.file_finder.find_by_extension(root_path, extension)
+    pub fn find_files_by_extension(
+        &self,
+        root_path: &str,
+        extension: &str,
+    ) -> Result<Vec<tools::file_finder::FoundFile>, tools::file_finder::FileFinderError> {
+        self.tools
+            .file_finder
+            .find_by_extension(root_path, extension)
     }
 
     /// Get file size statistics
-    pub fn get_file_stats(&self, root_path: &str) -> Result<tools::file_finder::SizeStats, tools::file_finder::FileFinderError> {
+    pub fn get_file_stats(
+        &self,
+        root_path: &str,
+    ) -> Result<tools::file_finder::SizeStats, tools::file_finder::FileFinderError> {
         self.tools.file_finder.get_size_stats(root_path)
     }
 }

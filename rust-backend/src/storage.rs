@@ -12,14 +12,14 @@
 
 pub mod workspace;
 
+use base64::Engine as _;
+use libsql::{Builder, Connection};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use tokio::fs;
-use libsql::{Builder, Connection};
 use tracing::{debug, warn};
-use base64::Engine as _;
 
-use crate::path_safety::{UserPathRoot, ensure_safe_path};
+use crate::path_safety::{ensure_safe_path, UserPathRoot};
 
 // ─── HF Bucket Client ─────────────────────────────────────────────────────────
 
@@ -61,7 +61,10 @@ pub async fn hf_upload_file(
     if !resp.status().is_success() {
         let status = resp.status();
         let body = resp.text().await.unwrap_or_default();
-        warn!("HF upload failed {status}: {}", &body[..body.len().min(200)]);
+        warn!(
+            "HF upload failed {status}: {}",
+            &body[..body.len().min(200)]
+        );
         return Err(format!("HF upload {status}"));
     }
     debug!("HF uploaded: {path}");
@@ -122,10 +125,13 @@ pub async fn hf_list_files(
         return Ok(vec![]);
     }
     let items: Vec<serde_json::Value> = resp.json().await.unwrap_or_default();
-    Ok(items.iter()
+    Ok(items
+        .iter()
         .filter(|i| i["type"].as_str() == Some("file"))
         .filter_map(|i| {
-            i["path"].as_str().and_then(|p| p.strip_prefix(&prefix).map(|s| s.to_string()))
+            i["path"]
+                .as_str()
+                .and_then(|p| p.strip_prefix(&prefix).map(|s| s.to_string()))
         })
         .collect())
 }
@@ -170,14 +176,17 @@ pub struct SessionDb {
 
 impl SessionDb {
     pub async fn new(path: &Path) -> Result<Self, String> {
-        let db = Self { db_path: path.to_path_buf() };
+        let db = Self {
+            db_path: path.to_path_buf(),
+        };
         db.init().await?;
         Ok(db)
     }
 
     async fn init(&self) -> Result<(), String> {
         if let Some(parent) = self.db_path.parent() {
-            fs::create_dir_all(parent).await
+            fs::create_dir_all(parent)
+                .await
                 .map_err(|e| format!("Session DB dir: {e}"))?;
         }
         Ok(())
@@ -186,12 +195,15 @@ impl SessionDb {
     pub async fn connect(&self) -> Result<Connection, String> {
         let path_str = self.db_path.to_string_lossy().to_string();
         let db = Builder::new_local(path_str)
-            .build().await
+            .build()
+            .await
             .map_err(|e| format!("Session DB open: {e}"))?;
-        let conn = db.connect()
+        let conn = db
+            .connect()
             .map_err(|e| format!("Session DB connect: {e}"))?;
 
-        conn.execute_batch("
+        conn.execute_batch(
+            "
             CREATE TABLE IF NOT EXISTS files (
                 name TEXT PRIMARY KEY,
                 content TEXT NOT NULL,
@@ -226,12 +238,17 @@ impl SessionDb {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
-        ").await.map_err(|e| format!("Session DB schema: {e}"))?;
+        ",
+        )
+        .await
+        .map_err(|e| format!("Session DB schema: {e}"))?;
 
         Ok(conn)
     }
 
-    pub fn path(&self) -> &Path { &self.db_path }
+    pub fn path(&self) -> &Path {
+        &self.db_path
+    }
 }
 
 // ─── Storage Engine ───────────────────────────────────────────────────────────
@@ -262,13 +279,15 @@ impl StorageEngine {
                     }
                 }
             }
-            let fallback = std::env::var("REQUIEM_STORAGE")
-                .unwrap_or_else(|_| "/data".to_string());
+            let fallback = std::env::var("REQUIEM_STORAGE").unwrap_or_else(|_| "/data".to_string());
             tracing::warn!("Storage base fallback: {fallback}");
             PathBuf::from(fallback)
         });
         let hf_token = std::env::var("HF_TOKEN").unwrap_or_default();
-        Self { base_path: base, hf_token }
+        Self {
+            base_path: base,
+            hf_token,
+        }
     }
 
     pub fn user_root(&self, user_id: &str) -> UserPathRoot {
@@ -277,22 +296,31 @@ impl StorageEngine {
 
     pub async fn init_user_storage(&self, user_id: &str) -> Result<UserPathRoot, String> {
         let root = self.user_root(user_id);
-        root.ensure_dirs().await.map_err(|e| format!("Storage init: {e}"))?;
+        root.ensure_dirs()
+            .await
+            .map_err(|e| format!("Storage init: {e}"))?;
         Ok(root)
     }
 
-    pub async fn init_session_storage(&self, user_id: &str, session_id: &str) -> Result<SessionDb, String> {
+    pub async fn init_session_storage(
+        &self,
+        user_id: &str,
+        session_id: &str,
+    ) -> Result<SessionDb, String> {
         let root = self.user_root(user_id);
         let sess_dir = root.sessions_dir().join(session_id);
         let files_dir = root.session_files_dir(session_id);
-        fs::create_dir_all(&sess_dir).await
+        fs::create_dir_all(&sess_dir)
+            .await
             .map_err(|e| format!("Session dir: {e}"))?;
-        fs::create_dir_all(&files_dir).await
+        fs::create_dir_all(&files_dir)
+            .await
             .map_err(|e| format!("Files dir: {e}"))?;
 
         let ctx_path = sess_dir.join("context.json");
         if !ctx_path.exists() {
-            fs::write(&ctx_path, "{}").await
+            fs::write(&ctx_path, "{}")
+                .await
                 .map_err(|e| format!("Context init: {e}"))?;
         }
 
@@ -301,16 +329,25 @@ impl StorageEngine {
     }
 
     /// حفظ ملف — محلياً + HF bucket في الخلفية
-    pub async fn save_file(&self, user_id: &str, session_id: &str, file_name: &str, content: &str) -> Result<(), String> {
+    pub async fn save_file(
+        &self,
+        user_id: &str,
+        session_id: &str,
+        file_name: &str,
+        content: &str,
+    ) -> Result<(), String> {
         let root = self.user_root(user_id);
         let fpath = root.session_files_dir(session_id).join(file_name);
-        let _ = ensure_safe_path(&fpath, root.root())
-            .map_err(|e| format!("Path safety: {e}"))?;
+        let _ = ensure_safe_path(&fpath, root.root()).map_err(|e| format!("Path safety: {e}"))?;
         if let Some(parent) = fpath.parent() {
-            fs::create_dir_all(parent).await.map_err(|e| format!("Dir: {e}"))?;
+            fs::create_dir_all(parent)
+                .await
+                .map_err(|e| format!("Dir: {e}"))?;
         }
         // 1. حفظ محلي (أولوية)
-        fs::write(&fpath, content).await.map_err(|e| format!("Save file: {e}"))?;
+        fs::write(&fpath, content)
+            .await
+            .map_err(|e| format!("Save file: {e}"))?;
         // 2. رفع إلى HF bucket (خلفية، لا يوقف العملية)
         let token = self.hf_token.clone();
         let uid = user_id.to_string();
@@ -326,7 +363,12 @@ impl StorageEngine {
     }
 
     /// قراءة ملف — محلياً أولاً، ثم HF bucket
-    pub async fn read_file(&self, user_id: &str, session_id: &str, file_name: &str) -> Result<String, String> {
+    pub async fn read_file(
+        &self,
+        user_id: &str,
+        session_id: &str,
+        file_name: &str,
+    ) -> Result<String, String> {
         let root = self.user_root(user_id);
         let fpath = root.session_files_dir(session_id).join(file_name);
 
@@ -339,7 +381,8 @@ impl StorageEngine {
 
         // الملف غير موجود محلياً — جرب HF bucket
         debug!("File not local, fetching from HF bucket: {user_id}/{session_id}/{file_name}");
-        let content = hf_read_file(&self.hf_token, user_id, session_id, file_name).await
+        let content = hf_read_file(&self.hf_token, user_id, session_id, file_name)
+            .await
             .map_err(|e| format!("Read file (local+HF): {e}"))?;
 
         // خزّنه محلياً للمرة القادمة
@@ -363,7 +406,12 @@ impl StorageEngine {
         if let Ok(safe) = ensure_safe_path(&fdir, root.root()) {
             if let Ok(mut entries) = fs::read_dir(&safe).await {
                 while let Ok(Some(entry)) = entries.next_entry().await {
-                    if entry.file_type().await.map(|t| t.is_file()).unwrap_or(false) {
+                    if entry
+                        .file_type()
+                        .await
+                        .map(|t| t.is_file())
+                        .unwrap_or(false)
+                    {
                         if let Some(name) = entry.file_name().to_str() {
                             files.insert(name.to_string());
                         }
@@ -374,7 +422,9 @@ impl StorageEngine {
 
         // الملفات في HF bucket
         if let Ok(hf_files) = hf_list_files(&self.hf_token, user_id, session_id).await {
-            for f in hf_files { files.insert(f); }
+            for f in hf_files {
+                files.insert(f);
+            }
         }
 
         let mut result: Vec<String> = files.into_iter().collect();
@@ -382,7 +432,12 @@ impl StorageEngine {
         Ok(result)
     }
 
-    pub async fn delete_file(&self, user_id: &str, session_id: &str, file_name: &str) -> Result<(), String> {
+    pub async fn delete_file(
+        &self,
+        user_id: &str,
+        session_id: &str,
+        file_name: &str,
+    ) -> Result<(), String> {
         let root = self.user_root(user_id);
         let fpath = root.session_files_dir(session_id).join(file_name);
         // حذف محلي
@@ -400,33 +455,50 @@ impl StorageEngine {
         Ok(())
     }
 
-    pub async fn save_session_context(&self, user_id: &str, session_id: &str, context: &str) -> Result<(), String> {
+    pub async fn save_session_context(
+        &self,
+        user_id: &str,
+        session_id: &str,
+        context: &str,
+    ) -> Result<(), String> {
         let root = self.user_root(user_id);
         let ctx_path = root.sessions_dir().join(session_id).join("context.json");
-        let safe = ensure_safe_path(&ctx_path, root.root())
-            .map_err(|e| format!("Path safety: {e}"))?;
-        fs::write(&safe, context).await.map_err(|e| format!("Save context: {e}"))
+        let safe =
+            ensure_safe_path(&ctx_path, root.root()).map_err(|e| format!("Path safety: {e}"))?;
+        fs::write(&safe, context)
+            .await
+            .map_err(|e| format!("Save context: {e}"))
     }
 
-    pub async fn load_session_context(&self, user_id: &str, session_id: &str) -> Result<String, String> {
+    pub async fn load_session_context(
+        &self,
+        user_id: &str,
+        session_id: &str,
+    ) -> Result<String, String> {
         let root = self.user_root(user_id);
         let ctx_path = root.sessions_dir().join(session_id).join("context.json");
-        let safe = ensure_safe_path(&ctx_path, root.root())
-            .map_err(|e| format!("Path safety: {e}"))?;
-        fs::read_to_string(&safe).await.map_err(|e| format!("Load context: {e}"))
+        let safe =
+            ensure_safe_path(&ctx_path, root.root()).map_err(|e| format!("Path safety: {e}"))?;
+        fs::read_to_string(&safe)
+            .await
+            .map_err(|e| format!("Load context: {e}"))
     }
 
     pub async fn list_user_sessions(&self, user_id: &str) -> Result<Vec<String>, String> {
         let root = self.user_root(user_id);
         let sess_dir = root.sessions_dir();
-        let safe = ensure_safe_path(&sess_dir, root.root())
-            .map_err(|e| format!("Path safety: {e}"))?;
-        let mut entries = fs::read_dir(&safe).await.map_err(|e| format!("List sessions: {e}"))?;
+        let safe =
+            ensure_safe_path(&sess_dir, root.root()).map_err(|e| format!("Path safety: {e}"))?;
+        let mut entries = fs::read_dir(&safe)
+            .await
+            .map_err(|e| format!("List sessions: {e}"))?;
         let mut sessions = Vec::new();
         while let Ok(Some(entry)) = entries.next_entry().await {
             if entry.file_type().await.map(|t| t.is_dir()).unwrap_or(false) {
                 if let Some(name) = entry.file_name().to_str() {
-                    if name.len() > 5 { sessions.push(name.to_string()); }
+                    if name.len() > 5 {
+                        sessions.push(name.to_string());
+                    }
                 }
             }
         }
@@ -437,13 +509,18 @@ impl StorageEngine {
         let root = self.user_root(user_id);
         let db_path = root.user_db_path();
         if let Some(parent) = db_path.parent() {
-            fs::create_dir_all(parent).await.map_err(|e| format!("User DB dir: {e}"))?;
+            fs::create_dir_all(parent)
+                .await
+                .map_err(|e| format!("User DB dir: {e}"))?;
         }
         let path_str = db_path.to_string_lossy().to_string();
         let db = Builder::new_local(path_str)
-            .build().await.map_err(|e| format!("User DB open: {e}"))?;
+            .build()
+            .await
+            .map_err(|e| format!("User DB open: {e}"))?;
         let conn = db.connect().map_err(|e| format!("User DB connect: {e}"))?;
-        conn.execute_batch("
+        conn.execute_batch(
+            "
             CREATE TABLE IF NOT EXISTS projects (
                 id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT,
                 created_at TEXT NOT NULL
@@ -455,15 +532,24 @@ impl StorageEngine {
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY, value TEXT NOT NULL
             );
-        ").await.map_err(|e| format!("User DB schema: {e}"))?;
+        ",
+        )
+        .await
+        .map_err(|e| format!("User DB schema: {e}"))?;
         Ok(conn)
     }
 
-    pub async fn open_session_db(&self, user_id: &str, session_id: &str) -> Result<SessionDb, String> {
+    pub async fn open_session_db(
+        &self,
+        user_id: &str,
+        session_id: &str,
+    ) -> Result<SessionDb, String> {
         let root = self.user_root(user_id);
         let db_path = root.session_db_path(session_id);
         if let Some(parent) = db_path.parent() {
-            fs::create_dir_all(parent).await.map_err(|e| format!("Session DB dir: {e}"))?;
+            fs::create_dir_all(parent)
+                .await
+                .map_err(|e| format!("Session DB dir: {e}"))?;
         }
         SessionDb::new(&db_path).await
     }
@@ -475,8 +561,11 @@ impl StorageEngine {
             if let Ok(entries) = std::fs::read_dir(&dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.is_dir() { walk(path, total); }
-                    else if path.is_file() { *total += std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0); }
+                    if path.is_dir() {
+                        walk(path, total);
+                    } else if path.is_file() {
+                        *total += std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+                    }
                 }
             }
         }
@@ -493,16 +582,26 @@ fn engine() -> &'static StorageEngine {
     ENGINE.get_or_init(|| StorageEngine::new(None))
 }
 
-pub fn init_engine() { ENGINE.get_or_init(|| StorageEngine::new(None)); }
+pub fn init_engine() {
+    ENGINE.get_or_init(|| StorageEngine::new(None));
+}
 
 pub async fn init_user_storage(user_id: &str) -> Result<(), String> {
-    engine().init_user_storage(user_id).await?; Ok(())
+    engine().init_user_storage(user_id).await?;
+    Ok(())
 }
 pub async fn init_session_storage(user_id: &str, session_id: &str) -> Result<(), String> {
-    engine().init_session_storage(user_id, session_id).await?; Ok(())
+    engine().init_session_storage(user_id, session_id).await?;
+    Ok(())
 }
-pub async fn save_session_context(user_id: &str, session_id: &str, context: &str) -> Result<(), String> {
-    engine().save_session_context(user_id, session_id, context).await
+pub async fn save_session_context(
+    user_id: &str,
+    session_id: &str,
+    context: &str,
+) -> Result<(), String> {
+    engine()
+        .save_session_context(user_id, session_id, context)
+        .await
 }
 pub async fn load_session_context(user_id: &str, session_id: &str) -> Result<String, String> {
     engine().load_session_context(user_id, session_id).await
@@ -510,8 +609,15 @@ pub async fn load_session_context(user_id: &str, session_id: &str) -> Result<Str
 pub async fn list_user_sessions(user_id: &str) -> Result<Vec<String>, String> {
     engine().list_user_sessions(user_id).await
 }
-pub async fn save_file(user_id: &str, session_id: &str, file_name: &str, content: &str) -> Result<(), String> {
-    engine().save_file(user_id, session_id, file_name, content).await
+pub async fn save_file(
+    user_id: &str,
+    session_id: &str,
+    file_name: &str,
+    content: &str,
+) -> Result<(), String> {
+    engine()
+        .save_file(user_id, session_id, file_name, content)
+        .await
 }
 pub async fn read_file(user_id: &str, session_id: &str, file_name: &str) -> Result<String, String> {
     engine().read_file(user_id, session_id, file_name).await

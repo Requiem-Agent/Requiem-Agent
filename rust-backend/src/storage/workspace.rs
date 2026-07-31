@@ -116,7 +116,9 @@ async fn read_raw_meta(user_id: &str, workspace_id: &str) -> Result<WorkspaceMet
 /// Compute file_count and size_bytes for a workspace (synchronous walk).
 fn compute_stats(root: &Path) -> (u64, u64) {
     fn walk(dir: &Path, count: &mut u64, bytes: &mut u64) {
-        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
         for entry in entries.flatten() {
             let p = entry.path();
             // Skip hidden .requiem metadata directory from counts
@@ -341,12 +343,9 @@ pub async fn workspace_tree(user_id: &str, workspace_id: &str) -> Result<Value, 
 fn build_tree(root: &Path, dir: &Path) -> Result<Value, String> {
     let mut children: Vec<Value> = Vec::new();
 
-    let entries =
-        std::fs::read_dir(dir).map_err(|e| format!("read dir {}: {e}", dir.display()))?;
+    let entries = std::fs::read_dir(dir).map_err(|e| format!("read dir {}: {e}", dir.display()))?;
 
-    let mut sorted: Vec<std::fs::DirEntry> = entries
-        .filter_map(|e| e.ok())
-        .collect();
+    let mut sorted: Vec<std::fs::DirEntry> = entries.filter_map(|e| e.ok()).collect();
 
     // Directories first, then files; both sorted alphabetically.
     sorted.sort_by(|a, b| {
@@ -412,23 +411,43 @@ fn chrono_now() -> String {
 }
 
 fn unix_to_ymd(mut secs: u64) -> (u64, u64, u64, u64, u64, u64) {
-    let sec = secs % 60; secs /= 60;
-    let min = secs % 60; secs /= 60;
-    let hour = secs % 24; secs /= 24;
+    let sec = secs % 60;
+    secs /= 60;
+    let min = secs % 60;
+    secs /= 60;
+    let hour = secs % 24;
+    secs /= 24;
     // Days since epoch (Jan 1 1970)
     let mut days = secs;
     let mut year = 1970u64;
     loop {
         let days_in_year = if is_leap(year) { 366 } else { 365 };
-        if days < days_in_year { break; }
+        if days < days_in_year {
+            break;
+        }
         days -= days_in_year;
         year += 1;
     }
     let leap = is_leap(year);
-    let month_days: [u64; 12] = [31, if leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let month_days: [u64; 12] = [
+        31,
+        if leap { 29 } else { 28 },
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
+    ];
     let mut month = 1u64;
     for md in &month_days {
-        if days < *md { break; }
+        if days < *md {
+            break;
+        }
         days -= md;
         month += 1;
     }

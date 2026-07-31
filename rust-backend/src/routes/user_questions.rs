@@ -7,15 +7,15 @@
 //! POST /api/user/question/:id/cancel  → إلغاء السؤال
 //! GET  /api/user/question/stats      → إحصائيات
 
+use crate::agent::user_questions::{
+    AgentQuestion, QuestionAnswer, QuestionOption, QuestionPriority, QuestionStatus, QuestionStore,
+    QuestionType,
+};
+use crate::routes::AuthUser;
 use axum::{Extension, Json};
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use crate::routes::AuthUser;
-use crate::agent::user_questions::{
-    QuestionStore, AgentQuestion, QuestionType, QuestionPriority,
-    QuestionOption, QuestionStatus, QuestionAnswer,
-};
 
 /// مشاركة مخزن الأسئلة
 pub type SharedQuestionStore = Arc<RwLock<QuestionStore>>;
@@ -47,15 +47,20 @@ pub async fn ask_question(
         _ => QuestionType::FreeText,
     };
 
-    let options: Vec<QuestionOption> = body["options"].as_array()
-        .map(|arr| arr.iter().filter_map(|o| {
-            Some(QuestionOption {
-                value: o["value"].as_str()?.to_string(),
-                label: o["label"].as_str().unwrap_or("").to_string(),
-                description: o["description"].as_str().map(String::from),
-                recommended: o["recommended"].as_bool().unwrap_or(false),
-            })
-        }).collect())
+    let options: Vec<QuestionOption> = body["options"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|o| {
+                    Some(QuestionOption {
+                        value: o["value"].as_str()?.to_string(),
+                        label: o["label"].as_str().unwrap_or("").to_string(),
+                        description: o["description"].as_str().map(String::from),
+                        recommended: o["recommended"].as_bool().unwrap_or(false),
+                    })
+                })
+                .collect()
+        })
         .unwrap_or_default();
 
     let mut question = AgentQuestion {
@@ -111,8 +116,13 @@ pub async fn answer_question(
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(body): Json<Value>,
 ) -> Json<Value> {
-    let selected: Vec<String> = body["selected_options"].as_array()
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+    let selected: Vec<String> = body["selected_options"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
 
     let answer = QuestionAnswer {

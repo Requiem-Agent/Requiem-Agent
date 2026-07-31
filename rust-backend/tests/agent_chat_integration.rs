@@ -188,19 +188,13 @@ async fn test_unauthenticated_returns_401() {
         axum::routing::post(stub_handler_requires_auth),
     );
 
-    let req = unauthed_request(
-        Method::POST,
-        "/agent/chat",
-        chat_body("hello"),
-    );
+    let req = unauthed_request(Method::POST, "/agent/chat", chat_body("hello"));
 
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
-async fn stub_handler_requires_auth(
-    req: Request<Body>,
-) -> axum::response::Response {
+async fn stub_handler_requires_auth(req: Request<Body>) -> axum::response::Response {
     if req.headers().get("x-user-id").is_none() {
         return (
             StatusCode::UNAUTHORIZED,
@@ -214,22 +208,20 @@ async fn stub_handler_requires_auth(
 /// Test: valid request returns 200 with expected JSON shape
 #[tokio::test]
 async fn test_valid_request_returns_200_with_reply() {
-    let app = Router::new().route(
-        "/agent/chat",
-        axum::routing::post(stub_handler_echo),
-    );
+    let app = Router::new().route("/agent/chat", axum::routing::post(stub_handler_echo));
 
     let req = authed_request(Method::POST, "/agent/chat", chat_body("Hello, agent!"));
     let resp = app.oneshot(req).await.unwrap();
 
     assert_eq!(resp.status(), StatusCode::OK);
     let json = body_json(resp).await;
-    assert!(json.get("reply").is_some(), "response must have 'reply' field");
+    assert!(
+        json.get("reply").is_some(),
+        "response must have 'reply' field"
+    );
 }
 
-async fn stub_handler_echo(
-    axum::Json(body): axum::Json<Value>,
-) -> axum::response::Response {
+async fn stub_handler_echo(axum::Json(body): axum::Json<Value>) -> axum::response::Response {
     let msg = body.get("message").and_then(|v| v.as_str()).unwrap_or("");
     (
         StatusCode::OK,
@@ -324,8 +316,14 @@ async fn test_orchestrator_mode_returns_steps() {
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let json = body_json(resp).await;
-    assert!(json.get("steps").is_some(), "orchestrator response must include 'steps'");
-    assert!(json.get("reply").is_some(), "orchestrator response must include 'reply'");
+    assert!(
+        json.get("steps").is_some(),
+        "orchestrator response must include 'steps'"
+    );
+    assert!(
+        json.get("reply").is_some(),
+        "orchestrator response must include 'reply'"
+    );
 }
 
 async fn stub_handler_orchestrator(
@@ -347,16 +345,17 @@ async fn stub_handler_orchestrator(
             .into_response();
     }
 
-    (StatusCode::OK, axum::Json(json!({"reply": "chat response"}))).into_response()
+    (
+        StatusCode::OK,
+        axum::Json(json!({"reply": "chat response"})),
+    )
+        .into_response()
 }
 
 /// Test: oversized message is rejected
 #[tokio::test]
 async fn test_oversized_message_returns_413() {
-    let app = Router::new().route(
-        "/agent/chat",
-        axum::routing::post(stub_handler_size_limit),
-    );
+    let app = Router::new().route("/agent/chat", axum::routing::post(stub_handler_size_limit));
 
     let huge_message = "x".repeat(100_001); // > 100KB
     let req = Request::builder()
@@ -377,9 +376,7 @@ async fn test_oversized_message_returns_413() {
     assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
 }
 
-async fn stub_handler_size_limit(
-    axum::Json(body): axum::Json<Value>,
-) -> axum::response::Response {
+async fn stub_handler_size_limit(axum::Json(body): axum::Json<Value>) -> axum::response::Response {
     let msg = body.get("message").and_then(|v| v.as_str()).unwrap_or("");
     if msg.len() > 100_000 {
         return (
@@ -394,17 +391,17 @@ async fn stub_handler_size_limit(
 /// Test: response always includes `session_id` echo
 #[tokio::test]
 async fn test_response_echoes_session_id() {
-    let app = Router::new().route(
-        "/agent/chat",
-        axum::routing::post(stub_handler_echo),
-    );
+    let app = Router::new().route("/agent/chat", axum::routing::post(stub_handler_echo));
 
     let req = authed_request(Method::POST, "/agent/chat", chat_body("ping"));
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let json = body_json(resp).await;
     // session_id should be echoed back (may be null in stub, but field must exist)
-    assert!(json.get("session_id").is_some(), "response must echo session_id");
+    assert!(
+        json.get("session_id").is_some(),
+        "response must echo session_id"
+    );
 }
 
 /// Test: health check endpoint returns 200

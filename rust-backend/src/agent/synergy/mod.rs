@@ -2,13 +2,13 @@
 // Phase 16: تنسيق النماذج المتوازية — Consensus, Critique, Pipeline
 // ==========================================================================
 
+mod coordinator;
 mod patterns;
 mod smart_router;
-mod coordinator;
 
+pub use coordinator::*;
 pub use patterns::*;
 pub use smart_router::*;
-pub use coordinator::*;
 
 use serde::{Deserialize, Serialize};
 

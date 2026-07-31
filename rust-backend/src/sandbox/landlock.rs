@@ -14,12 +14,17 @@
 //! - https://landlock.io/rust-landlock/landlock
 //! - https://docs.kernel.org/userspace-api/landlock.html
 
-use crate::sandbox::layer::{SandboxLayer, LayerResult};
+use crate::sandbox::layer::{LayerResult, SandboxLayer};
 
 /// مسارات النظام التي يُسمح فقط بقراءتها
 const SYSTEM_READ_ONLY: &[&str] = &[
-    "/usr", "/lib", "/lib64", "/bin", "/sbin",
-    "/etc/alternatives", "/etc/ssl",
+    "/usr",
+    "/lib",
+    "/lib64",
+    "/bin",
+    "/sbin",
+    "/etc/alternatives",
+    "/etc/ssl",
 ];
 
 /// مسارات ممنوعة تماماً (حتى القراءة)
@@ -68,7 +73,9 @@ impl LandlockLayer {
 }
 
 impl SandboxLayer for LandlockLayer {
-    fn name(&self) -> &'static str { "Landlock" }
+    fn name(&self) -> &'static str {
+        "Landlock"
+    }
 
     fn apply(&self) -> LayerResult {
         // Landlock requires Linux 5.13+. If unavailable, skip gracefully.
@@ -77,9 +84,12 @@ impl SandboxLayer for LandlockLayer {
                 .arg("/proc/self/status")
                 .output()
                 .ok()
-                .and_then(|o| String::from_utf8_lossy(&o.stdout).lines()
-                    .find(|l| l.starts_with("Seccomp"))
-                    .map(|_| false))
+                .and_then(|o| {
+                    String::from_utf8_lossy(&o.stdout)
+                        .lines()
+                        .find(|l| l.starts_with("Seccomp"))
+                        .map(|_| false)
+                })
                 .unwrap_or(false);
 
         // التحقق من دعم النواة عبر اختبار بسيط
@@ -95,12 +105,18 @@ impl SandboxLayer for LandlockLayer {
         if !landlock_available && self.block_network {
             // Landlock غير متوفر — نحاول تعطيل الشبكة عبر iptables? لا.
             // نكتفي بتحذير
-            return LayerResult::Warn("Landlock غير متوفر (kernel <5.13?). استمرار بدون عزل ملفات.".into());
+            return LayerResult::Warn(
+                "Landlock غير متوفر (kernel <5.13?). استمرار بدون عزل ملفات.".into(),
+            );
         }
 
         if self.sandbox_dir.is_some() {
-            tracing::debug!("Landlock: sandbox_dir={:?}, read_write={:?}, read_only={:?}",
-                self.sandbox_dir, self.read_write_paths, self.read_only_paths);
+            tracing::debug!(
+                "Landlock: sandbox_dir={:?}, read_write={:?}, read_only={:?}",
+                self.sandbox_dir,
+                self.read_write_paths,
+                self.read_only_paths
+            );
         }
 
         // Landlock يُطبق فعلياً عبر landlock crate
@@ -119,7 +135,10 @@ impl LandlockLayer {
         // إذا فشلت المكتبة، نستمر مع rlimit فقط
         match try_apply_landlock(self) {
             Ok(()) => LayerResult::Ok,
-            Err(e) => LayerResult::Warn(format!("Landlock غير متاح ({}). استمرار بدون عزل ملفات.", e)),
+            Err(e) => LayerResult::Warn(format!(
+                "Landlock غير متاح ({}). استمرار بدون عزل ملفات.",
+                e
+            )),
         }
     }
 }

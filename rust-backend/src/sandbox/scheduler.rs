@@ -1,14 +1,14 @@
 //! # Scheduler — جدولة ذكية للموارد (2 vCPU, 16GB RAM)
 
+use crate::sandbox::types::*;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::{Semaphore, RwLock};
-use tracing::info;
-use serde::Serialize;
 use std::sync::OnceLock;
-use crate::sandbox::types::*;
+use std::time::Duration;
+use tokio::sync::{RwLock, Semaphore};
+use tracing::info;
 
 static ACTIVE_SANDBOXES: AtomicUsize = AtomicUsize::new(0);
 
@@ -29,7 +29,11 @@ impl SandboxScheduler {
         })
     }
 
-    pub async fn acquire(&self, user_id: &str, language: Language) -> Result<SandboxPermit<'_>, String> {
+    pub async fn acquire(
+        &self,
+        user_id: &str,
+        language: Language,
+    ) -> Result<SandboxPermit<'_>, String> {
         let is_compile = language.needs_compilation();
 
         // حد المستخدم
@@ -41,12 +45,16 @@ impl SandboxScheduler {
         }
 
         // احجز semaphore
-        let sem = if is_compile { &self.compile_sem } else { &self.exec_sem };
-        let permit = tokio::time::timeout(
-            Duration::from_secs(QUEUE_WAIT_TIMEOUT_SECS),
-            sem.acquire(),
-        ).await.map_err(|_| "النظام مشغول. حاول لاحقاً.".to_string())?
-          .map_err(|_| "خطأ داخلي في السيمفور".to_string())?;
+        let sem = if is_compile {
+            &self.compile_sem
+        } else {
+            &self.exec_sem
+        };
+        let permit =
+            tokio::time::timeout(Duration::from_secs(QUEUE_WAIT_TIMEOUT_SECS), sem.acquire())
+                .await
+                .map_err(|_| "النظام مشغول. حاول لاحقاً.".to_string())?
+                .map_err(|_| "خطأ داخلي في السيمفور".to_string())?;
 
         // سجل المستخدم
         {
@@ -65,7 +73,9 @@ impl SandboxScheduler {
         let mut active = self.active_users.write().await;
         if let Some(count) = active.get_mut(user_id) {
             *count -= 1;
-            if *count == 0 { active.remove(user_id); }
+            if *count == 0 {
+                active.remove(user_id);
+            }
         }
         ACTIVE_SANDBOXES.fetch_sub(1, Ordering::Relaxed);
     }
@@ -96,7 +106,12 @@ pub fn scheduler() -> Arc<SandboxScheduler> {
 
 pub fn init_sandbox() {
     scheduler();
-    info!(max_compile=MAX_CONCURRENT_COMPILE, max_exec=MAX_CONCURRENT_EXEC, max_total=MAX_TOTAL_SANDBOXES, "✅ Sandbox system initialized");
+    info!(
+        max_compile = MAX_CONCURRENT_COMPILE,
+        max_exec = MAX_CONCURRENT_EXEC,
+        max_total = MAX_TOTAL_SANDBOXES,
+        "✅ Sandbox system initialized"
+    );
 }
 
 #[derive(Debug, Clone, Serialize)]

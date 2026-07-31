@@ -149,7 +149,11 @@ mod tests {
             format!("{}:{}:{}", uid, old_issued, secret).as_bytes(),
         ));
         let token = format!("popcorn_{}_{}_{}", uid, old_issued, &hash[..16]);
-        assert_eq!(verify_token(&token, secret), None, "Expired token should be rejected");
+        assert_eq!(
+            verify_token(&token, secret),
+            None,
+            "Expired token should be rejected"
+        );
     }
 
     #[test]

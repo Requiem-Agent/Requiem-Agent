@@ -11,7 +11,7 @@
 //! ## المرجع
 //! - https://huggingface.co/docs/huggingface_hub/en/concepts/sandbox
 
-use crate::sandbox::layer::{SandboxLayer, LayerResult};
+use crate::sandbox::layer::{LayerResult, SandboxLayer};
 
 /// UID/GID للمستخدم غير المُميز
 const NOBODY_UID: u32 = 65534;
@@ -25,7 +25,10 @@ pub struct UserLayer {
 
 impl UserLayer {
     pub fn new() -> Self {
-        Self { uid: NOBODY_UID, gid: NOBODY_GID }
+        Self {
+            uid: NOBODY_UID,
+            gid: NOBODY_GID,
+        }
     }
 
     pub fn with_uid(mut self, uid: u32, gid: u32) -> Self {
@@ -36,21 +39,29 @@ impl UserLayer {
 }
 
 impl SandboxLayer for UserLayer {
-    fn name(&self) -> &'static str { "user" }
+    fn name(&self) -> &'static str {
+        "user"
+    }
 
     fn apply_child(&self) -> LayerResult {
         // 1. setgid أولاً
         let ret = unsafe { libc::setgid(self.gid) };
         if ret != 0 {
-            return LayerResult::Warn(format!("setgid({}): {} — استمرار كـ root", self.gid,
-                std::io::Error::last_os_error()));
+            return LayerResult::Warn(format!(
+                "setgid({}): {} — استمرار كـ root",
+                self.gid,
+                std::io::Error::last_os_error()
+            ));
         }
 
         // 2. setuid
         let ret = unsafe { libc::setuid(self.uid) };
         if ret != 0 {
-            return LayerResult::Warn(format!("setuid({}): {} — استمرار كـ root", self.uid,
-                std::io::Error::last_os_error()));
+            return LayerResult::Warn(format!(
+                "setuid({}): {} — استمرار كـ root",
+                self.uid,
+                std::io::Error::last_os_error()
+            ));
         }
 
         tracing::debug!("user: dropped to uid={} gid={}", self.uid, self.gid);

@@ -51,7 +51,9 @@ impl ModelPerformance {
     }
 
     pub fn success_rate(&self) -> f64 {
-        if self.total_calls == 0 { return 0.5; }
+        if self.total_calls == 0 {
+            return 0.5;
+        }
         self.successes as f64 / self.total_calls as f64
     }
 }
@@ -78,28 +80,58 @@ impl Default for AdaptiveRouter {
 }
 
 impl AdaptiveRouter {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// تسجيل نتيجة نموذج
-    pub fn record(&mut self, model: &str, task_type: &str, success: bool, latency: u64, tokens: usize) {
-        let perf = self.history.entry(model.to_string())
+    pub fn record(
+        &mut self,
+        model: &str,
+        task_type: &str,
+        success: bool,
+        latency: u64,
+        tokens: usize,
+    ) {
+        let perf = self
+            .history
+            .entry(model.to_string())
             .or_insert_with(|| ModelPerformance::new(model));
         perf.total_calls += 1;
-        if success { perf.successes += 1; } else { perf.failures += 1; }
-        perf.avg_latency_ms = (perf.avg_latency_ms * (perf.total_calls - 1) as f64 + latency as f64) / perf.total_calls as f64;
-        perf.avg_tokens = (perf.avg_tokens * (perf.total_calls - 1) as f64 + tokens as f64) / perf.total_calls as f64;
+        if success {
+            perf.successes += 1;
+        } else {
+            perf.failures += 1;
+        }
+        perf.avg_latency_ms = (perf.avg_latency_ms * (perf.total_calls - 1) as f64
+            + latency as f64)
+            / perf.total_calls as f64;
+        perf.avg_tokens = (perf.avg_tokens * (perf.total_calls - 1) as f64 + tokens as f64)
+            / perf.total_calls as f64;
         perf.last_seen = chrono::Utc::now().to_rfc3339();
 
-        let task_stats = perf.by_task_type.entry(task_type.to_string())
-            .or_insert_with(|| TaskTypeStats { calls: 0, successes: 0, avg_latency: 0.0 });
+        let task_stats = perf
+            .by_task_type
+            .entry(task_type.to_string())
+            .or_insert_with(|| TaskTypeStats {
+                calls: 0,
+                successes: 0,
+                avg_latency: 0.0,
+            });
         task_stats.calls += 1;
-        if success { task_stats.successes += 1; }
-        task_stats.avg_latency = (task_stats.avg_latency * (task_stats.calls - 1) as f64 + latency as f64) / task_stats.calls as f64;
+        if success {
+            task_stats.successes += 1;
+        }
+        task_stats.avg_latency = (task_stats.avg_latency * (task_stats.calls - 1) as f64
+            + latency as f64)
+            / task_stats.calls as f64;
     }
 
     /// اختيار أفضل نموذج لمهمة
     pub fn select_best(&mut self, task_type: &str, available_models: &[String]) -> Option<String> {
-        if available_models.is_empty() { return None; }
+        if available_models.is_empty() {
+            return None;
+        }
 
         // استكشاف: اختر عشوائياً
         if rand::random::<f64>() < self.exploration_rate {
@@ -138,13 +170,17 @@ impl AdaptiveRouter {
         if let Some(task_stats) = perf.by_task_type.get(task_type) {
             let task_success = if task_stats.calls > 0 {
                 task_stats.successes as f64 / task_stats.calls as f64
-            } else { 0.5 };
+            } else {
+                0.5
+            };
             score += task_success * 0.4;
 
             // السرعة (عكسياً)
             let speed_score = if task_stats.avg_latency > 0.0 {
                 (1000.0 / task_stats.avg_latency).min(1.0)
-            } else { 0.5 };
+            } else {
+                0.5
+            };
             score += speed_score * 0.2;
         } else {
             // لا توجد بيانات كافية لهذا النوع
@@ -154,18 +190,23 @@ impl AdaptiveRouter {
         score
     }
 
-    pub fn set_exploration(&mut self, rate: f64) { self.exploration_rate = rate.clamp(0.0, 1.0); }
+    pub fn set_exploration(&mut self, rate: f64) {
+        self.exploration_rate = rate.clamp(0.0, 1.0);
+    }
     pub fn summary(&self) -> Vec<Value> {
-        self.history.iter().map(|(name, perf)| {
-            serde_json::json!({
-                "model": name,
-                "total_calls": perf.total_calls,
-                "success_rate": perf.success_rate(),
-                "avg_latency_ms": perf.avg_latency_ms,
-                "avg_tokens": perf.avg_tokens,
-                "task_types": perf.by_task_type.len(),
+        self.history
+            .iter()
+            .map(|(name, perf)| {
+                serde_json::json!({
+                    "model": name,
+                    "total_calls": perf.total_calls,
+                    "success_rate": perf.success_rate(),
+                    "avg_latency_ms": perf.avg_latency_ms,
+                    "avg_tokens": perf.avg_tokens,
+                    "task_types": perf.by_task_type.len(),
+                })
             })
-        }).collect()
+            .collect()
     }
 }
 
@@ -208,7 +249,9 @@ impl Default for LoadBalancer {
 }
 
 impl LoadBalancer {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// هل يمكن للنموذج قبول مهمة جديدة؟
     pub fn can_accept(&self, model: &str) -> bool {
@@ -219,7 +262,8 @@ impl LoadBalancer {
 
     /// الحصول على النموذج الأقل تحميلاً
     pub fn least_loaded(&self, available: &[String]) -> Option<String> {
-        available.iter()
+        available
+            .iter()
             .filter(|m| self.can_accept(m))
             .min_by_key(|m| self.current_load.get(*m).copied().unwrap_or(0))
             .cloned()
@@ -233,7 +277,9 @@ impl LoadBalancer {
     /// إنهاء مهمة على نموذج
     pub fn end_task(&mut self, model: &str) {
         if let Some(count) = self.current_load.get_mut(model) {
-            if *count > 0 { *count -= 1; }
+            if *count > 0 {
+                *count -= 1;
+            }
         }
     }
 

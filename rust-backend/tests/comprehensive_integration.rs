@@ -22,7 +22,10 @@
 
 /// يُنشئ Authorization header وهمي للاختبارات
 fn auth_header() -> (&'static str, &'static str) {
-    ("Authorization", "Bearer test-jwt-token-for-integration-tests")
+    (
+        "Authorization",
+        "Bearer test-jwt-token-for-integration-tests",
+    )
 }
 
 fn user_id_header() -> (&'static str, &'static str) {
@@ -246,11 +249,13 @@ mod plugin_tests {
 
     #[tokio::test]
     async fn test_file_ops_write_read_delete() {
-        use crate::requiem_backend::plugins::FileOpsTool;
         use crate::requiem_backend::plugins::AgentTool;
+        use crate::requiem_backend::plugins::FileOpsTool;
 
         let dir = format!("/tmp/test_plugin_{}", uuid::Uuid::new_v4());
-        let tool = FileOpsTool { allowed_dir: dir.clone() };
+        let tool = FileOpsTool {
+            allowed_dir: dir.clone(),
+        };
 
         // Write
         let w = tool.execute(&ToolArgs::new("write:hello.txt:مرحبا")).await;
@@ -350,12 +355,22 @@ mod collaborative_tests {
     #[tokio::test]
     async fn test_full_delegation_flow() {
         let bus = AgentBus::new();
-        let _rx = bus.register_agent(make_caps("worker-1", vec!["code"])).await;
+        let _rx = bus
+            .register_agent(make_caps("worker-1", vec!["code"]))
+            .await;
 
-        let task_id = bus.delegate_task("orchestrator", "code", "write hello world").await.unwrap();
+        let task_id = bus
+            .delegate_task("orchestrator", "code", "write hello world")
+            .await
+            .unwrap();
         assert!(!task_id.is_empty());
 
-        bus.update_task_status(&task_id, TaskStatus::Completed, Some("fn main() { println!(\"Hello\"); }".into())).await;
+        bus.update_task_status(
+            &task_id,
+            TaskStatus::Completed,
+            Some("fn main() { println!(\"Hello\"); }".into()),
+        )
+        .await;
 
         let task = bus.get_task(&task_id).await.unwrap();
         assert_eq!(task.status, TaskStatus::Completed);
@@ -374,10 +389,15 @@ mod collaborative_tests {
     #[tokio::test]
     async fn test_broadcast_reaches_all_agents() {
         let bus = AgentBus::new();
-        let mut rx1 = bus.register_agent(make_caps("agent-1", vec!["general"])).await;
-        let mut rx2 = bus.register_agent(make_caps("agent-2", vec!["general"])).await;
+        let mut rx1 = bus
+            .register_agent(make_caps("agent-1", vec!["general"]))
+            .await;
+        let mut rx2 = bus
+            .register_agent(make_caps("agent-2", vec!["general"]))
+            .await;
 
-        bus.broadcast("orchestrator", serde_json::json!({"msg": "hello all"})).await;
+        bus.broadcast("orchestrator", serde_json::json!({"msg": "hello all"}))
+            .await;
 
         let msg1 = rx1.recv().await.unwrap();
         let msg2 = rx2.recv().await.unwrap();
@@ -429,7 +449,9 @@ mod webhook_tests {
 
 #[cfg(test)]
 mod rate_limit_tests {
-    use crate::requiem_backend::rate_limit::{MultiEndpointRateLimiter, RateLimitConfig, RateLimitKey};
+    use crate::requiem_backend::rate_limit::{
+        MultiEndpointRateLimiter, RateLimitConfig, RateLimitKey,
+    };
 
     #[test]
     fn test_rate_limit_config_defaults() {
@@ -495,7 +517,9 @@ mod rate_limit_tests {
 
 #[cfg(test)]
 mod db_pool_tests {
-    use crate::requiem_backend::db_pool::{PoolHealth, QueryMonitor, safe_order_by, safe_pagination};
+    use crate::requiem_backend::db_pool::{
+        safe_order_by, safe_pagination, PoolHealth, QueryMonitor,
+    };
 
     #[test]
     fn test_pool_health_utilization() {
@@ -528,10 +552,11 @@ mod db_pool_tests {
 
     #[tokio::test]
     async fn test_query_monitor_success() {
-        let monitor = QueryMonitor { slow_query_threshold_ms: 1000 };
-        let result: Result<&str, String> = monitor
-            .track("test_query", async { Ok("success") })
-            .await;
+        let monitor = QueryMonitor {
+            slow_query_threshold_ms: 1000,
+        };
+        let result: Result<&str, String> =
+            monitor.track("test_query", async { Ok("success") }).await;
         assert_eq!(result.unwrap(), "success");
     }
 }

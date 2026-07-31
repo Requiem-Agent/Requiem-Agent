@@ -25,9 +25,7 @@ pub struct GitChange {
 }
 
 /// الحصول على معلومات المستودع
-pub async fn get_repository_info(
-    repo_path: &Path,
-) -> Result<RepositoryInfo, String> {
+pub async fn get_repository_info(repo_path: &Path) -> Result<RepositoryInfo, String> {
     // محاكاة معلومات المستودع
     Ok(RepositoryInfo {
         path: repo_path.to_string_lossy().to_string(),
@@ -39,9 +37,7 @@ pub async fn get_repository_info(
 }
 
 /// الحصول على التغييرات المعلقة
-pub async fn get_staged_changes(
-    repo_path: &Path,
-) -> Result<Vec<GitChange>, String> {
+pub async fn get_staged_changes(repo_path: &Path) -> Result<Vec<GitChange>, String> {
     // محاكاة التغييرات
     Ok(Vec::new())
 }
@@ -57,16 +53,12 @@ pub async fn create_commit(
 }
 
 /// تحميل التغييرات من المستودع البعيد
-pub async fn pull_changes(
-    repo_path: &Path,
-) -> Result<String, String> {
+pub async fn pull_changes(repo_path: &Path) -> Result<String, String> {
     Ok("Already up to date".to_string())
 }
 
 /// رفع التغييرات إلى المستودع البعيد
-pub async fn push_changes(
-    repo_path: &Path,
-) -> Result<String, String> {
+pub async fn push_changes(repo_path: &Path) -> Result<String, String> {
     Ok("Pushed successfully".to_string())
 }
 

@@ -8,8 +8,10 @@ pub async fn prdcn_health(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let client = reqwest::Client::new();
-    let prdcn_url = format!("https://{}.hf.space/health", 
-        state.hf_space_prdcn.replace('/', "-"));
+    let prdcn_url = format!(
+        "https://{}.hf.space/health",
+        state.hf_space_prdcn.replace('/', "-")
+    );
     let resp = client
         .get(&prdcn_url)
         .timeout(std::time::Duration::from_secs(10))
@@ -20,7 +22,10 @@ pub async fn prdcn_health(
             let body: Value = r.json().await.unwrap_or(json!({"status":"unknown"}));
             Ok(Json(body))
         }
-        Err(e) => Err((StatusCode::BAD_GATEWAY, Json(json!({"error": format!("Prdcn unreachable: {e}")}))))
+        Err(e) => Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({"error": format!("Prdcn unreachable: {e}")})),
+        )),
     }
 }
 
@@ -28,8 +33,10 @@ pub async fn deploy_bot_to_prdcn(
     State(state): State<Arc<AppState>>,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    let prdcn_url = format!("https://{}.hf.space/deploy",
-        state.hf_space_prdcn.replace('/', "-"));
+    let prdcn_url = format!(
+        "https://{}.hf.space/deploy",
+        state.hf_space_prdcn.replace('/', "-")
+    );
     let client = reqwest::Client::new();
     let resp = client
         .post(&prdcn_url)
@@ -42,6 +49,9 @@ pub async fn deploy_bot_to_prdcn(
             let body: Value = r.json().await.unwrap_or(json!({"status":"unknown"}));
             Ok(Json(body))
         }
-        Err(e) => Err((StatusCode::BAD_GATEWAY, Json(json!({"error": format!("Deploy failed: {e}")}))))
+        Err(e) => Err((
+            StatusCode::BAD_GATEWAY,
+            Json(json!({"error": format!("Deploy failed: {e}")})),
+        )),
     }
 }

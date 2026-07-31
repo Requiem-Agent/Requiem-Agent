@@ -6,8 +6,8 @@
 //! All paths are relative to the workspace root and are validated against
 //! path-traversal attacks by the `storage::workspace` module.
 
-use serde_json::{json, Value};
 use crate::storage::workspace as ws;
+use serde_json::{json, Value};
 
 // ─── Tool Schema ──────────────────────────────────────────────────────────────
 
@@ -162,16 +162,16 @@ pub async fn execute_workspace_tool(
     workspace_id: &str,
 ) -> Result<Value, String> {
     match tool_name {
-        "ws_read"   => tool_read(input, user_id, workspace_id).await,
-        "ws_write"  => tool_write(input, user_id, workspace_id).await,
-        "ws_edit"   => tool_edit(input, user_id, workspace_id).await,
+        "ws_read" => tool_read(input, user_id, workspace_id).await,
+        "ws_write" => tool_write(input, user_id, workspace_id).await,
+        "ws_edit" => tool_edit(input, user_id, workspace_id).await,
         "ws_delete" => tool_delete(input, user_id, workspace_id).await,
-        "ws_tree"   => tool_tree(input, user_id, workspace_id).await,
-        "ws_glob"   => tool_glob(input, user_id, workspace_id).await,
-        "ws_grep"   => tool_grep(input, user_id, workspace_id).await,
-        "ws_mkdir"  => tool_mkdir(input, user_id, workspace_id).await,
-        "ws_bash"   => tool_bash(input, user_id, workspace_id).await,
-        other       => Err(format!("Unknown workspace tool: {other}")),
+        "ws_tree" => tool_tree(input, user_id, workspace_id).await,
+        "ws_glob" => tool_glob(input, user_id, workspace_id).await,
+        "ws_grep" => tool_grep(input, user_id, workspace_id).await,
+        "ws_mkdir" => tool_mkdir(input, user_id, workspace_id).await,
+        "ws_bash" => tool_bash(input, user_id, workspace_id).await,
+        other => Err(format!("Unknown workspace tool: {other}")),
     }
 }
 
@@ -180,7 +180,7 @@ pub async fn execute_workspace_tool(
 async fn tool_read(input: &Value, user_id: &str, workspace_id: &str) -> Result<Value, String> {
     let path = input["path"].as_str().ok_or("ws_read: missing 'path'")?;
     let offset = input["offset"].as_u64().unwrap_or(0) as usize;
-    let limit  = input["limit"].as_u64().map(|v| v as usize);
+    let limit = input["limit"].as_u64().map(|v| v as usize);
 
     let raw = ws::workspace_read_file(user_id, workspace_id, path).await?;
     let lines: Vec<&str> = raw.lines().collect();
@@ -189,7 +189,7 @@ async fn tool_read(input: &Value, user_id: &str, workspace_id: &str) -> Result<V
     let start = offset.min(total);
     let end = match limit {
         Some(n) => (start + n).min(total),
-        None    => total,
+        None => total,
     };
 
     let selected: Vec<&str> = lines[start..end].to_vec();
@@ -206,8 +206,10 @@ async fn tool_read(input: &Value, user_id: &str, workspace_id: &str) -> Result<V
 // ─── ws_write ────────────────────────────────────────────────────────────────
 
 async fn tool_write(input: &Value, user_id: &str, workspace_id: &str) -> Result<Value, String> {
-    let path    = input["path"].as_str().ok_or("ws_write: missing 'path'")?;
-    let content = input["content"].as_str().ok_or("ws_write: missing 'content'")?;
+    let path = input["path"].as_str().ok_or("ws_write: missing 'path'")?;
+    let content = input["content"]
+        .as_str()
+        .ok_or("ws_write: missing 'content'")?;
 
     ws::workspace_write_file(user_id, workspace_id, path, content).await?;
 
@@ -220,9 +222,13 @@ async fn tool_write(input: &Value, user_id: &str, workspace_id: &str) -> Result<
 // ─── ws_edit ─────────────────────────────────────────────────────────────────
 
 async fn tool_edit(input: &Value, user_id: &str, workspace_id: &str) -> Result<Value, String> {
-    let path       = input["path"].as_str().ok_or("ws_edit: missing 'path'")?;
-    let old_string = input["old_string"].as_str().ok_or("ws_edit: missing 'old_string'")?;
-    let new_string = input["new_string"].as_str().ok_or("ws_edit: missing 'new_string'")?;
+    let path = input["path"].as_str().ok_or("ws_edit: missing 'path'")?;
+    let old_string = input["old_string"]
+        .as_str()
+        .ok_or("ws_edit: missing 'old_string'")?;
+    let new_string = input["new_string"]
+        .as_str()
+        .ok_or("ws_edit: missing 'new_string'")?;
 
     let original = ws::workspace_read_file(user_id, workspace_id, path).await?;
 
@@ -280,8 +286,10 @@ async fn tool_delete(input: &Value, user_id: &str, workspace_id: &str) -> Result
             // Re-derive the root — same logic as workspace.rs data_base()
             let base = resolve_data_base();
             let abs = base
-                .join("users").join(user_id)
-                .join("workspaces").join(workspace_id)
+                .join("users")
+                .join(user_id)
+                .join("workspaces")
+                .join(workspace_id)
                 .join(path);
             tokio::fs::remove_dir_all(&abs)
                 .await
@@ -314,12 +322,16 @@ fn resolve_data_base() -> std::path::PathBuf {
 
 async fn tool_tree(input: &Value, user_id: &str, workspace_id: &str) -> Result<Value, String> {
     let sub_path = input["path"].as_str().unwrap_or("");
-    let depth    = input["depth"].as_u64().unwrap_or(3) as usize;
+    let depth = input["depth"].as_u64().unwrap_or(3) as usize;
 
     // Get the JSON tree from workspace module, then render as ASCII
     let tree_json = ws::workspace_tree(user_id, workspace_id).await?;
 
-    let root_label = if sub_path.is_empty() { ".".to_string() } else { sub_path.to_string() };
+    let root_label = if sub_path.is_empty() {
+        ".".to_string()
+    } else {
+        sub_path.to_string()
+    };
     let mut output = format!("{root_label}/\n");
     render_tree_ascii(&tree_json, 1, depth, &mut output);
 
@@ -334,7 +346,7 @@ fn render_tree_ascii(node: &Value, current_depth: usize, max_depth: usize, out: 
     let indent = "  ".repeat(current_depth);
     let arr = match node.as_array() {
         Some(a) => a,
-        None    => return,
+        None => return,
     };
     for item in arr {
         let name = item["name"].as_str().unwrap_or("?");
@@ -353,7 +365,9 @@ fn render_tree_ascii(node: &Value, current_depth: usize, max_depth: usize, out: 
 // ─── ws_glob ─────────────────────────────────────────────────────────────────
 
 async fn tool_glob(input: &Value, user_id: &str, workspace_id: &str) -> Result<Value, String> {
-    let pattern  = input["pattern"].as_str().ok_or("ws_glob: missing 'pattern'")?;
+    let pattern = input["pattern"]
+        .as_str()
+        .ok_or("ws_glob: missing 'pattern'")?;
     let sub_path = input["path"].as_str().unwrap_or("");
 
     // Walk the tree and match file paths against the pattern
@@ -368,7 +382,8 @@ async fn tool_glob(input: &Value, user_id: &str, workspace_id: &str) -> Result<V
     }
 
     // Match against glob pattern
-    let matched: Vec<Value> = files.into_iter()
+    let matched: Vec<Value> = files
+        .into_iter()
         .filter(|f| glob_match(pattern, f))
         .map(|f| Value::String(f))
         .collect();
@@ -380,7 +395,7 @@ async fn tool_glob(input: &Value, user_id: &str, workspace_id: &str) -> Result<V
 fn collect_all_files(node: &Value, out: &mut Vec<String>) {
     let arr = match node.as_array() {
         Some(a) => a,
-        None    => return,
+        None => return,
     };
     for item in arr {
         let kind = item["type"].as_str().unwrap_or("file");
@@ -408,7 +423,11 @@ fn glob_match_inner(pat: &[u8], text: &[u8]) -> bool {
         (None, Some(_)) => false,
         // `**` — consume any amount of any character (including `/`)
         (Some(&b'*'), Some(&b'*')) => {
-            let rest_pat = if pat.len() >= 3 && pat[2] == b'/' { &pat[3..] } else { &pat[2..] };
+            let rest_pat = if pat.len() >= 3 && pat[2] == b'/' {
+                &pat[3..]
+            } else {
+                &pat[2..]
+            };
             // Try matching rest_pat against every suffix of text
             for i in 0..=text.len() {
                 if glob_match_inner(rest_pat, &text[i..]) {
@@ -421,7 +440,9 @@ fn glob_match_inner(pat: &[u8], text: &[u8]) -> bool {
         (Some(&b'*'), _) => {
             let rest_pat = &pat[1..];
             for i in 0..=text.len() {
-                if text[..i].contains(&b'/') { break; }
+                if text[..i].contains(&b'/') {
+                    break;
+                }
                 if glob_match_inner(rest_pat, &text[i..]) {
                     return true;
                 }
@@ -439,9 +460,11 @@ fn glob_match_inner(pat: &[u8], text: &[u8]) -> bool {
 // ─── ws_grep ─────────────────────────────────────────────────────────────────
 
 async fn tool_grep(input: &Value, user_id: &str, workspace_id: &str) -> Result<Value, String> {
-    let pattern  = input["pattern"].as_str().ok_or("ws_grep: missing 'pattern'")?;
+    let pattern = input["pattern"]
+        .as_str()
+        .ok_or("ws_grep: missing 'pattern'")?;
     let sub_path = input["path"].as_str().unwrap_or("");
-    let include  = input["include"].as_str().unwrap_or("*");
+    let include = input["include"].as_str().unwrap_or("*");
 
     // Collect candidate files
     let tree_json = ws::workspace_tree(user_id, workspace_id).await?;
@@ -461,7 +484,7 @@ async fn tool_grep(input: &Value, user_id: &str, workspace_id: &str) -> Result<V
 
     for rel_path in &all_files {
         let content = match ws::workspace_read_file(user_id, workspace_id, rel_path).await {
-            Ok(c)  => c,
+            Ok(c) => c,
             Err(_) => continue,
         };
 
@@ -494,12 +517,23 @@ async fn tool_mkdir(input: &Value, user_id: &str, workspace_id: &str) -> Result<
 // ─── ws_bash ─────────────────────────────────────────────────────────────────
 
 async fn tool_bash(input: &Value, user_id: &str, workspace_id: &str) -> Result<Value, String> {
-    let command = input["command"].as_str().ok_or("ws_bash: missing 'command'")?;
+    let command = input["command"]
+        .as_str()
+        .ok_or("ws_bash: missing 'command'")?;
     let timeout_secs = input["timeout"].as_u64().unwrap_or(30).min(120);
 
     // Reject dangerous patterns
-    let blocked = ["rm -rf /", ":(){ :|:& };:", "dd if=", "mkfs", "> /dev/",
-                   "chmod 777 /", "chown root", "/etc/passwd", "/etc/shadow"];
+    let blocked = [
+        "rm -rf /",
+        ":(){ :|:& };:",
+        "dd if=",
+        "mkfs",
+        "> /dev/",
+        "chmod 777 /",
+        "chown root",
+        "/etc/passwd",
+        "/etc/shadow",
+    ];
     for pat in &blocked {
         if command.contains(pat) {
             return Err(format!("ws_bash: blocked dangerous pattern: {pat}"));
@@ -530,7 +564,11 @@ async fn tool_bash(input: &Value, user_id: &str, workspace_id: &str) -> Result<V
     let combined = format!("{stdout}{stderr}");
     // Cap output to 4000 chars
     let truncated = if combined.len() > 4000 {
-        format!("{}…[truncated {} chars]", &combined[..4000], combined.len() - 4000)
+        format!(
+            "{}…[truncated {} chars]",
+            &combined[..4000],
+            combined.len() - 4000
+        )
     } else {
         combined
     };

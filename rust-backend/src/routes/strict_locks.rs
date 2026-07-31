@@ -2,15 +2,14 @@
 
 use axum::{
     http::StatusCode,
-    Json,
     routing::{get, post},
-    Router,
+    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::enforce::StrictLocksEngine;
 use crate::db::AppState;
+use crate::enforce::StrictLocksEngine;
 
 /// طلب فحص الأقفال
 #[derive(Debug, Deserialize)]

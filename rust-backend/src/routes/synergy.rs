@@ -1,12 +1,12 @@
 // ─── Phase 16 — Model Synergy Routes ─────────────────────────────────────
 // 6 endpoints: run, set_pattern, history, report, performance, load
 
+use crate::agent::synergy::{ModelSynergyCoordinator, SynergyPattern};
+use crate::routes::AuthUser;
 use axum::{Extension, Json};
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use crate::routes::AuthUser;
-use crate::agent::synergy::{ModelSynergyCoordinator, SynergyPattern};
 
 pub type SharedSynergy = Arc<RwLock<ModelSynergyCoordinator>>;
 
@@ -19,9 +19,20 @@ pub async fn synergy_run(
     let pattern_name = body["pattern"].as_str().unwrap_or("consensus");
     let question = body["question"].as_str().unwrap_or("");
     let task_type = body["task_type"].as_str().unwrap_or("general");
-    let models: Vec<String> = body["models"].as_array()
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
-        .unwrap_or_else(|| vec!["gpt-4o".to_string(), "claude-3-opus".to_string(), "gemini-pro".to_string()]);
+    let models: Vec<String> = body["models"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_else(|| {
+            vec![
+                "gpt-4o".to_string(),
+                "claude-3-opus".to_string(),
+                "gemini-pro".to_string(),
+            ]
+        });
 
     if question.is_empty() {
         return Json(json!({ "success": false, "error": "question مطلوب" }));
@@ -32,7 +43,11 @@ pub async fn synergy_run(
         "critique" => SynergyPattern::Critique,
         "pipeline" => SynergyPattern::Pipeline,
         "pair" => SynergyPattern::Pair,
-        _ => return Json(json!({ "success": false, "error": format!("نمط غير معروف: {pattern_name}") })),
+        _ => {
+            return Json(
+                json!({ "success": false, "error": format!("نمط غير معروف: {pattern_name}") }),
+            )
+        }
     };
 
     let mut coord = synergy.write().await;
@@ -62,7 +77,11 @@ pub async fn synergy_set_pattern(
         "critique" => SynergyPattern::Critique,
         "pipeline" => SynergyPattern::Pipeline,
         "pair" => SynergyPattern::Pair,
-        _ => return Json(json!({ "success": false, "error": format!("نمط غير معروف: {pattern_name}") })),
+        _ => {
+            return Json(
+                json!({ "success": false, "error": format!("نمط غير معروف: {pattern_name}") }),
+            )
+        }
     };
     let mut coord = synergy.write().await;
     coord.set_pattern(pattern);
@@ -75,14 +94,20 @@ pub async fn synergy_history(
     Extension(synergy): Extension<SharedSynergy>,
 ) -> Json<Value> {
     let coord = synergy.read().await;
-    let rounds: Vec<Value> = coord.recent_rounds(20).iter().map(|r| json!({
-        "round_id": r.round_id,
-        "pattern": r.pattern.name(),
-        "models": r.models_used,
-        "score": r.consensus_score,
-        "latency_ms": r.total_latency_ms,
-        "tokens": r.total_tokens,
-    })).collect();
+    let rounds: Vec<Value> = coord
+        .recent_rounds(20)
+        .iter()
+        .map(|r| {
+            json!({
+                "round_id": r.round_id,
+                "pattern": r.pattern.name(),
+                "models": r.models_used,
+                "score": r.consensus_score,
+                "latency_ms": r.total_latency_ms,
+                "tokens": r.total_tokens,
+            })
+        })
+        .collect();
     Json(json!({ "success": true, "rounds": rounds, "total": coord.history.len() }))
 }
 

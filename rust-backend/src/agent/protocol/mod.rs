@@ -5,12 +5,12 @@
 //! - `mode.rs` — Agent Mode Protocol
 //! - `sub_agent.rs` — Sub-Agent Spawn Protocol
 
-pub mod thinking;
 pub mod mode;
 pub mod sub_agent;
+pub mod thinking;
 
+use crate::agent::protocol::thinking::{ProtocolMode, ThinkingProtocol};
 use serde::{Deserialize, Serialize};
-use crate::agent::protocol::thinking::{ThinkingProtocol, ProtocolMode};
 
 /// حالة الوكيل الكاملة — تُستخدم لاتخاذ القرارات
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -41,13 +41,17 @@ impl fmt::Display for PathError {
 impl std::error::Error for PathError {}
 
 impl From<std::io::Error> for PathError {
-    fn from(e: std::io::Error) -> Self { Self::Io(e) }
+    fn from(e: std::io::Error) -> Self {
+        Self::Io(e)
+    }
 }
 
 pub type PathResult<T> = Result<T, PathError>;
 
 /// قائمة الأحرف غير المسموح بها في أسماء الملفات
-const INVALID_CHARS: &[char] = &['\0', '\\', ':', '*', '?', '"', '<', '>', '|', ';', '&', '`', '$'];
+const INVALID_CHARS: &[char] = &[
+    '\0', '\\', ':', '*', '?', '"', '<', '>', '|', ';', '&', '`', '$',
+];
 
 /// الحد الأقصى لطول المسار
 const MAX_PATH_LENGTH: usize = 4096;
@@ -61,7 +65,8 @@ const MAX_PATH_COMPONENTS: usize = 32;
 pub fn validate_path_chars(path: &str) -> PathResult<()> {
     if path.contains(INVALID_CHARS) {
         return Err(PathError::InvalidCharacters {
-            path: path.chars()
+            path: path
+                .chars()
                 .map(|c| if INVALID_CHARS.contains(&c) { '?' } else { c })
                 .collect(),
         });

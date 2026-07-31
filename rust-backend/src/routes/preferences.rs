@@ -66,13 +66,27 @@ pub struct UserPreferences {
     pub share_analytics: bool,
 }
 
-fn default_theme() -> String { "dark".into() }
-fn default_language() -> String { "en".into() }
-fn default_true() -> bool { true }
-fn default_model() -> String { "claude-sonnet-4-5".into() }
-fn default_mode() -> String { "chat".into() }
-fn default_max_tokens() -> i32 { 4096 }
-fn default_temperature() -> f64 { 0.7 }
+fn default_theme() -> String {
+    "dark".into()
+}
+fn default_language() -> String {
+    "en".into()
+}
+fn default_true() -> bool {
+    true
+}
+fn default_model() -> String {
+    "claude-sonnet-4-5".into()
+}
+fn default_mode() -> String {
+    "chat".into()
+}
+fn default_max_tokens() -> i32 {
+    4096
+}
+fn default_temperature() -> f64 {
+    0.7
+}
 
 /// القيم الافتراضية لـ UserPreferences — تُستخدم عند إنشاء سجل جديد
 impl Default for UserPreferences {
@@ -227,7 +241,10 @@ where
 
     Ok((
         StatusCode::OK,
-        Json(ApiResponse { success: true, data: prefs }),
+        Json(ApiResponse {
+            success: true,
+            data: prefs,
+        }),
     ))
 }
 

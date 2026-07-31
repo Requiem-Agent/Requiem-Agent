@@ -100,9 +100,10 @@ impl SlidingWindowLimiter {
     }
 
     pub fn check(&self, key: &RateLimitKey) -> Result<(), AppError> {
-        let mut map = self.state.lock().map_err(|_| {
-            AppError::Internal("rate limiter mutex poisoned".into())
-        })?;
+        let mut map = self
+            .state
+            .lock()
+            .map_err(|_| AppError::Internal("rate limiter mutex poisoned".into()))?;
         let entry = map.entry(key.clone()).or_insert_with(WindowState::new);
         if entry.check_and_record(self.max_requests, self.window) {
             debug!(key = %key.as_str(), "rate limit OK");
@@ -149,16 +150,29 @@ pub struct MultiEndpointRateLimiter {
 impl MultiEndpointRateLimiter {
     pub fn from_env() -> Self {
         let auth_max = std::env::var("RATE_AUTH_MAX")
-            .ok().and_then(|v| v.parse().ok()).unwrap_or(10u32);
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(10u32);
         let sandbox_max = std::env::var("RATE_SANDBOX_MAX")
-            .ok().and_then(|v| v.parse().ok()).unwrap_or(20u32);
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(20u32);
         let chat_max = std::env::var("RATE_CHAT_MAX")
-            .ok().and_then(|v| v.parse().ok()).unwrap_or(30u32);
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(30u32);
         let api_max = std::env::var("RATE_API_MAX")
-            .ok().and_then(|v| v.parse().ok()).unwrap_or(200u32);
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(200u32);
 
-        tracing::info!(auth_max, sandbox_max, chat_max, api_max,
-            "MultiEndpointRateLimiter initialised");
+        tracing::info!(
+            auth_max,
+            sandbox_max,
+            chat_max,
+            api_max,
+            "MultiEndpointRateLimiter initialised"
+        );
 
         Self {
             auth: SlidingWindowLimiter::new(auth_max, 60),
@@ -169,11 +183,13 @@ impl MultiEndpointRateLimiter {
     }
 
     pub fn classify_path(path: &str) -> &'static str {
-        if path.starts_with("/auth") || path.starts_with("/login") || path.starts_with("/register") {
+        if path.starts_with("/auth") || path.starts_with("/login") || path.starts_with("/register")
+        {
             "auth"
         } else if path.starts_with("/sandbox") || path.starts_with("/execute") {
             "sandbox"
-        } else if path.starts_with("/chat") || path.starts_with("/agent") || path.starts_with("/ws") {
+        } else if path.starts_with("/chat") || path.starts_with("/agent") || path.starts_with("/ws")
+        {
             "chat"
         } else {
             "api"
@@ -182,10 +198,10 @@ impl MultiEndpointRateLimiter {
 
     pub fn check(&self, path: &str, key: &RateLimitKey) -> Result<(), AppError> {
         match Self::classify_path(path) {
-            "auth"    => self.auth.check(key),
+            "auth" => self.auth.check(key),
             "sandbox" => self.sandbox.check(key),
-            "chat"    => self.chat.check(key),
-            _         => self.api.check(key),
+            "chat" => self.chat.check(key),
+            _ => self.api.check(key),
         }
     }
 
@@ -225,7 +241,11 @@ pub fn extract_rate_limit_key(req: &Request<Body>) -> RateLimitKey {
     }
 
     // 2. Forwarded IP
-    if let Some(forwarded) = req.headers().get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+    if let Some(forwarded) = req
+        .headers()
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+    {
         if let Some(ip_str) = forwarded.split(',').next().map(str::trim) {
             if let Ok(ip) = ip_str.parse::<IpAddr>() {
                 return RateLimitKey::Ip(ip);
@@ -267,9 +287,7 @@ where
     match state.rate_limiter().check(&path, &key) {
         Ok(()) => next.run(req).await,
         Err(AppError::RateLimit(msg)) => {
-            crate::metrics::record_rate_limit_hit(
-                MultiEndpointRateLimiter::classify_path(&path),
-            );
+            crate::metrics::record_rate_limit_hit(MultiEndpointRateLimiter::classify_path(&path));
             (
                 StatusCode::TOO_MANY_REQUESTS,
                 [
@@ -296,21 +314,29 @@ where
 mod tests {
     use super::*;
 
-    fn user_key(id: &str) -> RateLimitKey { RateLimitKey::User(id.to_string()) }
-    fn ip_key(ip: &str) -> RateLimitKey { RateLimitKey::Ip(ip.parse().unwrap()) }
+    fn user_key(id: &str) -> RateLimitKey {
+        RateLimitKey::User(id.to_string())
+    }
+    fn ip_key(ip: &str) -> RateLimitKey {
+        RateLimitKey::Ip(ip.parse().unwrap())
+    }
 
     #[test]
     fn test_allows_within_limit() {
         let lim = SlidingWindowLimiter::new(5, 60);
         let key = user_key("u1");
-        for _ in 0..5 { assert!(lim.check(&key).is_ok()); }
+        for _ in 0..5 {
+            assert!(lim.check(&key).is_ok());
+        }
     }
 
     #[test]
     fn test_blocks_over_limit() {
         let lim = SlidingWindowLimiter::new(3, 60);
         let key = user_key("u2");
-        for _ in 0..3 { lim.check(&key).unwrap(); }
+        for _ in 0..3 {
+            lim.check(&key).unwrap();
+        }
         assert!(lim.check(&key).is_err());
     }
 
@@ -318,11 +344,11 @@ mod tests {
     fn test_per_user_isolation() {
         let lim = SlidingWindowLimiter::new(2, 60);
         let alice = user_key("alice");
-        let bob   = user_key("bob");
+        let bob = user_key("bob");
         lim.check(&alice).unwrap();
         lim.check(&alice).unwrap();
         assert!(lim.check(&alice).is_err(), "alice blocked");
-        assert!(lim.check(&bob).is_ok(),   "bob unaffected");
+        assert!(lim.check(&bob).is_ok(), "bob unaffected");
     }
 
     #[test]
@@ -338,13 +364,28 @@ mod tests {
 
     #[test]
     fn test_path_classification() {
-        assert_eq!(MultiEndpointRateLimiter::classify_path("/auth/login"),   "auth");
-        assert_eq!(MultiEndpointRateLimiter::classify_path("/sandbox/run"),  "sandbox");
-        assert_eq!(MultiEndpointRateLimiter::classify_path("/chat/send"),    "chat");
-        assert_eq!(MultiEndpointRateLimiter::classify_path("/agent/loop"),   "chat");
-        assert_eq!(MultiEndpointRateLimiter::classify_path("/ws/stream"),    "chat");
-        assert_eq!(MultiEndpointRateLimiter::classify_path("/bots/list"),    "api");
-        assert_eq!(MultiEndpointRateLimiter::classify_path("/metrics"),      "api");
+        assert_eq!(
+            MultiEndpointRateLimiter::classify_path("/auth/login"),
+            "auth"
+        );
+        assert_eq!(
+            MultiEndpointRateLimiter::classify_path("/sandbox/run"),
+            "sandbox"
+        );
+        assert_eq!(
+            MultiEndpointRateLimiter::classify_path("/chat/send"),
+            "chat"
+        );
+        assert_eq!(
+            MultiEndpointRateLimiter::classify_path("/agent/loop"),
+            "chat"
+        );
+        assert_eq!(
+            MultiEndpointRateLimiter::classify_path("/ws/stream"),
+            "chat"
+        );
+        assert_eq!(MultiEndpointRateLimiter::classify_path("/bots/list"), "api");
+        assert_eq!(MultiEndpointRateLimiter::classify_path("/metrics"), "api");
     }
 
     #[test]

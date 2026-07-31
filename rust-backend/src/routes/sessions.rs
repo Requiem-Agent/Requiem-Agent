@@ -1,12 +1,16 @@
-use axum::{extract::{Path, State}, http::StatusCode, Extension, Json};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Extension, Json,
+};
+use chrono::Utc;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::Utc;
 
-use crate::{AppState, storage};
 use super::UserId;
+use crate::{storage, AppState};
 
 fn session_row_to_json(r: &libsql::Row) -> Value {
     json!({
@@ -51,14 +55,26 @@ pub async fn create_session(
     Json(body): Json<CreateSessionBody>,
 ) -> Result<(StatusCode, Json<Value>), (StatusCode, Json<Value>)> {
     if body.name.trim().is_empty() {
-        return Err((StatusCode::BAD_REQUEST, Json(json!({ "error": "name is required" }))));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "name is required" })),
+        ));
     }
 
     // Check count and delete oldest if >= 3
-    let mut count_rows = state.conn.query(
-        "SELECT COUNT(*) FROM sessions WHERE user_id = ?1",
-        [user_id.clone()],
-    ).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))))?;
+    let mut count_rows = state
+        .conn
+        .query(
+            "SELECT COUNT(*) FROM sessions WHERE user_id = ?1",
+            [user_id.clone()],
+        )
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+        })?;
 
     if let Ok(Some(r)) = count_rows.next().await {
         let count: i64 = r.get(0).unwrap_or(0);
@@ -81,16 +97,26 @@ pub async fn create_session(
     ).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))))?;
 
     // Initialize per-session SQLite database
-    storage::init_session_storage(&user_id, &id).await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))))?;
+    storage::init_session_storage(&user_id, &id)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+        })?;
 
     let mut rows = state.conn.query(
         "SELECT id, name, mode, effort, active_model, message_count, last_message_at, created_at, updated_at FROM sessions WHERE id = ?1",
         [id],
     ).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))))?;
 
-    let row = rows.next().await.ok().flatten()
-        .ok_or_else(|| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Failed to fetch created session" }))))?;
+    let row = rows.next().await.ok().flatten().ok_or_else(|| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": "Failed to fetch created session" })),
+        )
+    })?;
 
     Ok((StatusCode::CREATED, Json(session_row_to_json(&row))))
 }
@@ -105,8 +131,12 @@ pub async fn get_session(
         libsql::params![id.clone(), user_id],
     ).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))))?;
 
-    let row = rows.next().await.ok().flatten()
-        .ok_or_else(|| (StatusCode::NOT_FOUND, Json(json!({ "error": "Session not found" }))))?;
+    let row = rows.next().await.ok().flatten().ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "Session not found" })),
+        )
+    })?;
 
     let mut session = session_row_to_json(&row);
 
@@ -154,8 +184,12 @@ pub async fn update_session(
         libsql::params![id.clone(), user_id],
     ).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))))?;
 
-    let row = rows.next().await.ok().flatten()
-        .ok_or_else(|| (StatusCode::NOT_FOUND, Json(json!({ "error": "Session not found" }))))?;
+    let row = rows.next().await.ok().flatten().ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "Session not found" })),
+        )
+    })?;
 
     let cur_name: String = row.get(1).unwrap_or_default();
     let cur_mode: String = row.get(2).unwrap_or_default();
@@ -180,8 +214,12 @@ pub async fn update_session(
         [id],
     ).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))))?;
 
-    let r = updated.next().await.ok().flatten()
-        .ok_or_else(|| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Failed to fetch updated session" }))))?;
+    let r = updated.next().await.ok().flatten().ok_or_else(|| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": "Failed to fetch updated session" })),
+        )
+    })?;
 
     Ok(Json(session_row_to_json(&r)))
 }
@@ -191,16 +229,36 @@ pub async fn delete_session(
     Extension(UserId(user_id)): Extension<UserId>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, (StatusCode, Json<Value>)> {
-    let mut rows = state.conn.query(
-        "SELECT id FROM sessions WHERE id = ?1 AND user_id = ?2",
-        libsql::params![id.clone(), user_id],
-    ).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))))?;
+    let mut rows = state
+        .conn
+        .query(
+            "SELECT id FROM sessions WHERE id = ?1 AND user_id = ?2",
+            libsql::params![id.clone(), user_id],
+        )
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+        })?;
 
     if rows.next().await.ok().flatten().is_none() {
-        return Err((StatusCode::NOT_FOUND, Json(json!({ "error": "Session not found" }))));
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "Session not found" })),
+        ));
     }
 
-    state.conn.execute("DELETE FROM messages WHERE session_id = ?1", [id.clone()]).await.ok();
-    state.conn.execute("DELETE FROM sessions WHERE id = ?1", [id]).await.ok();
+    state
+        .conn
+        .execute("DELETE FROM messages WHERE session_id = ?1", [id.clone()])
+        .await
+        .ok();
+    state
+        .conn
+        .execute("DELETE FROM sessions WHERE id = ?1", [id])
+        .await
+        .ok();
     Ok(StatusCode::NO_CONTENT)
 }

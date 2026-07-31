@@ -9,12 +9,12 @@
 //! - Markdown: عرض ← HTML
 //! - SVG Charts: Bar, Line, Pie charts
 
-pub mod json_fmt;
-pub mod yaml_fmt;
-pub mod toml_fmt;
 pub mod csv_fmt;
-pub mod sql_fmt;
+pub mod json_fmt;
 pub mod markdown_fmt;
+pub mod sql_fmt;
+pub mod toml_fmt;
+pub mod yaml_fmt;
 // pub mod svg_charts;  // TODO: Fix raw string issues with # characters
 
 use serde::{Deserialize, Serialize};
@@ -54,18 +54,23 @@ impl FormatRegistry {
 
     pub fn detect(&self, filename: &str) -> Option<&Box<dyn FormatHandler>> {
         let ext = filename.rsplit('.').next().unwrap_or("").to_lowercase();
-        self.handlers.values().find(|h| h.extensions().contains(&ext.as_str()))
+        self.handlers
+            .values()
+            .find(|h| h.extensions().contains(&ext.as_str()))
     }
 
     pub fn list(&self) -> Vec<FormatInfo> {
-        self.handlers.iter().map(|(name, h)| FormatInfo {
-            name: name.to_string(),
-            description: format!("{} handler", name),
-            extensions: h.extensions().iter().map(|e| e.to_string()).collect(),
-            can_validate: true,
-            can_format: true,
-            can_convert: name != &"sql",
-        }).collect()
+        self.handlers
+            .iter()
+            .map(|(name, h)| FormatInfo {
+                name: name.to_string(),
+                description: format!("{} handler", name),
+                extensions: h.extensions().iter().map(|e| e.to_string()).collect(),
+                can_validate: true,
+                can_format: true,
+                can_convert: name != &"sql",
+            })
+            .collect()
     }
 }
 

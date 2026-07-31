@@ -73,10 +73,10 @@ impl fmt::Display for TaskCategory {
 /// مستوى الجهد المطلوب
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Effort {
-    Lite,    // سريع، خفيف
-    Medium,  // عادي
-    High,    // دقيق
-    Max,     // كامل — كل النماذج بالتوازي
+    Lite,   // سريع، خفيف
+    Medium, // عادي
+    High,   // دقيق
+    Max,    // كامل — كل النماذج بالتوازي
 }
 
 impl fmt::Display for Effort {
@@ -133,7 +133,7 @@ pub fn default_model_registry() -> Vec<ModelCapability> {
             id: "mimo-v2.5-free",
             name: "Mimo V2.5",
             role: TaskCategory::Vision,
-            vision: true,    // الوحيد القادر على الرؤية
+            vision: true, // الوحيد القادر على الرؤية
             speed: 6,
             reliability: 0.82,
             max_tokens: 32768,
@@ -179,84 +179,128 @@ impl TaskClassifier {
         let lower = content.to_lowercase();
 
         // Vision — صور، رسم، تصميم
-        if lower.contains("ارسم") || lower.contains("صو")
-            || lower.contains("تصميم") || lower.contains("design")
-            || lower.contains("image") || lower.contains("draw")
-            || lower.contains("picture") || lower.contains("svg")
-            || lower.contains("ui/ux") || lower.contains("واجهة")
-            || lower.contains("icon") || lower.contains("logo")
+        if lower.contains("ارسم")
+            || lower.contains("صو")
+            || lower.contains("تصميم")
+            || lower.contains("design")
+            || lower.contains("image")
+            || lower.contains("draw")
+            || lower.contains("picture")
+            || lower.contains("svg")
+            || lower.contains("ui/ux")
+            || lower.contains("واجهة")
+            || lower.contains("icon")
+            || lower.contains("logo")
         {
             return TaskCategory::Vision;
         }
 
         // Debug — أخطاء، تصحيح، bug
-        if lower.contains("bug") || lower.contains("fix") || lower.contains("خطأ")
-            || lower.contains("تصحيح") || lower.contains("error")
-            || lower.contains("crash") || lower.contains("fail")
-            || lower.contains("مشكلة") || lower.contains("لا يعمل")
-            || lower.contains("broken") || lower.contains("wrong")
-            || lower.contains("issue") || lower.contains("مشكلة")
+        if lower.contains("bug")
+            || lower.contains("fix")
+            || lower.contains("خطأ")
+            || lower.contains("تصحيح")
+            || lower.contains("error")
+            || lower.contains("crash")
+            || lower.contains("fail")
+            || lower.contains("مشكلة")
+            || lower.contains("لا يعمل")
+            || lower.contains("broken")
+            || lower.contains("wrong")
+            || lower.contains("issue")
+            || lower.contains("مشكلة")
         {
             return TaskCategory::Debug;
         }
 
         // Research — بحث، اقرأ، ادرس
-        if lower.contains("بحث") || lower.contains("research")
-            || lower.contains("اقرأ") || lower.contains("read")
-            || lower.contains("study") || lower.contains("what is")
-            || lower.contains("تحليل") || lower.contains("لماذا")
-            || lower.contains("how to") || lower.contains("article")
-            || lower.contains("docs") || lower.contains("documentation")
+        if lower.contains("بحث")
+            || lower.contains("research")
+            || lower.contains("اقرأ")
+            || lower.contains("read")
+            || lower.contains("study")
+            || lower.contains("what is")
+            || lower.contains("تحليل")
+            || lower.contains("لماذا")
+            || lower.contains("how to")
+            || lower.contains("article")
+            || lower.contains("docs")
+            || lower.contains("documentation")
         {
             return TaskCategory::Research;
         }
 
         // Plan — خطط، صمم معماريًا
-        if lower.contains("خطط") || lower.contains("plan")
-            || lower.contains("architecture") || lower.contains("معمار")
-            || lower.contains("هيكل") || lower.contains("structure")
-            || lower.contains("strategy") || lower.contains("roadmap")
-            || lower.contains("design doc") || lower.contains("مخطط")
+        if lower.contains("خطط")
+            || lower.contains("plan")
+            || lower.contains("architecture")
+            || lower.contains("معمار")
+            || lower.contains("هيكل")
+            || lower.contains("structure")
+            || lower.contains("strategy")
+            || lower.contains("roadmap")
+            || lower.contains("design doc")
+            || lower.contains("مخطط")
         {
             return TaskCategory::Plan;
         }
 
         // Review — راجع، دقق، حسّن
-        if lower.contains("review") || lower.contains("audit")
-            || lower.contains("راجع") || lower.contains("دقق")
-            || lower.contains("جودة") || lower.contains("quality")
-            || lower.contains("refactor") || lower.contains("تحسين")
-            || lower.contains("clean") || lower.contains("نظف")
+        if lower.contains("review")
+            || lower.contains("audit")
+            || lower.contains("راجع")
+            || lower.contains("دقق")
+            || lower.contains("جودة")
+            || lower.contains("quality")
+            || lower.contains("refactor")
+            || lower.contains("تحسين")
+            || lower.contains("clean")
+            || lower.contains("نظف")
         {
             return TaskCategory::Review;
         }
 
         // Security — أمان، ثغرات
-        if lower.contains("security") || lower.contains("secure")
-            || lower.contains("vulnerab") || lower.contains("threat")
-            || lower.contains("cve") || lower.contains("أمان")
-            || lower.contains("اختراق") || lower.contains("هجوم")
+        if lower.contains("security")
+            || lower.contains("secure")
+            || lower.contains("vulnerab")
+            || lower.contains("threat")
+            || lower.contains("cve")
+            || lower.contains("أمان")
+            || lower.contains("اختراق")
+            || lower.contains("هجوم")
         {
             return TaskCategory::Security;
         }
 
         // Explore — استكشف، اقرأ الكود، افهم
-        if lower.contains("explore") || lower.contains("what does")
-            || lower.contains("explain") || lower.contains("شرح")
-            || lower.contains("كيف") || lower.contains("find")
-            || lower.contains("أين") || lower.contains("where")
-            || lower.contains("show me") || lower.contains("define")
+        if lower.contains("explore")
+            || lower.contains("what does")
+            || lower.contains("explain")
+            || lower.contains("شرح")
+            || lower.contains("كيف")
+            || lower.contains("find")
+            || lower.contains("أين")
+            || lower.contains("where")
+            || lower.contains("show me")
+            || lower.contains("define")
         {
             return TaskCategory::Explore;
         }
 
         // Multi-file — ملفات متعددة، مشروع كامل
-        if lower.contains("ملفات") || lower.contains("projects")
-            || lower.contains("full") || lower.contains("project")
-            || lower.contains("complete") || lower.contains("entire")
-            || lower.contains("multiple") || lower.contains("جميع")
-            || lower.contains("كل") || lower.contains("كل الملفات")
-            || lower.contains("كل المجلد") || lower.contains("كل المشروع")
+        if lower.contains("ملفات")
+            || lower.contains("projects")
+            || lower.contains("full")
+            || lower.contains("project")
+            || lower.contains("complete")
+            || lower.contains("entire")
+            || lower.contains("multiple")
+            || lower.contains("جميع")
+            || lower.contains("كل")
+            || lower.contains("كل الملفات")
+            || lower.contains("كل المجلد")
+            || lower.contains("كل المشروع")
         {
             return TaskCategory::MultiFile;
         }
@@ -282,21 +326,33 @@ impl TaskClassifier {
                 Effort::Lite => vec!["deepseek-v4-flash-free"],
                 Effort::Medium => vec!["deepseek-v4-flash-free", "big-pickle"],
                 Effort::High | Effort::Max => {
-                    vec!["deepseek-v4-flash-free", "big-pickle", "north-mini-code-free"]
+                    vec![
+                        "deepseek-v4-flash-free",
+                        "big-pickle",
+                        "north-mini-code-free",
+                    ]
                 }
             },
             TaskCategory::MultiFile => match effort {
                 Effort::Lite => vec!["big-pickle"],
                 Effort::Medium => vec!["big-pickle", "deepseek-v4-flash-free"],
                 Effort::High | Effort::Max => {
-                    vec!["big-pickle", "deepseek-v4-flash-free", "north-mini-code-free"]
+                    vec![
+                        "big-pickle",
+                        "deepseek-v4-flash-free",
+                        "north-mini-code-free",
+                    ]
                 }
             },
             TaskCategory::Debug => match effort {
                 Effort::Lite => vec!["nemotron-3-ultra-free"],
                 Effort::Medium => vec!["nemotron-3-ultra-free", "deepseek-v4-flash-free"],
                 Effort::High | Effort::Max => {
-                    vec!["nemotron-3-ultra-free", "deepseek-v4-flash-free", "hy3-free"]
+                    vec![
+                        "nemotron-3-ultra-free",
+                        "deepseek-v4-flash-free",
+                        "hy3-free",
+                    ]
                 }
             },
             TaskCategory::Plan => match effort {
@@ -412,17 +468,21 @@ impl BestPathSelector {
         let best = match category {
             TaskCategory::Code | TaskCategory::MultiFile => {
                 // الأطول غالباً = الأكثر اكتمالاً (لكود)
-                successful.iter()
+                successful
+                    .iter()
                     .max_by_key(|(_, r)| r.content.len())
                     .map(|(i, r)| (*i, r.content.clone()))
             }
             TaskCategory::Debug => {
                 // الذي يحتوي على "fix" أو "solution" أو "حل"
-                successful.iter()
+                successful
+                    .iter()
                     .filter(|(_, r)| {
                         let lower = r.content.to_lowercase();
-                        lower.contains("fix") || lower.contains("solution")
-                            || lower.contains("حل") || lower.contains("صلح")
+                        lower.contains("fix")
+                            || lower.contains("solution")
+                            || lower.contains("حل")
+                            || lower.contains("صلح")
                     })
                     .max_by_key(|(_, r)| r.content.len())
                     .or_else(|| successful.iter().max_by_key(|(_, r)| r.content.len()))
@@ -430,10 +490,13 @@ impl BestPathSelector {
             }
             TaskCategory::Plan | TaskCategory::Research => {
                 // الأكثر تنظيماً (يحتوي على أقسام)
-                successful.iter()
+                successful
+                    .iter()
                     .filter(|(_, r)| {
-                        r.content.contains("##") || r.content.contains("###")
-                            || r.content.contains("1.") || r.content.contains("-")
+                        r.content.contains("##")
+                            || r.content.contains("###")
+                            || r.content.contains("1.")
+                            || r.content.contains("-")
                     })
                     .max_by_key(|(_, r)| r.content.len())
                     .or_else(|| successful.iter().max_by_key(|(_, r)| r.content.len()))
@@ -441,7 +504,8 @@ impl BestPathSelector {
             }
             _ => {
                 // الأسرع معقول = الأفضل
-                successful.iter()
+                successful
+                    .iter()
                     .min_by_key(|(_, r)| r.duration_ms)
                     .map(|(i, r)| (*i, r.content.clone()))
             }
@@ -500,9 +564,9 @@ impl ParallelExecutor {
 
                 let client = match reqwest::Client::builder()
                     .timeout(Duration::from_secs(120))
-                    .proxy(reqwest::Proxy::all(&proxy_url).unwrap_or_else(|_|
+                    .proxy(reqwest::Proxy::all(&proxy_url).unwrap_or_else(|_| {
                         reqwest::Proxy::all("socks5://localhost:9050").unwrap()
-                    ))
+                    }))
                     .build()
                 {
                     Ok(c) => c,
@@ -542,7 +606,11 @@ impl ParallelExecutor {
                                 thinking: None,
                                 duration_ms: model_start.elapsed().as_millis() as u64,
                                 success: false,
-                                error: Some(format!("API {}: {}", status_code, &text[..text.len().min(200)])),
+                                error: Some(format!(
+                                    "API {}: {}",
+                                    status_code,
+                                    &text[..text.len().min(200)]
+                                )),
                             };
                         }
                         let json: serde_json::Value = resp.json().await.unwrap_or_default();
@@ -587,8 +655,8 @@ impl ParallelExecutor {
         let total_duration_ms = start.elapsed().as_millis() as u64;
 
         // اختيار أفضل مسار
-        let (best_idx, best_content) = BestPathSelector::select(category, &results)
-            .unwrap_or((0, String::new()));
+        let (best_idx, best_content) =
+            BestPathSelector::select(category, &results).unwrap_or((0, String::new()));
 
         let selected_from = if results.len() > 1 {
             Some(results[best_idx].model_id.clone())
@@ -705,24 +773,22 @@ impl MultiFileEditor {
         use crate::storage;
 
         match op.operation {
-            FileOp::Read => {
-                match storage::read_file(user_id, session_id, &op.path).await {
-                    Ok(content) => FileEditResult {
-                        path: op.path.clone(),
-                        operation: FileOp::Read,
-                        success: true,
-                        content: Some(content),
-                        error: None,
-                    },
-                    Err(e) => FileEditResult {
-                        path: op.path.clone(),
-                        operation: FileOp::Read,
-                        success: false,
-                        content: None,
-                        error: Some(e),
-                    },
-                }
-            }
+            FileOp::Read => match storage::read_file(user_id, session_id, &op.path).await {
+                Ok(content) => FileEditResult {
+                    path: op.path.clone(),
+                    operation: FileOp::Read,
+                    success: true,
+                    content: Some(content),
+                    error: None,
+                },
+                Err(e) => FileEditResult {
+                    path: op.path.clone(),
+                    operation: FileOp::Read,
+                    success: false,
+                    content: None,
+                    error: Some(e),
+                },
+            },
             FileOp::Write | FileOp::Create => {
                 let content = op.content.as_deref().unwrap_or("");
                 match storage::save_file(user_id, session_id, &op.path, content).await {
@@ -749,7 +815,9 @@ impl MultiFileEditor {
                         if let (Some(old), Some(new)) = (&op.old_str, &op.new_str) {
                             if current.contains(old) {
                                 let updated = current.replace(old, new);
-                                match storage::save_file(user_id, session_id, &op.path, &updated).await {
+                                match storage::save_file(user_id, session_id, &op.path, &updated)
+                                    .await
+                                {
                                     Ok(_) => FileEditResult {
                                         path: op.path.clone(),
                                         operation: FileOp::Edit,
@@ -793,24 +861,22 @@ impl MultiFileEditor {
                     },
                 }
             }
-            FileOp::Delete => {
-                match storage::delete_file(user_id, session_id, &op.path).await {
-                    Ok(_) => FileEditResult {
-                        path: op.path.clone(),
-                        operation: FileOp::Delete,
-                        success: true,
-                        content: None,
-                        error: None,
-                    },
-                    Err(e) => FileEditResult {
-                        path: op.path.clone(),
-                        operation: FileOp::Delete,
-                        success: false,
-                        content: None,
-                        error: Some(e),
-                    },
-                }
-            }
+            FileOp::Delete => match storage::delete_file(user_id, session_id, &op.path).await {
+                Ok(_) => FileEditResult {
+                    path: op.path.clone(),
+                    operation: FileOp::Delete,
+                    success: true,
+                    content: None,
+                    error: None,
+                },
+                Err(e) => FileEditResult {
+                    path: op.path.clone(),
+                    operation: FileOp::Delete,
+                    success: false,
+                    content: None,
+                    error: Some(e),
+                },
+            },
         }
     }
 
@@ -877,13 +943,20 @@ impl MultiFileEditor {
         project_info["language_summary"] = serde_json::json!(lang_count);
 
         // اقرأ الملفات الرئيسية بالتوازي
-        let main_files: Vec<String> = files.iter()
+        let main_files: Vec<String> = files
+            .iter()
             .filter(|f| {
                 let lower = f.to_lowercase();
-                lower == "main.rs" || lower == "main.py" || lower == "index.js"
-                    || lower == "app.ts" || lower == "app.js" || lower == "main.ts"
-                    || lower == "cargo.toml" || lower == "package.json"
-                    || lower == "readme.md" || lower == "dockerfile"
+                lower == "main.rs"
+                    || lower == "main.py"
+                    || lower == "index.js"
+                    || lower == "app.ts"
+                    || lower == "app.js"
+                    || lower == "main.ts"
+                    || lower == "cargo.toml"
+                    || lower == "package.json"
+                    || lower == "readme.md"
+                    || lower == "dockerfile"
             })
             .cloned()
             .collect();
@@ -912,11 +985,21 @@ fn load_proxies() -> Vec<(String, u16, String, String)> {
     let env_val = std::env::var("WEBSHARE_CREDENTIALS").unwrap_or_default();
     if env_val.is_empty() {
         tracing::warn!("WEBSHARE_CREDENTIALS not set — using Tor fallback localhost:9050");
-        return vec![("127.0.0.1".to_string(), 9050, "".to_string(), "".to_string())];
+        return vec![(
+            "127.0.0.1".to_string(),
+            9050,
+            "".to_string(),
+            "".to_string(),
+        )];
     }
     serde_json::from_str(&env_val).unwrap_or_else(|e| {
         tracing::warn!("Failed to parse WEBSHARE_CREDENTIALS: {e}");
-        vec![("127.0.0.1".to_string(), 9050, "".to_string(), "".to_string())]
+        vec![(
+            "127.0.0.1".to_string(),
+            9050,
+            "".to_string(),
+            "".to_string(),
+        )]
     })
 }
 
@@ -927,8 +1010,12 @@ fn format_proxy_for_user(user_id: &str, model_id: &str) -> String {
     if proxies.is_empty() {
         return "socks5://localhost:9050".to_string();
     }
-    let hash: u64 = user_id.bytes().chain(model_id.bytes())
-        .fold(5381u64, |acc, b| acc.wrapping_mul(33).wrapping_add(b as u64));
+    let hash: u64 = user_id
+        .bytes()
+        .chain(model_id.bytes())
+        .fold(5381u64, |acc, b| {
+            acc.wrapping_mul(33).wrapping_add(b as u64)
+        });
     let proxy_idx = (hash as usize) % proxies.len();
     let (host, port, user, pass) = &proxies[proxy_idx];
     if user.is_empty() && pass.is_empty() {
@@ -946,25 +1033,46 @@ mod tests {
 
     #[test]
     fn test_classify_code() {
-        assert_eq!(TaskClassifier::classify("اكتب كود لحساب الأعداد الأولية"), TaskCategory::Code);
-        assert_eq!(TaskClassifier::classify("Create a function to sort arrays"), TaskCategory::Code);
+        assert_eq!(
+            TaskClassifier::classify("اكتب كود لحساب الأعداد الأولية"),
+            TaskCategory::Code
+        );
+        assert_eq!(
+            TaskClassifier::classify("Create a function to sort arrays"),
+            TaskCategory::Code
+        );
     }
 
     #[test]
     fn test_classify_debug() {
-        assert_eq!(TaskClassifier::classify("هذا الكود فيه bugfix"), TaskCategory::Debug);
-        assert_eq!(TaskClassifier::classify("fix the error in this function"), TaskCategory::Debug);
+        assert_eq!(
+            TaskClassifier::classify("هذا الكود فيه bugfix"),
+            TaskCategory::Debug
+        );
+        assert_eq!(
+            TaskClassifier::classify("fix the error in this function"),
+            TaskCategory::Debug
+        );
     }
 
     #[test]
     fn test_classify_vision() {
-        assert_eq!(TaskClassifier::classify("ارسم أيقونة لتطبيق"), TaskCategory::Vision);
-        assert_eq!(TaskClassifier::classify("design a ui for dashboard"), TaskCategory::Vision);
+        assert_eq!(
+            TaskClassifier::classify("ارسم أيقونة لتطبيق"),
+            TaskCategory::Vision
+        );
+        assert_eq!(
+            TaskClassifier::classify("design a ui for dashboard"),
+            TaskCategory::Vision
+        );
     }
 
     #[test]
     fn test_classify_research() {
-        assert_eq!(TaskClassifier::classify("what is the capital of france"), TaskCategory::Research);
+        assert_eq!(
+            TaskClassifier::classify("what is the capital of france"),
+            TaskCategory::Research
+        );
     }
 
     #[test]
@@ -1009,7 +1117,10 @@ mod tests {
 
         let (idx, content) = BestPathSelector::select(TaskCategory::Code, &results).unwrap();
         assert_eq!(idx, 1); // الأطول هو الأفضل للكود
-        assert_eq!(content, "longer and more complete code with full implementation");
+        assert_eq!(
+            content,
+            "longer and more complete code with full implementation"
+        );
     }
 
     #[test]

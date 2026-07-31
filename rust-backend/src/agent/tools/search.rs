@@ -1,10 +1,10 @@
 //! Search tool using ripgrep crates for fast code search
-//! 
+//!
 //! Provides high-performance regex search across project files
 //! with support for file type filtering and gitignore respect.
 
-use grep_regex::RegexMatcherBuilder;
 use grep_matcher::Matcher;
+use grep_regex::RegexMatcherBuilder;
 use grep_searcher::sinks::UTF8;
 use grep_searcher::SearcherBuilder;
 use ignore::WalkBuilder;
@@ -17,13 +17,13 @@ use thiserror::Error;
 pub enum SearchError {
     #[error("Regex compilation failed: {0}")]
     RegexError(#[from] grep_regex::Error),
-    
+
     #[error("Search I/O error: {0}")]
     IoError(#[from] std::io::Error),
 
     #[error("Ignore error: {0}")]
     IgnoreError(#[from] ignore::Error),
-    
+
     #[error("Invalid pattern: {0}")]
     InvalidPattern(String),
 }
@@ -90,19 +90,19 @@ impl SearchTool {
             config: Arc::new(config),
         }
     }
-    
+
     /// Create a SearchTool with default configuration
     pub fn default() -> Self {
         Self::new(SearchConfig::default())
     }
-    
+
     /// Execute a search operation
-    /// 
+    ///
     /// # Arguments
     /// * `pattern` - The regex pattern to search for
     /// * `root_path` - The root directory to search from
     /// * `extensions` - Optional file extensions to filter
-    /// 
+    ///
     /// # Returns
     /// A vector of search results
     pub async fn search(
@@ -114,7 +114,7 @@ impl SearchTool {
         let matcher = RegexMatcherBuilder::new()
             .case_insensitive(self.config.case_insensitive)
             .build(pattern)?;
-        
+
         let root = Path::new(root_path);
         if !root.exists() {
             return Err(SearchError::InvalidPattern(format!(
@@ -122,37 +122,37 @@ impl SearchTool {
                 root_path
             )));
         }
-        
+
         let mut results = Vec::new();
-        let mut searcher = SearcherBuilder::new()
-            .line_number(true)
-            .build();
-        
+        let mut searcher = SearcherBuilder::new().line_number(true).build();
+
         let mut walker = WalkBuilder::new(root);
         walker
             .hidden(!self.config.include_hidden)
             .ignore(!self.config.no_ignore)
             .git_ignore(!self.config.no_ignore);
-        
+
         // Add extension filters
         if let Some(ref exts) = extensions {
             let exts_clone = exts.clone();
             walker.filter_entry(move |entry| {
                 if let Some(ext) = entry.path().extension() {
-                    exts_clone.iter().any(|e| e == ext.to_string_lossy().as_ref())
+                    exts_clone
+                        .iter()
+                        .any(|e| e == ext.to_string_lossy().as_ref())
                 } else {
                     false
                 }
             });
         }
-        
+
         for entry in walker.build() {
             let entry = entry?;
             let path = entry.path();
-            
+
             if path.is_file() {
                 let path_str = path.to_string_lossy().to_string();
-                
+
                 searcher.search_path(
                     &matcher,
                     path,
@@ -164,19 +164,19 @@ impl SearchTool {
                             match_start: 0,
                             match_end: line_content.len(),
                         });
-                        
+
                         // Check max results
                         if let Some(max) = self.config.max_results {
                             if results.len() >= max {
                                 return Ok(false);
                             }
                         }
-                        
+
                         Ok(true)
                     }),
                 )?;
             }
-            
+
             // Check max results after file
             if let Some(max) = self.config.max_results {
                 if results.len() >= max {
@@ -184,10 +184,10 @@ impl SearchTool {
                 }
             }
         }
-        
+
         Ok(results)
     }
-    
+
     /// Search for a pattern in a specific file
     pub async fn search_file(
         &self,
@@ -197,7 +197,7 @@ impl SearchTool {
         let matcher = RegexMatcherBuilder::new()
             .case_insensitive(self.config.case_insensitive)
             .build(pattern)?;
-        
+
         let path = Path::new(file_path);
         if !path.exists() {
             return Err(SearchError::InvalidPattern(format!(
@@ -205,14 +205,12 @@ impl SearchTool {
                 file_path
             )));
         }
-        
+
         let mut results = Vec::new();
-        let mut searcher = SearcherBuilder::new()
-            .line_number(true)
-            .build();
-        
+        let mut searcher = SearcherBuilder::new().line_number(true).build();
+
         let path_str = file_path.to_string();
-        
+
         searcher.search_path(
             &matcher,
             path,
@@ -227,7 +225,7 @@ impl SearchTool {
                 Ok(true)
             }),
         )?;
-        
+
         Ok(results)
     }
 }
@@ -235,20 +233,19 @@ impl SearchTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_search_basic() {
         let tool = SearchTool::default();
-        let results = tool.search(
-            "fn",
-            ".",
-            Some(vec!["rs".to_string()]),
-        ).await.unwrap();
-        
+        let results = tool
+            .search("fn", ".", Some(vec!["rs".to_string()]))
+            .await
+            .unwrap();
+
         // Should find some results in Rust files
         assert!(!results.is_empty() || results.is_empty()); // Just ensure no panic
     }
-    
+
     #[tokio::test]
     async fn test_search_with_max_results() {
         let config = SearchConfig {
@@ -256,16 +253,15 @@ mod tests {
             ..Default::default()
         };
         let tool = SearchTool::new(config);
-        
-        let results = tool.search(
-            "use",
-            ".",
-            Some(vec!["rs".to_string()]),
-        ).await.unwrap();
-        
+
+        let results = tool
+            .search("use", ".", Some(vec!["rs".to_string()]))
+            .await
+            .unwrap();
+
         assert!(results.len() <= 5);
     }
-    
+
     #[test]
     fn test_search_config_default() {
         let config = SearchConfig::default();

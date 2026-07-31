@@ -1,15 +1,15 @@
 // ─── Anti-Printer & Semantic Analysis Module ───────────────────────────────
 // Phase 15: يكشف أنماط الطباعة الفارغة والتفكير السطحي، ويحلل دلالات المهام
 
-mod semantic;
 mod patterns;
-mod router;
 pub mod pipeline;
+mod router;
+mod semantic;
 
-pub use semantic::*;
 pub use patterns::*;
-pub use router::*;
 pub use pipeline::*;
+pub use router::*;
+pub use semantic::*;
 
 use serde::{Deserialize, Serialize};
 
@@ -105,15 +105,24 @@ impl AntiPrinterReport {
         let mut any_retry = false;
         for r in reports {
             all_patterns.extend(r.patterns);
-            if r.quality_score < min_score { min_score = r.quality_score; }
-            if r.requires_retry { any_retry = true; }
+            if r.quality_score < min_score {
+                min_score = r.quality_score;
+            }
+            if r.requires_retry {
+                any_retry = true;
+            }
         }
         Self {
             has_issues: !all_patterns.is_empty(),
             patterns: all_patterns,
             quality_score: min_score,
             requires_retry: any_retry,
-            suggested_action: if any_retry { "retry_with_correction" } else { "proceed" }.to_string(),
+            suggested_action: if any_retry {
+                "retry_with_correction"
+            } else {
+                "proceed"
+            }
+            .to_string(),
         }
     }
 }

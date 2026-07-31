@@ -6,7 +6,7 @@
 //! - إعادة المحاولة عند الفشل
 //! - كشف المهام العالقة وإعادة توزيعها
 
-use crate::agent::tasks::tree::{TaskTree, TaskStatus, Priority, TaskNode};
+use crate::agent::tasks::tree::{Priority, TaskNode, TaskStatus, TaskTree};
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -40,7 +40,7 @@ pub enum TaskEvent {
     Failed(String, String),
     Blocked(String, String),
     Retrying(String, u32),
-    Reassigned(String, String),  // task_id, new_model
+    Reassigned(String, String), // task_id, new_model
 }
 
 /// الجدولة
@@ -63,7 +63,9 @@ impl TaskScheduler {
 
     /// بدء تنفيذ مهمة
     pub fn start_task(&mut self, task_id: &str, tree: &mut TaskTree) -> Result<(), String> {
-        let task = tree.nodes.get(task_id)
+        let task = tree
+            .nodes
+            .get(task_id)
             .ok_or_else(|| format!("المهمة {} غير موجودة", task_id))?;
 
         if task.status.is_final() {
@@ -71,13 +73,19 @@ impl TaskScheduler {
         }
 
         tree.update_status(task_id, TaskStatus::InProgress)?;
-        self.task_started.insert(task_id.to_string(), std::time::Instant::now());
+        self.task_started
+            .insert(task_id.to_string(), std::time::Instant::now());
         self.events.push(TaskEvent::Started(task_id.to_string()));
         Ok(())
     }
 
     /// إكمال مهمة بنجاح
-    pub fn complete_task(&mut self, task_id: &str, result: serde_json::Value, tree: &mut TaskTree) -> Result<(), String> {
+    pub fn complete_task(
+        &mut self,
+        task_id: &str,
+        result: serde_json::Value,
+        tree: &mut TaskTree,
+    ) -> Result<(), String> {
         tree.update_status(task_id, TaskStatus::Completed)?;
         if let Some(task) = tree.nodes.get_mut(task_id) {
             task.result = Some(result);
@@ -89,20 +97,27 @@ impl TaskScheduler {
     }
 
     /// فشل مهمة — مع إعادة محاولة
-    pub fn fail_task(&mut self, task_id: &str, error: &str, tree: &mut TaskTree) -> Result<(), String> {
+    pub fn fail_task(
+        &mut self,
+        task_id: &str,
+        error: &str,
+        tree: &mut TaskTree,
+    ) -> Result<(), String> {
         let retries = self.task_retries.get(task_id).copied().unwrap_or(0);
 
         if retries < self.config.retry_limit {
             // إعادة محاولة
             self.task_retries.insert(task_id.to_string(), retries + 1);
             tree.update_status(task_id, TaskStatus::Pending)?;
-            self.events.push(TaskEvent::Retrying(task_id.to_string(), retries + 1));
+            self.events
+                .push(TaskEvent::Retrying(task_id.to_string(), retries + 1));
             Ok(())
         } else {
             // فشل نهائي
             tree.update_status(task_id, TaskStatus::Failed(error.to_string()))?;
             self.task_started.remove(task_id);
-            self.events.push(TaskEvent::Failed(task_id.to_string(), error.to_string()));
+            self.events
+                .push(TaskEvent::Failed(task_id.to_string(), error.to_string()));
             Ok(())
         }
     }
@@ -115,7 +130,9 @@ impl TaskScheduler {
             return reassigned;
         }
 
-        let blocked: Vec<String> = tree.nodes.values()
+        let blocked: Vec<String> = tree
+            .nodes
+            .values()
             .filter(|t| matches!(t.status, TaskStatus::Failed(_)))
             .map(|t| t.id.clone())
             .collect();
@@ -134,7 +151,8 @@ impl TaskScheduler {
                     task.error = None;
                     task.completed_at = None;
                     reassigned.push(task_id.clone());
-                    self.events.push(TaskEvent::Reassigned(task_id, other_model.to_string()));
+                    self.events
+                        .push(TaskEvent::Reassigned(task_id, other_model.to_string()));
                 }
             }
         }
@@ -146,7 +164,9 @@ impl TaskScheduler {
     pub fn prioritized_ready_tasks<'a>(&self, tree: &'a TaskTree) -> Vec<&'a TaskNode> {
         let mut ready = tree.ready_tasks();
         ready.sort_by(|a, b| {
-            b.priority.score().cmp(&a.priority.score())
+            b.priority
+                .score()
+                .cmp(&a.priority.score())
                 .then_with(|| a.created_at.cmp(&b.created_at))
         });
         ready
@@ -159,10 +179,26 @@ impl TaskScheduler {
 
     /// إحصائيات
     pub fn stats(&self) -> serde_json::Value {
-        let started = self.events.iter().filter(|e| matches!(e, TaskEvent::Started(_))).count();
-        let completed = self.events.iter().filter(|e| matches!(e, TaskEvent::Completed(_))).count();
-        let failed = self.events.iter().filter(|e| matches!(e, TaskEvent::Failed(_, _))).count();
-        let retried = self.events.iter().filter(|e| matches!(e, TaskEvent::Retrying(_, _))).count();
+        let started = self
+            .events
+            .iter()
+            .filter(|e| matches!(e, TaskEvent::Started(_)))
+            .count();
+        let completed = self
+            .events
+            .iter()
+            .filter(|e| matches!(e, TaskEvent::Completed(_)))
+            .count();
+        let failed = self
+            .events
+            .iter()
+            .filter(|e| matches!(e, TaskEvent::Failed(_, _)))
+            .count();
+        let retried = self
+            .events
+            .iter()
+            .filter(|e| matches!(e, TaskEvent::Retrying(_, _)))
+            .count();
 
         serde_json::json!({
             "started": started,
@@ -193,7 +229,9 @@ mod tests {
         scheduler.start_task(&task_id, &mut tree).unwrap();
         assert_eq!(tree.nodes[&task_id].status, TaskStatus::InProgress);
 
-        scheduler.complete_task(&task_id, serde_json::json!({"done": true}), &mut tree).unwrap();
+        scheduler
+            .complete_task(&task_id, serde_json::json!({"done": true}), &mut tree)
+            .unwrap();
         assert_eq!(tree.nodes[&task_id].status, TaskStatus::Completed);
     }
 
@@ -202,21 +240,28 @@ mod tests {
         let mut tree = TaskTree::new("الرئيسية", "user1");
         let task_id = tree.add_task("مهمة", Some(&tree.root_id)).unwrap();
         let mut scheduler = TaskScheduler::new(SchedulerConfig {
-            retry_limit: 2, ..Default::default()
+            retry_limit: 2,
+            ..Default::default()
         });
 
         scheduler.start_task(&task_id, &mut tree).unwrap();
-        scheduler.fail_task(&task_id, "خطأ مؤقت", &mut tree).unwrap();
+        scheduler
+            .fail_task(&task_id, "خطأ مؤقت", &mut tree)
+            .unwrap();
         // بعد أول فشل، يجب أن تعود المهمة إلى Pending
         assert_eq!(tree.nodes[&task_id].status, TaskStatus::Pending);
 
         scheduler.start_task(&task_id, &mut tree).unwrap();
-        scheduler.fail_task(&task_id, "خطأ مرة أخرى", &mut tree).unwrap();
+        scheduler
+            .fail_task(&task_id, "خطأ مرة أخرى", &mut tree)
+            .unwrap();
         assert_eq!(tree.nodes[&task_id].status, TaskStatus::Pending);
 
         // المحاولة الثالثة تفشل → نهائي
         scheduler.start_task(&task_id, &mut tree).unwrap();
-        scheduler.fail_task(&task_id, "فشل نهائي", &mut tree).unwrap();
+        scheduler
+            .fail_task(&task_id, "فشل نهائي", &mut tree)
+            .unwrap();
         assert!(matches!(tree.nodes[&task_id].status, TaskStatus::Failed(_)));
     }
 

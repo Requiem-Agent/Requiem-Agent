@@ -34,7 +34,7 @@ pub struct SkillOutput {
 /// قطعة أثرية من المهارة
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillArtifact {
-    pub kind: String,  // "code", "svg", "text", "json", "mermaid"
+    pub kind: String, // "code", "svg", "text", "json", "mermaid"
     pub content: String,
     pub label: String,
 }
@@ -61,9 +61,15 @@ pub trait AgentSkill: Send + Sync {
 pub struct EnvironmentSkill;
 
 impl AgentSkill for EnvironmentSkill {
-    fn name(&self) -> &'static str { "environment_skill" }
-    fn description(&self) -> &'static str { "وعي كامل ببيئة Requiem: نظام الملفات المعزول، Turso DB، الساندبوكس متعدد الطبقات، حدود الموارد، النماذج المتاحة" }
-    fn required_tools(&self) -> Vec<&'static str> { vec!["file_tree", "shell"] }
+    fn name(&self) -> &'static str {
+        "environment_skill"
+    }
+    fn description(&self) -> &'static str {
+        "وعي كامل ببيئة Requiem: نظام الملفات المعزول، Turso DB، الساندبوكس متعدد الطبقات، حدود الموارد، النماذج المتاحة"
+    }
+    fn required_tools(&self) -> Vec<&'static str> {
+        vec!["file_tree", "shell"]
+    }
 
     fn execute(&self, _context: &SkillContext) -> Result<SkillOutput, SkillError> {
         Ok(SkillOutput {
@@ -101,8 +107,12 @@ impl AgentSkill for EnvironmentSkill {
 pub struct CodeSkill;
 
 impl AgentSkill for CodeSkill {
-    fn name(&self) -> &'static str { "code_skill" }
-    fn description(&self) -> &'static str { "كتابة وتعديل وتحليل الكود مع اختبارات وتحسين الجودة" }
+    fn name(&self) -> &'static str {
+        "code_skill"
+    }
+    fn description(&self) -> &'static str {
+        "كتابة وتعديل وتحليل الكود مع اختبارات وتحسين الجودة"
+    }
     fn required_tools(&self) -> Vec<&'static str> {
         vec!["code_editor", "shell", "file_tree", "project_analyze"]
     }
@@ -133,9 +143,15 @@ impl AgentSkill for CodeSkill {
 pub struct DesignSkill;
 
 impl AgentSkill for DesignSkill {
-    fn name(&self) -> &'static str { "design_skill" }
-    fn description(&self) -> &'static str { "تصميم واجهات، SVG charts، رسوم بيانية، تخطيط UI/UX" }
-    fn required_tools(&self) -> Vec<&'static str> { vec!["code_editor", "shell"] }
+    fn name(&self) -> &'static str {
+        "design_skill"
+    }
+    fn description(&self) -> &'static str {
+        "تصميم واجهات، SVG charts، رسوم بيانية، تخطيط UI/UX"
+    }
+    fn required_tools(&self) -> Vec<&'static str> {
+        vec!["code_editor", "shell"]
+    }
 
     fn execute(&self, context: &SkillContext) -> Result<SkillOutput, SkillError> {
         Ok(SkillOutput {
@@ -177,11 +193,18 @@ impl SkillRegistry {
     }
 
     pub fn list(&self) -> Vec<SkillInfo> {
-        self.skills.iter().map(|(name, skill)| SkillInfo {
-            name: name.to_string(),
-            description: skill.description().to_string(),
-            required_tools: skill.required_tools().iter().map(|t| t.to_string()).collect(),
-        }).collect()
+        self.skills
+            .iter()
+            .map(|(name, skill)| SkillInfo {
+                name: name.to_string(),
+                description: skill.description().to_string(),
+                required_tools: skill
+                    .required_tools()
+                    .iter()
+                    .map(|t| t.to_string())
+                    .collect(),
+            })
+            .collect()
     }
 
     /// اقتراح المهارات المناسبة لمهمة
@@ -189,16 +212,30 @@ impl SkillRegistry {
         let lower = task.to_lowercase();
         let mut suggested = Vec::new();
 
-        if lower.contains("code") || lower.contains("برمجة") || lower.contains("rust")
-            || lower.contains("python") || lower.contains("javascript") || lower.contains("كود") {
+        if lower.contains("code")
+            || lower.contains("برمجة")
+            || lower.contains("rust")
+            || lower.contains("python")
+            || lower.contains("javascript")
+            || lower.contains("كود")
+        {
             suggested.push("code".to_string());
         }
-        if lower.contains("design") || lower.contains("تصميم") || lower.contains("ui")
-            || lower.contains("svg") || lower.contains("chart") || lower.contains("واجهة") {
+        if lower.contains("design")
+            || lower.contains("تصميم")
+            || lower.contains("ui")
+            || lower.contains("svg")
+            || lower.contains("chart")
+            || lower.contains("واجهة")
+        {
             suggested.push("design".to_string());
         }
-        if lower.contains("بيئة") || lower.contains("environment") || lower.contains("sandbox")
-            || lower.contains("system") || lower.contains("نظام") {
+        if lower.contains("بيئة")
+            || lower.contains("environment")
+            || lower.contains("sandbox")
+            || lower.contains("system")
+            || lower.contains("نظام")
+        {
             suggested.push("environment".to_string());
         }
 
@@ -209,7 +246,9 @@ impl SkillRegistry {
         suggested
     }
 
-    pub fn count(&self) -> usize { self.skills.len() }
+    pub fn count(&self) -> usize {
+        self.skills.len()
+    }
 }
 
 /// معلومات المهارة

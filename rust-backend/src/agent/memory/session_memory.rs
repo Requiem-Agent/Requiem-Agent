@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, info};
 
-use super::{MemoryEntry, MemoryType, MemoryPriority, RagEngine};
+use super::{MemoryEntry, MemoryPriority, MemoryType, RagEngine};
 
 /// ذاكرة الجلسة — تحتفظ بسياق المحادثة الحالية
 pub struct SessionMemory {
@@ -95,7 +95,8 @@ impl SessionMemory {
 
     /// تحديث ذاكرة العمل
     pub fn set_working(&mut self, key: &str, value: &str) {
-        self.working_memory.insert(key.to_string(), value.to_string());
+        self.working_memory
+            .insert(key.to_string(), value.to_string());
     }
 
     /// جلب قيمة من ذاكرة العمل
@@ -109,7 +110,11 @@ impl SessionMemory {
         let mut context = String::new();
 
         for msg in messages.iter().rev() {
-            let role = msg.metadata.get("role").map(|s| s.as_str()).unwrap_or("user");
+            let role = msg
+                .metadata
+                .get("role")
+                .map(|s| s.as_str())
+                .unwrap_or("user");
             context.push_str(&format!("{}: {}\n", role, msg.content));
         }
 
@@ -126,19 +131,23 @@ impl SessionMemory {
 
         for entry in &self.short_term {
             if entry.memory_type == memory_type {
-                rag_engine.store(
-                    &entry.content,
-                    entry.memory_type.name(),
-                    match &entry.priority {
-                        super::MemoryPriority::Low => "low",
-                        super::MemoryPriority::Medium => "medium",
-                        super::MemoryPriority::High => "high",
-                        super::MemoryPriority::Critical => "critical",
-                    },
-                    entry.session_id.as_deref(),
-                ).await
+                rag_engine
+                    .store(
+                        &entry.content,
+                        entry.memory_type.name(),
+                        match &entry.priority {
+                            super::MemoryPriority::Low => "low",
+                            super::MemoryPriority::Medium => "medium",
+                            super::MemoryPriority::High => "high",
+                            super::MemoryPriority::Critical => "critical",
+                        },
+                        entry.session_id.as_deref(),
+                    )
+                    .await
                     .map(|_| ())
-                    .map_err(|e| super::vector_store::VectorStoreError::StorageError(e.to_string()))?;
+                    .map_err(|e| {
+                        super::vector_store::VectorStoreError::StorageError(e.to_string())
+                    })?;
             }
         }
 
@@ -196,7 +205,8 @@ impl UserMemory {
 
     /// تعلم مفهوم جديد
     pub fn learn(&mut self, concept: &str, description: &str) {
-        self.semantic_memory.insert(concept.to_string(), description.to_string());
+        self.semantic_memory
+            .insert(concept.to_string(), description.to_string());
     }
 
     /// جلب مفهوم

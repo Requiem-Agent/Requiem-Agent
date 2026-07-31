@@ -6,14 +6,12 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    Json,
     routing::{get, post},
-    Router,
-    Extension,
+    Extension, Json, Router,
 };
 use serde::Deserialize;
-use std::sync::Arc;
 use serde_json::{json, Value};
+use std::sync::Arc;
 
 use crate::agent::memory::rag::RagEngine;
 use crate::db::AppState;
@@ -30,8 +28,12 @@ pub struct StoreMemoryRequest {
     pub priority: String,
     pub session_id: Option<String>,
 }
-fn default_memory_type() -> String { "context".to_string() }
-fn default_priority()     -> String { "medium".to_string() }
+fn default_memory_type() -> String {
+    "context".to_string()
+}
+fn default_priority() -> String {
+    "medium".to_string()
+}
 
 #[derive(Deserialize)]
 pub struct SearchRequest {
@@ -71,14 +73,14 @@ pub struct ClearRequest {
 /// إنشاء مسارات RAG
 pub fn rag_routes() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/rag/store",          post(store_memory))
-        .route("/rag/search",         post(search_memories))
+        .route("/rag/store", post(store_memory))
+        .route("/rag/search", post(search_memories))
         .route("/rag/inject-context", post(inject_context))
-        .route("/rag/auto-store",     post(auto_store))
-        .route("/rag/memories",       get(list_memories))
-        .route("/rag/memory/{id}",    get(get_memory).delete(delete_memory))
-        .route("/rag/stats",          get(get_stats))
-        .route("/rag/clear",          post(clear_memory))
+        .route("/rag/auto-store", post(auto_store))
+        .route("/rag/memories", get(list_memories))
+        .route("/rag/memory/{id}", get(get_memory).delete(delete_memory))
+        .route("/rag/stats", get(get_stats))
+        .route("/rag/clear", post(clear_memory))
 }
 
 // ── Handlers ───────────────────────────────────────────────────────────────
@@ -93,9 +95,20 @@ pub async fn store_memory(
         return Err(StatusCode::BAD_REQUEST);
     }
     let rag = RagEngine::new(state.conn.clone(), &auth.user_id);
-    match rag.store(&req.content, &req.memory_type, &req.priority, req.session_id.as_deref()).await {
+    match rag
+        .store(
+            &req.content,
+            &req.memory_type,
+            &req.priority,
+            req.session_id.as_deref(),
+        )
+        .await
+    {
         Ok(id) => Ok(Json(json!({ "id": id, "stored": true }))),
-        Err(e) => { tracing::error!("rag store: {}", e); Err(StatusCode::INTERNAL_SERVER_ERROR) }
+        Err(e) => {
+            tracing::error!("rag store: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -110,9 +123,17 @@ pub async fn search_memories(
     }
     let rag = RagEngine::new(state.conn.clone(), &auth.user_id);
     let limit = req.limit.unwrap_or(10).min(50);
-    match rag.retrieve(&req.query, limit, 4000, req.session_id.as_deref()).await {
-        Ok(memories) => Ok(Json(json!({ "memories": memories, "count": memories.len() }))),
-        Err(e) => { tracing::error!("rag search: {}", e); Err(StatusCode::INTERNAL_SERVER_ERROR) }
+    match rag
+        .retrieve(&req.query, limit, 4000, req.session_id.as_deref())
+        .await
+    {
+        Ok(memories) => Ok(Json(
+            json!({ "memories": memories, "count": memories.len() }),
+        )),
+        Err(e) => {
+            tracing::error!("rag search: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -127,14 +148,20 @@ pub async fn inject_context(
     }
     let rag = RagEngine::new(state.conn.clone(), &auth.user_id);
     let max_tokens = req.max_context_tokens.unwrap_or(2000).min(4000);
-    match rag.build_context(&req.query, req.session_id.as_deref(), max_tokens).await {
+    match rag
+        .build_context(&req.query, req.session_id.as_deref(), max_tokens)
+        .await
+    {
         Ok(result) => Ok(Json(json!({
             "systemContext": result.system_context,
             "memoriesUsed": result.memories_used,
             "tokenCount": result.token_count,
             "sources": result.sources,
         }))),
-        Err(e) => { tracing::error!("rag inject-context: {}", e); Err(StatusCode::INTERNAL_SERVER_ERROR) }
+        Err(e) => {
+            tracing::error!("rag inject-context: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -145,7 +172,9 @@ pub async fn auto_store(
     Json(req): Json<AutoStoreRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     let rag = RagEngine::new(state.conn.clone(), &auth.user_id);
-    let ids = rag.auto_store(&req.user_message, &req.assistant_response, &req.session_id).await;
+    let ids = rag
+        .auto_store(&req.user_message, &req.assistant_response, &req.session_id)
+        .await;
     Ok(Json(json!({ "stored": ids.len(), "ids": ids })))
 }
 
@@ -158,9 +187,22 @@ pub async fn list_memories(
     let rag = RagEngine::new(state.conn.clone(), &auth.user_id);
     let limit = q.limit.unwrap_or(20).min(100);
     let offset = q.offset.unwrap_or(0);
-    match rag.list(limit, offset, q.session_id.as_deref(), q.memory_type.as_deref()).await {
-        Ok(memories) => Ok(Json(json!({ "memories": memories, "count": memories.len() }))),
-        Err(e) => { tracing::error!("rag list: {}", e); Err(StatusCode::INTERNAL_SERVER_ERROR) }
+    match rag
+        .list(
+            limit,
+            offset,
+            q.session_id.as_deref(),
+            q.memory_type.as_deref(),
+        )
+        .await
+    {
+        Ok(memories) => Ok(Json(
+            json!({ "memories": memories, "count": memories.len() }),
+        )),
+        Err(e) => {
+            tracing::error!("rag list: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -202,9 +244,12 @@ pub async fn delete_memory(
 ) -> Result<Json<Value>, StatusCode> {
     let rag = RagEngine::new(state.conn.clone(), &auth.user_id);
     match rag.forget(&id).await {
-        Ok(true)  => Ok(Json(json!({ "deleted": true }))),
+        Ok(true) => Ok(Json(json!({ "deleted": true }))),
         Ok(false) => Err(StatusCode::NOT_FOUND),
-        Err(e)    => { tracing::error!("rag forget: {}", e); Err(StatusCode::INTERNAL_SERVER_ERROR) }
+        Err(e) => {
+            tracing::error!("rag forget: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -216,7 +261,10 @@ pub async fn get_stats(
     let rag = RagEngine::new(state.conn.clone(), &auth.user_id);
     match rag.stats().await {
         Ok(stats) => Ok(Json(json!(stats))),
-        Err(e)    => { tracing::error!("rag stats: {}", e); Err(StatusCode::INTERNAL_SERVER_ERROR) }
+        Err(e) => {
+            tracing::error!("rag stats: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 
@@ -229,6 +277,9 @@ pub async fn clear_memory(
     let rag = RagEngine::new(state.conn.clone(), &auth.user_id);
     match rag.clear(req.session_id.as_deref()).await {
         Ok(deleted) => Ok(Json(json!({ "deleted": deleted }))),
-        Err(e)      => { tracing::error!("rag clear: {}", e); Err(StatusCode::INTERNAL_SERVER_ERROR) }
+        Err(e) => {
+            tracing::error!("rag clear: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }

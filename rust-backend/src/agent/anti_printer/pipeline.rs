@@ -2,8 +2,8 @@
 // Phase 15.3: يدمج semantic_validate → anti_printer_check → auto_correct →
 //             security_scan → output_compile في pipeline واحد
 
-use super::semantic::{SemanticEngine, SemanticResult};
 use super::patterns::PatternDetector;
+use super::semantic::{SemanticEngine, SemanticResult};
 use super::{AntiPrinterReport, Severity};
 use crate::agent::compiler::auto_correct::JsonAutoCorrect;
 use crate::agent::compiler::output::{AgentOutputCompiler, CompilerConfig};
@@ -56,15 +56,29 @@ pub struct PipelineReport {
 
 impl PipelineReport {
     pub fn summary(&self) -> String {
-        let status = if self.passed { "✅ PASSED" } else { "❌ FAILED" };
-        let stage_summary: Vec<String> = self.stages.iter()
-            .map(|s| format!("  {}: {}", s.stage.name(), if s.passed { "✅" } else { "❌" }))
+        let status = if self.passed {
+            "✅ PASSED"
+        } else {
+            "❌ FAILED"
+        };
+        let stage_summary: Vec<String> = self
+            .stages
+            .iter()
+            .map(|s| {
+                format!(
+                    "  {}: {}",
+                    s.stage.name(),
+                    if s.passed { "✅" } else { "❌" }
+                )
+            })
             .collect();
-        format!("Pipeline {status} ({}ms)\n{}\n  Quality Score: {:.2}\n  Issues: {}",
+        format!(
+            "Pipeline {status} ({}ms)\n{}\n  Quality Score: {:.2}\n  Issues: {}",
             self.total_duration_ms,
             stage_summary.join("\n"),
             self.anti_printer.quality_score,
-            self.anti_printer.patterns.len())
+            self.anti_printer.patterns.len()
+        )
     }
 }
 
@@ -92,7 +106,9 @@ impl Default for CompilerPipeline {
 }
 
 impl CompilerPipeline {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// تشغيل الـ Pipeline الكامل
     pub async fn run(
@@ -109,7 +125,10 @@ impl CompilerPipeline {
 
         // Stage 1: Semantic Validation
         let s1 = std::time::Instant::now();
-        let semantic_result = if !self.skip_stages.contains(&PipelineStage::SemanticValidation) {
+        let semantic_result = if !self
+            .skip_stages
+            .contains(&PipelineStage::SemanticValidation)
+        {
             Some(self.semantic.analyze(thinking_text, step_id))
         } else {
             None
@@ -123,22 +142,29 @@ impl CompilerPipeline {
 
         // Stage 2: Anti-Printer Check
         let s2 = std::time::Instant::now();
-        let tool_calls_parsed: Vec<Value> = serde_json::from_str(raw_tool_calls).unwrap_or_default();
+        let tool_calls_parsed: Vec<Value> =
+            serde_json::from_str(raw_tool_calls).unwrap_or_default();
         let anti_printer = if !self.skip_stages.contains(&PipelineStage::AntiPrinterCheck) {
-            self.pattern_detector.analyze(thinking_text, &tool_calls_parsed, step_history)
+            self.pattern_detector
+                .analyze(thinking_text, &tool_calls_parsed, step_history)
         } else {
             AntiPrinterReport::clean()
         };
         stages.push(StageReport {
             stage: PipelineStage::AntiPrinterCheck,
             passed: !anti_printer.requires_retry,
-            issues: anti_printer.patterns.iter().map(|p| format!("{:?}: {}", p.pattern_type, p.description)).collect(),
+            issues: anti_printer
+                .patterns
+                .iter()
+                .map(|p| format!("{:?}: {}", p.pattern_type, p.description))
+                .collect(),
             duration_ms: s2.elapsed().as_millis() as u64,
         });
 
         // Stage 3: JSON Auto-Correct
         let s3 = std::time::Instant::now();
-        if !self.skip_stages.contains(&PipelineStage::JsonAutoCorrect) && !raw_tool_calls.is_empty() {
+        if !self.skip_stages.contains(&PipelineStage::JsonAutoCorrect) && !raw_tool_calls.is_empty()
+        {
             let result = self.json_corrector.correct(raw_tool_calls, None);
             if !result.corrections.is_empty() {
                 corrected_output = Some(raw_tool_calls.to_string());
@@ -204,24 +230,31 @@ mod tests {
     #[tokio::test]
     async fn test_pipeline_clean() {
         let mut pipe = CompilerPipeline::new();
-        let report = pipe.run(
-            "افتح الملف الرئيسي واقرأ المحتوى",
-            r##"[{"tool":"read_file","params":{"path":"src/main.rs"}}]"##,
-            &[],
-            1,
-        ).await;
+        let report = pipe
+            .run(
+                "افتح الملف الرئيسي واقرأ المحتوى",
+                r##"[{"tool":"read_file","params":{"path":"src/main.rs"}}]"##,
+                &[],
+                1,
+            )
+            .await;
         assert!(report.passed);
     }
 
     #[tokio::test]
     async fn test_pipeline_output_less() {
         let mut pipe = CompilerPipeline::new();
-        let report = pipe.run(
-            "أحتاج أن أفكر في هذا الأمر كثيراً... دعني أحلل... ربما يجب أن...",
-            "[]",
-            &["التخطيط للمهمة".to_string(), "التفكير في الخيارات".to_string()],
-            1,
-        ).await;
+        let report = pipe
+            .run(
+                "أحتاج أن أفكر في هذا الأمر كثيراً... دعني أحلل... ربما يجب أن...",
+                "[]",
+                &[
+                    "التخطيط للمهمة".to_string(),
+                    "التفكير في الخيارات".to_string(),
+                ],
+                1,
+            )
+            .await;
         // يجب أن يكتشف نمط output-less thinking
         assert!(!report.anti_printer.patterns.is_empty());
     }

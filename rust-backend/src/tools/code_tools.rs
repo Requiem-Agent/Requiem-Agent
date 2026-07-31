@@ -6,10 +6,10 @@
 //! - كشف التكرار في الكود
 //! - دعم كامل للمسارات الآمنة (path_safety)
 
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use crate::orchestrator::{FileEditOperation, FileEditResult, MultiFileEditor};
 use crate::storage;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 // ─── Parallel Code Edit ──────────────────────────────────────────────────────
 
@@ -95,10 +95,7 @@ pub struct CodeAnalysis {
 }
 
 /// تحليل جودة الكود في مشروع المستخدم
-pub async fn analyze_code_quality(
-    user_id: &str,
-    session_id: &str,
-) -> Result<CodeAnalysis, String> {
+pub async fn analyze_code_quality(user_id: &str, session_id: &str) -> Result<CodeAnalysis, String> {
     let files = storage::list_files(user_id, session_id).await?;
 
     let mut total_lines = 0usize;
@@ -216,15 +213,13 @@ mod tests {
     #[test]
     fn test_parallel_edit_request() {
         let req = ParallelEditRequest {
-            operations: vec![
-                FileEditOperation {
-                    path: "main.rs".into(),
-                    operation: FileOp::Read,
-                    content: None,
-                    old_str: None,
-                    new_str: None,
-                },
-            ],
+            operations: vec![FileEditOperation {
+                path: "main.rs".into(),
+                operation: FileOp::Read,
+                content: None,
+                old_str: None,
+                new_str: None,
+            }],
             session_id: "test-session".into(),
         };
         assert_eq!(req.operations.len(), 1);

@@ -49,10 +49,14 @@ pub async fn try_run_wasm(
 }
 
 /// تشغيل كود عبر wasmtime CLI
-async fn run_via_wasmtime(code: &str, language: Language, timeout_secs: u64) -> Result<SandboxResult, String> {
-    use tokio::process::Command;
-    use std::time::Instant;
+async fn run_via_wasmtime(
+    code: &str,
+    language: Language,
+    timeout_secs: u64,
+) -> Result<SandboxResult, String> {
     use crate::sandbox::types::MAX_OUTPUT_SIZE;
+    use std::time::Instant;
+    use tokio::process::Command;
 
     let start = Instant::now();
     let tmpdir = std::env::temp_dir().join(format!("wasm_{}", std::process::id()));
@@ -62,15 +66,20 @@ async fn run_via_wasmtime(code: &str, language: Language, timeout_secs: u64) -> 
     let source_file = tmpdir.join(format!("main.{}", ext));
     let wasm_file = tmpdir.join("out.wasm");
 
-    tokio::fs::create_dir_all(&tmpdir).await.map_err(|e| format!("tmpdir: {e}"))?;
-    tokio::fs::write(&source_file, code).await.map_err(|e| format!("write: {e}"))?;
+    tokio::fs::create_dir_all(&tmpdir)
+        .await
+        .map_err(|e| format!("tmpdir: {e}"))?;
+    tokio::fs::write(&source_file, code)
+        .await
+        .map_err(|e| format!("write: {e}"))?;
 
     // ترجمة إلى wasm
     let compiler = match language {
         Language::Rust => {
             // Rust → wasm32-wasi
             let cargo_toml = tmpdir.join("Cargo.toml");
-            let toml = format!(r#"[package]
+            let toml = format!(
+                r#"[package]
 name = "wasm_runner"
 version = "0.1.0"
 edition = "2021"
@@ -79,23 +88,35 @@ crate-type = ["cdylib"]
 [[bin]]
 name = "wasm_runner"
 path = "main.rs"
-"#);
+"#
+            );
             tokio::fs::write(&cargo_toml, toml).await.ok();
             let out = Command::new("cargo")
                 .args(["build", "--target", "wasm32-wasi", "--release"])
                 .current_dir(&tmpdir)
-                .output().await.map_err(|e| format!("cargo build: {e}"))?;
+                .output()
+                .await
+                .map_err(|e| format!("cargo build: {e}"))?;
             if !out.status.success() {
                 return Ok(SandboxResult {
-                    success: false, stdout: String::new(),
+                    success: false,
+                    stdout: String::new(),
                     stderr: format!("Wasm compile: {}", String::from_utf8_lossy(&out.stderr)),
-                    exit_code: -1, duration_ms: start.elapsed().as_millis() as u64,
-                    language, compilation_error: None,
-                    timed_out: false, output_truncated: false,
-                    queued_ms: 0, had_to_wait: false,
+                    exit_code: -1,
+                    duration_ms: start.elapsed().as_millis() as u64,
+                    language,
+                    compilation_error: None,
+                    timed_out: false,
+                    output_truncated: false,
+                    queued_ms: 0,
+                    had_to_wait: false,
                 });
             }
-            tmpdir.join("target").join("wasm32-wasi").join("release").join("wasm_runner.wasm")
+            tmpdir
+                .join("target")
+                .join("wasm32-wasi")
+                .join("release")
+                .join("wasm_runner.wasm")
         }
         Language::Python => {
             // Python → wasm? غير مدعوم. ارجع None
@@ -108,18 +129,31 @@ path = "main.rs"
         Language::Go => {
             // Go → wasm
             let out = Command::new("go")
-                .args(["build", "-o", wasm_file.to_str().unwrap(), source_file.to_str().unwrap()])
-                .env("GOOS", "wasip1").env("GOARCH", "wasm")
+                .args([
+                    "build",
+                    "-o",
+                    wasm_file.to_str().unwrap(),
+                    source_file.to_str().unwrap(),
+                ])
+                .env("GOOS", "wasip1")
+                .env("GOARCH", "wasm")
                 .current_dir(&tmpdir)
-                .output().await.map_err(|e| format!("go build: {e}"))?;
+                .output()
+                .await
+                .map_err(|e| format!("go build: {e}"))?;
             if !out.status.success() {
                 return Ok(SandboxResult {
-                    success: false, stdout: String::new(),
+                    success: false,
+                    stdout: String::new(),
                     stderr: format!("Go→Wasm: {}", String::from_utf8_lossy(&out.stderr)),
-                    exit_code: -1, duration_ms: start.elapsed().as_millis() as u64,
-                    language, compilation_error: None,
-                    timed_out: false, output_truncated: false,
-                    queued_ms: 0, had_to_wait: false,
+                    exit_code: -1,
+                    duration_ms: start.elapsed().as_millis() as u64,
+                    language,
+                    compilation_error: None,
+                    timed_out: false,
+                    output_truncated: false,
+                    queued_ms: 0,
+                    had_to_wait: false,
                 });
             }
             wasm_file.clone()
@@ -134,7 +168,8 @@ path = "main.rs"
             .args(["--dir", ".", "--", wasm_file.to_str().unwrap()])
             .current_dir(&tmpdir)
             .output(),
-    ).await;
+    )
+    .await;
 
     // نظف
     tokio::fs::remove_dir_all(&tmpdir).await.ok();
@@ -148,23 +183,41 @@ path = "main.rs"
                 String::from_utf8_lossy(&o.stderr).to_string(),
             );
             let mut truncated = false;
-            if stdout.len() > MAX_OUTPUT_SIZE { stdout.truncate(MAX_OUTPUT_SIZE); truncated = true; }
-            if stderr.len() > MAX_OUTPUT_SIZE { stderr.truncate(MAX_OUTPUT_SIZE); truncated = true; }
+            if stdout.len() > MAX_OUTPUT_SIZE {
+                stdout.truncate(MAX_OUTPUT_SIZE);
+                truncated = true;
+            }
+            if stderr.len() > MAX_OUTPUT_SIZE {
+                stderr.truncate(MAX_OUTPUT_SIZE);
+                truncated = true;
+            }
             Ok(SandboxResult {
-                success: o.status.success(), stdout, stderr,
-                exit_code: o.status.code().unwrap_or(-1), duration_ms: dur,
-                language, compilation_error: None,
-                timed_out: false, output_truncated: truncated,
-                queued_ms: 0, had_to_wait: false,
+                success: o.status.success(),
+                stdout,
+                stderr,
+                exit_code: o.status.code().unwrap_or(-1),
+                duration_ms: dur,
+                language,
+                compilation_error: None,
+                timed_out: false,
+                output_truncated: truncated,
+                queued_ms: 0,
+                had_to_wait: false,
             })
         }
         Ok(Err(e)) => Err(format!("wasmtime exec: {e}")),
         Err(_) => Ok(SandboxResult {
-            success: false, stdout: String::new(),
+            success: false,
+            stdout: String::new(),
             stderr: "Wasmtime timed out".into(),
-            exit_code: -1, duration_ms: dur, language,
-            compilation_error: None, timed_out: true,
-            output_truncated: false, queued_ms: 0, had_to_wait: false,
+            exit_code: -1,
+            duration_ms: dur,
+            language,
+            compilation_error: None,
+            timed_out: true,
+            output_truncated: false,
+            queued_ms: 0,
+            had_to_wait: false,
         }),
     }
 }

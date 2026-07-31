@@ -25,10 +25,10 @@ use axum::{
 };
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{
     error::AppError,
@@ -57,24 +57,45 @@ enum ClientMessage {
     Ping,
 }
 
-fn default_mode() -> String { "chat".into() }
-fn default_max_steps() -> usize { 10 }
+fn default_mode() -> String {
+    "chat".into()
+}
+fn default_max_steps() -> usize {
+    10
+}
 
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage {
-    Token { content: String },
-    Step { step: usize, thought: String },
-    ToolCall { name: String, args: serde_json::Value },
-    ToolResult { name: String, output: String },
-    Done { content: String, steps: usize },
-    Error { message: String },
+    Token {
+        content: String,
+    },
+    Step {
+        step: usize,
+        thought: String,
+    },
+    ToolCall {
+        name: String,
+        args: serde_json::Value,
+    },
+    ToolResult {
+        name: String,
+        output: String,
+    },
+    Done {
+        content: String,
+        steps: usize,
+    },
+    Error {
+        message: String,
+    },
     Pong,
 }
 
 impl ServerMessage {
     fn to_json(&self) -> String {
-        serde_json::to_string(self).unwrap_or_else(|_| r#"{"type":"error","message":"serialization failed"}"#.into())
+        serde_json::to_string(self)
+            .unwrap_or_else(|_| r#"{"type":"error","message":"serialization failed"}"#.into())
     }
 }
 
@@ -83,8 +104,12 @@ impl ServerMessage {
 // ─────────────────────────────────────────────
 
 pub trait HasWsConfig {
-    fn ws_max_message_size(&self) -> usize { 64 * 1024 } // 64 KB default
-    fn ws_timeout_secs(&self) -> u64 { 300 }             // 5 min default
+    fn ws_max_message_size(&self) -> usize {
+        64 * 1024
+    } // 64 KB default
+    fn ws_timeout_secs(&self) -> u64 {
+        300
+    } // 5 min default
 }
 
 // ─────────────────────────────────────────────
@@ -97,10 +122,7 @@ pub trait HasWsConfig {
 /// ```rust
 /// router.route("/ws/agent", get(ws_agent::ws_handler::<AppState>))
 /// ```
-pub async fn ws_handler<S>(
-    ws: WebSocketUpgrade,
-    State(state): State<Arc<S>>,
-) -> Response
+pub async fn ws_handler<S>(ws: WebSocketUpgrade, State(state): State<Arc<S>>) -> Response
 where
     S: HasWsConfig + Send + Sync + 'static,
 {
@@ -165,9 +187,11 @@ where
             let client_msg: ClientMessage = match serde_json::from_str(&text) {
                 Ok(m) => m,
                 Err(e) => {
-                    let _ = tx.send(ServerMessage::Error {
-                        message: format!("Invalid message: {}", e),
-                    }).await;
+                    let _ = tx
+                        .send(ServerMessage::Error {
+                            message: format!("Invalid message: {}", e),
+                        })
+                        .await;
                     continue;
                 }
             };
@@ -183,7 +207,12 @@ where
                     break;
                 }
 
-                ClientMessage::Start { message, workspace_id, mode, max_steps } => {
+                ClientMessage::Start {
+                    message,
+                    workspace_id,
+                    mode,
+                    max_steps,
+                } => {
                     info!(
                         mode = %mode,
                         workspace_id = ?workspace_id,
@@ -196,14 +225,8 @@ where
 
                     // Run the agent in a separate task so we can still receive Cancel
                     let agent_task = tokio::spawn(async move {
-                        run_agent_session(
-                            message,
-                            workspace_id,
-                            mode,
-                            max_steps,
-                            tx2,
-                            cancelled2,
-                        ).await;
+                        run_agent_session(message, workspace_id, mode, max_steps, tx2, cancelled2)
+                            .await;
                     });
 
                     // Wait for agent to finish (or cancellation)
@@ -212,13 +235,16 @@ where
                 }
             }
         }
-    }).await;
+    })
+    .await;
 
     if result.is_err() {
         warn!("WS session timed out after {} seconds", timeout_secs);
-        let _ = tx.send(ServerMessage::Error {
-            message: "Session timed out".into(),
-        }).await;
+        let _ = tx
+            .send(ServerMessage::Error {
+                message: "Session timed out".into(),
+            })
+            .await;
     }
 
     // Drop tx so the send_task exits
@@ -264,20 +290,20 @@ async fn run_react_session(
 
     record_llm_call("react", true);
 
-    let result = engine.run(
-        &user_message,
-        None,
-        |tool_name, args| {
+    let result = engine
+        .run(&user_message, None, |tool_name, args| {
             // Emit tool_call event (best-effort; ignore send errors)
             let tx_inner = tx.clone();
             let name = tool_name.clone();
             // args is already a serde_json::Value from the engine
             let args_val = args.clone();
             tokio::spawn(async move {
-                let _ = tx_inner.send(ServerMessage::ToolCall {
-                    name,
-                    args: args_val,
-                }).await;
+                let _ = tx_inner
+                    .send(ServerMessage::ToolCall {
+                        name,
+                        args: args_val,
+                    })
+                    .await;
             });
 
             // Return a ToolResult (real impl would call workspace tools)
@@ -293,11 +319,15 @@ async fn run_react_session(
                     duration_ms: 0,
                 }
             }
-        },
-    ).await;
+        })
+        .await;
 
     if cancelled.load(Ordering::Relaxed) {
-        let _ = tx.send(ServerMessage::Error { message: "Cancelled".into() }).await;
+        let _ = tx
+            .send(ServerMessage::Error {
+                message: "Cancelled".into(),
+            })
+            .await;
         return;
     }
 
@@ -305,36 +335,45 @@ async fn run_react_session(
     for (i, step) in result.steps.iter().enumerate() {
         record_agent_step();
         // ReActStep uses `content` field (not `thought`)
-        let _ = tx.send(ServerMessage::Step {
-            step: i + 1,
-            thought: step.content.clone(),
-        }).await;
+        let _ = tx
+            .send(ServerMessage::Step {
+                step: i + 1,
+                thought: step.content.clone(),
+            })
+            .await;
 
         if let Some(ref tool_name) = step.tool_name {
             // tool_input is the observation/output for tool steps
-            let output = step.tool_input
+            let output = step
+                .tool_input
                 .as_ref()
                 .map(|v| v.to_string())
                 .unwrap_or_default();
-            let _ = tx.send(ServerMessage::ToolResult {
-                name: tool_name.clone(),
-                output,
-            }).await;
+            let _ = tx
+                .send(ServerMessage::ToolResult {
+                    name: tool_name.clone(),
+                    output,
+                })
+                .await;
         }
     }
 
     match result.stop_reason {
         StopReason::Completed => {
             let content = result.final_answer.unwrap_or_default();
-            let _ = tx.send(ServerMessage::Done {
-                content,
-                steps: result.steps.len(),
-            }).await;
+            let _ = tx
+                .send(ServerMessage::Done {
+                    content,
+                    steps: result.steps.len(),
+                })
+                .await;
         }
         reason => {
-            let _ = tx.send(ServerMessage::Error {
-                message: format!("ReAct stopped: {:?}", reason),
-            }).await;
+            let _ = tx
+                .send(ServerMessage::Error {
+                    message: format!("ReAct stopped: {:?}", reason),
+                })
+                .await;
         }
     }
 }
@@ -356,18 +395,26 @@ async fn run_chat_session(
         let words: Vec<&str> = response.split_whitespace().collect();
         for word in &words {
             if cancelled.load(Ordering::Relaxed) {
-                let _ = tx.send(ServerMessage::Error { message: "Cancelled".into() }).await;
+                let _ = tx
+                    .send(ServerMessage::Error {
+                        message: "Cancelled".into(),
+                    })
+                    .await;
                 return;
             }
-            let _ = tx.send(ServerMessage::Token {
-                content: format!("{} ", word),
-            }).await;
+            let _ = tx
+                .send(ServerMessage::Token {
+                    content: format!("{} ", word),
+                })
+                .await;
             tokio::time::sleep(tokio::time::Duration::from_millis(30)).await;
         }
-        let _ = tx.send(ServerMessage::Done {
-            content: response,
-            steps: 0,
-        }).await;
+        let _ = tx
+            .send(ServerMessage::Done {
+                content: response,
+                steps: 0,
+            })
+            .await;
         return;
     }
 
@@ -393,7 +440,9 @@ mod tests {
 
     #[test]
     fn test_server_message_serialization() {
-        let msg = ServerMessage::Token { content: "hello".into() };
+        let msg = ServerMessage::Token {
+            content: "hello".into(),
+        };
         let json = msg.to_json();
         assert!(json.contains("\"type\":\"token\""));
         assert!(json.contains("\"content\":\"hello\""));
@@ -401,7 +450,10 @@ mod tests {
 
     #[test]
     fn test_done_message_serialization() {
-        let msg = ServerMessage::Done { content: "result".into(), steps: 3 };
+        let msg = ServerMessage::Done {
+            content: "result".into(),
+            steps: 3,
+        };
         let json = msg.to_json();
         assert!(json.contains("\"type\":\"done\""));
         assert!(json.contains("\"steps\":3"));
@@ -409,7 +461,9 @@ mod tests {
 
     #[test]
     fn test_error_message_serialization() {
-        let msg = ServerMessage::Error { message: "oops".into() };
+        let msg = ServerMessage::Error {
+            message: "oops".into(),
+        };
         let json = msg.to_json();
         assert!(json.contains("\"type\":\"error\""));
     }
@@ -419,7 +473,12 @@ mod tests {
         let json = r#"{"type":"start","message":"hello","mode":"chat","max_steps":5}"#;
         let msg: ClientMessage = serde_json::from_str(json).unwrap();
         match msg {
-            ClientMessage::Start { message, mode, max_steps, .. } => {
+            ClientMessage::Start {
+                message,
+                mode,
+                max_steps,
+                ..
+            } => {
                 assert_eq!(message, "hello");
                 assert_eq!(mode, "chat");
                 assert_eq!(max_steps, 5);

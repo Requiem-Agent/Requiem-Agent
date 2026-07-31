@@ -2,14 +2,15 @@
 
 use axum::{
     http::StatusCode,
-    Json,
     routing::{get, post},
-    Router,
+    Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::agent::identity_shield::{IdentityShieldV3, ShieldStats, KnowledgeCutoffDetector, CutoffCheckResult};
+use crate::agent::identity_shield::{
+    CutoffCheckResult, IdentityShieldV3, KnowledgeCutoffDetector, ShieldStats,
+};
 use crate::db::AppState;
 
 /// طلب فحص الهوية

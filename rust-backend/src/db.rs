@@ -39,7 +39,9 @@ impl AppState {
                 Ok(db) => match db.connect() {
                     Ok(c) => Arc::new(c),
                     Err(e) => {
-                        tracing::warn!("TURSO_POPCORN connect failed ({e}) — falling back to local conn");
+                        tracing::warn!(
+                            "TURSO_POPCORN connect failed ({e}) — falling back to local conn"
+                        );
                         Arc::new(conn.clone())
                     }
                 },
@@ -81,7 +83,9 @@ impl AppState {
     }
 
     pub async fn init_schema(&self) -> Result<()> {
-        self.conn.execute_batch("
+        self.conn
+            .execute_batch(
+                "
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
                 popcorn_client_id TEXT UNIQUE,
@@ -210,7 +214,9 @@ impl AppState {
             );
             CREATE INDEX IF NOT EXISTS idx_session_summaries_user
                 ON session_summaries(user_id);
-        ").await?;
+        ",
+            )
+            .await?;
         Ok(())
     }
 }
@@ -247,8 +253,12 @@ impl crate::routes::ws_agent::HasWsConfig for AppState {
 impl HasPreferencesDb for AppState {
     /// جلب تفضيلات المستخدم من قاعدة البيانات.
     /// إذا لم يكن للمستخدم سجل بعد، يُعيد القيم الافتراضية.
-    async fn get_preferences(&self, user_id: &str) -> Result<UserPreferences, crate::error::AppError> {
-        let mut rows = self.conn
+    async fn get_preferences(
+        &self,
+        user_id: &str,
+    ) -> Result<UserPreferences, crate::error::AppError> {
+        let mut rows = self
+            .conn
             .query(
                 "SELECT theme, language, compact_mode, show_timestamps, enable_animations,
                         default_model, default_mode, max_tokens, temperature, system_prompt,
@@ -263,7 +273,11 @@ impl HasPreferencesDb for AppState {
             .await
             .map_err(|e| crate::error::AppError::Database(e.to_string()))?;
 
-        if let Some(row) = rows.next().await.map_err(|e| crate::error::AppError::Database(e.to_string()))? {
+        if let Some(row) = rows
+            .next()
+            .await
+            .map_err(|e| crate::error::AppError::Database(e.to_string()))?
+        {
             // بناء UserPreferences من الصف
             let prefs = UserPreferences {
                 theme: row.get::<String>(0).unwrap_or_else(|_| "dark".to_string()),
@@ -271,13 +285,19 @@ impl HasPreferencesDb for AppState {
                 compact_mode: row.get::<bool>(2).unwrap_or(false),
                 show_timestamps: row.get::<bool>(3).unwrap_or(true),
                 enable_animations: row.get::<bool>(4).unwrap_or(true),
-                default_model: row.get::<String>(5).unwrap_or_else(|_| "claude-3-5-sonnet-20241022".to_string()),
+                default_model: row
+                    .get::<String>(5)
+                    .unwrap_or_else(|_| "claude-3-5-sonnet-20241022".to_string()),
                 default_mode: row.get::<String>(6).unwrap_or_else(|_| "chat".to_string()),
                 max_tokens: row.get::<i64>(7).unwrap_or(4096) as i32,
                 temperature: row.get::<f64>(8).unwrap_or(0.7),
                 system_prompt: {
                     let s = row.get::<String>(9).unwrap_or_default();
-                    if s.is_empty() { None } else { Some(s) }
+                    if s.is_empty() {
+                        None
+                    } else {
+                        Some(s)
+                    }
                 },
                 stream_responses: row.get::<bool>(10).unwrap_or(true),
                 show_thinking: row.get::<bool>(11).unwrap_or(false),
@@ -348,14 +368,23 @@ impl AppState {
              )",
             libsql::params![
                 user_id,
-                prefs.theme.as_str(), prefs.language.as_str(),
-                prefs.compact_mode, prefs.show_timestamps, prefs.enable_animations,
-                prefs.default_model.as_str(), prefs.default_mode.as_str(),
-                prefs.max_tokens as i64, prefs.temperature,
+                prefs.theme.as_str(),
+                prefs.language.as_str(),
+                prefs.compact_mode,
+                prefs.show_timestamps,
+                prefs.enable_animations,
+                prefs.default_model.as_str(),
+                prefs.default_mode.as_str(),
+                prefs.max_tokens as i64,
+                prefs.temperature,
                 prefs.system_prompt.as_deref().unwrap_or(""),
-                prefs.stream_responses, prefs.show_thinking,
-                prefs.notify_on_complete, prefs.notify_on_error, prefs.notify_on_mention,
-                prefs.save_history, prefs.share_analytics,
+                prefs.stream_responses,
+                prefs.show_thinking,
+                prefs.notify_on_complete,
+                prefs.notify_on_error,
+                prefs.notify_on_mention,
+                prefs.save_history,
+                prefs.share_analytics,
                 now.as_str(),
             ],
         )
@@ -440,8 +469,12 @@ impl AppState {
 #[async_trait::async_trait]
 impl HasApiKeysDb for AppState {
     /// جلب جميع مفاتيح API للمستخدم (مشفّرة — لا تُعاد plaintext)
-    async fn list_api_keys(&self, user_id: &str) -> Result<Vec<StoredApiKey>, crate::error::AppError> {
-        let mut rows = self.conn
+    async fn list_api_keys(
+        &self,
+        user_id: &str,
+    ) -> Result<Vec<StoredApiKey>, crate::error::AppError> {
+        let mut rows = self
+            .conn
             .query(
                 "SELECT id, provider, key_hint, encrypted_key, created_at, updated_at
                  FROM user_api_keys
@@ -453,7 +486,11 @@ impl HasApiKeysDb for AppState {
             .map_err(|e| crate::error::AppError::Database(e.to_string()))?;
 
         let mut keys = Vec::new();
-        while let Some(row) = rows.next().await.map_err(|e| crate::error::AppError::Database(e.to_string()))? {
+        while let Some(row) = rows
+            .next()
+            .await
+            .map_err(|e| crate::error::AppError::Database(e.to_string()))?
+        {
             keys.push(StoredApiKey {
                 id: row.get::<String>(0).unwrap_or_default(),
                 provider: row.get::<String>(1).unwrap_or_default(),
@@ -501,7 +538,11 @@ impl HasApiKeysDb for AppState {
     }
 
     /// حذف مفتاح API بالـ id
-    async fn delete_api_key(&self, user_id: &str, key_id: &str) -> Result<(), crate::error::AppError> {
+    async fn delete_api_key(
+        &self,
+        user_id: &str,
+        key_id: &str,
+    ) -> Result<(), crate::error::AppError> {
         self.conn
             .execute(
                 "DELETE FROM user_api_keys WHERE id = ?1 AND user_id = ?2",
@@ -526,7 +567,11 @@ impl HasApiKeysDb for AppState {
             .await
             .map_err(|e| crate::error::AppError::Database(e.to_string()))?;
 
-        if let Some(row) = rows.next().await.map_err(|e| crate::error::AppError::Database(e.to_string()))? {
+        if let Some(row) = rows
+            .next()
+            .await
+            .map_err(|e| crate::error::AppError::Database(e.to_string()))?
+        {
             Ok(Some(row.get::<String>(0).unwrap_or_default()))
         } else {
             Ok(None)

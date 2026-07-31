@@ -24,9 +24,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 pub mod code_tools;
-pub mod search_tools;
-pub mod parser_tools;
 pub mod diff_tools;
+pub mod parser_tools;
+pub mod search_tools;
 pub mod vcs_tools;
 
 // ─── JSON Schema ─────────────────────────────────────────────────────────────
@@ -146,152 +146,189 @@ impl ToolRegistry {
         });
 
         // Web Search
-        tools.insert("web_search".to_string(), ToolDefinition {
-            name: "web_search".into(),
-            description: "بحث في الإنترنت باستخدام Tavily API. للحصول على معلومات حديثة.".into(),
-            parameters: JsonSchema {
-                schema_type: "object".into(),
-                properties: Some(HashMap::from([
-                    ("query".into(), SchemaProperty {
-                        prop_type: "string".into(),
-                        description: Some("استعلام البحث".into()),
-                        enum_values: None,
-                        default: None,
-                        required: Some(true),
-                    }),
-                    ("max_results".into(), SchemaProperty {
-                        prop_type: "integer".into(),
-                        description: Some("عدد النتائج (1-10)".into()),
-                        enum_values: None,
-                        default: Some(serde_json::json!(5)),
-                        required: Some(false),
-                    }),
-                ])),
-                required: Some(vec!["query".into()]),
-                description: Some("البحث في الإنترنت".to_string()),
+        tools.insert(
+            "web_search".to_string(),
+            ToolDefinition {
+                name: "web_search".into(),
+                description: "بحث في الإنترنت باستخدام Tavily API. للحصول على معلومات حديثة.".into(),
+                parameters: JsonSchema {
+                    schema_type: "object".into(),
+                    properties: Some(HashMap::from([
+                        (
+                            "query".into(),
+                            SchemaProperty {
+                                prop_type: "string".into(),
+                                description: Some("استعلام البحث".into()),
+                                enum_values: None,
+                                default: None,
+                                required: Some(true),
+                            },
+                        ),
+                        (
+                            "max_results".into(),
+                            SchemaProperty {
+                                prop_type: "integer".into(),
+                                description: Some("عدد النتائج (1-10)".into()),
+                                enum_values: None,
+                                default: Some(serde_json::json!(5)),
+                                required: Some(false),
+                            },
+                        ),
+                    ])),
+                    required: Some(vec!["query".into()]),
+                    description: Some("البحث في الإنترنت".to_string()),
+                },
+                returns: JsonSchema {
+                    schema_type: "array".into(),
+                    properties: None,
+                    required: None,
+                    description: Some("قائمة النتائج: [{ title, url, content }]".to_string()),
+                },
+                strictness: Strictness::Strict,
             },
-            returns: JsonSchema {
-                schema_type: "array".into(),
-                properties: None,
-                required: None,
-                description: Some("قائمة النتائج: [{ title, url, content }]".to_string()),
-            },
-            strictness: Strictness::Strict,
-        });
+        );
 
         // Web Scrape
-        tools.insert("web_scrape".to_string(), ToolDefinition {
-            name: "web_scrape".into(),
-            description: "جلب محتوى صفحة ويب. يستخدم proxy المستخدم للطلبات.".into(),
-            parameters: JsonSchema {
-                schema_type: "object".into(),
-                properties: Some(HashMap::from([
-                    ("url".into(), SchemaProperty {
-                        prop_type: "string".into(),
-                        description: Some("رابط الصفحة".into()),
-                        enum_values: None,
-                        default: None,
-                        required: Some(true),
-                    }),
-                ])),
-                required: Some(vec!["url".into()]),
-                description: Some("جلب محتوى صفحة ويب".to_string()),
+        tools.insert(
+            "web_scrape".to_string(),
+            ToolDefinition {
+                name: "web_scrape".into(),
+                description: "جلب محتوى صفحة ويب. يستخدم proxy المستخدم للطلبات.".into(),
+                parameters: JsonSchema {
+                    schema_type: "object".into(),
+                    properties: Some(HashMap::from([(
+                        "url".into(),
+                        SchemaProperty {
+                            prop_type: "string".into(),
+                            description: Some("رابط الصفحة".into()),
+                            enum_values: None,
+                            default: None,
+                            required: Some(true),
+                        },
+                    )])),
+                    required: Some(vec!["url".into()]),
+                    description: Some("جلب محتوى صفحة ويب".to_string()),
+                },
+                returns: JsonSchema {
+                    schema_type: "object".into(),
+                    properties: None,
+                    required: None,
+                    description: Some("{ url, title, content, status }".to_string()),
+                },
+                strictness: Strictness::Normal,
             },
-            returns: JsonSchema {
-                schema_type: "object".into(),
-                properties: None,
-                required: None,
-                description: Some("{ url, title, content, status }".to_string()),
-            },
-            strictness: Strictness::Normal,
-        });
+        );
 
         // Shell
-        tools.insert("shell".to_string(), ToolDefinition {
-            name: "shell".into(),
-            description: "تنفيذ أوامر shell في بيئة المستخدم المعزولة.".into(),
-            parameters: JsonSchema {
-                schema_type: "object".into(),
-                properties: Some(HashMap::from([
-                    ("command".into(), SchemaProperty {
-                        prop_type: "string".into(),
-                        description: Some("الأمر المراد تنفيذه".into()),
-                        enum_values: None,
-                        default: None,
-                        required: Some(true),
-                    }),
-                    ("timeout".into(), SchemaProperty {
-                        prop_type: "integer".into(),
-                        description: Some("مهلة التنفيذ بالثواني".into()),
-                        enum_values: None,
-                        default: Some(serde_json::json!(30)),
-                        required: Some(false),
-                    }),
-                ])),
-                required: Some(vec!["command".into()]),
-                description: Some("تنفيذ أوامر shell".to_string()),
+        tools.insert(
+            "shell".to_string(),
+            ToolDefinition {
+                name: "shell".into(),
+                description: "تنفيذ أوامر shell في بيئة المستخدم المعزولة.".into(),
+                parameters: JsonSchema {
+                    schema_type: "object".into(),
+                    properties: Some(HashMap::from([
+                        (
+                            "command".into(),
+                            SchemaProperty {
+                                prop_type: "string".into(),
+                                description: Some("الأمر المراد تنفيذه".into()),
+                                enum_values: None,
+                                default: None,
+                                required: Some(true),
+                            },
+                        ),
+                        (
+                            "timeout".into(),
+                            SchemaProperty {
+                                prop_type: "integer".into(),
+                                description: Some("مهلة التنفيذ بالثواني".into()),
+                                enum_values: None,
+                                default: Some(serde_json::json!(30)),
+                                required: Some(false),
+                            },
+                        ),
+                    ])),
+                    required: Some(vec!["command".into()]),
+                    description: Some("تنفيذ أوامر shell".to_string()),
+                },
+                returns: JsonSchema {
+                    schema_type: "object".into(),
+                    properties: None,
+                    required: None,
+                    description: Some("{ stdout, stderr, exit_code }".to_string()),
+                },
+                strictness: Strictness::Critical, // خطير — فحص أمني إضافي
             },
-            returns: JsonSchema {
-                schema_type: "object".into(),
-                properties: None,
-                required: None,
-                description: Some("{ stdout, stderr, exit_code }".to_string()),
-            },
-            strictness: Strictness::Critical, // خطير — فحص أمني إضافي
-        });
+        );
 
         // File Tree
-        tools.insert("file_tree".to_string(), ToolDefinition {
-            name: "file_tree".into(),
-            description: "عرض هيكل المجلدات والملفات في مشروع المستخدم.".into(),
-            parameters: JsonSchema {
-                schema_type: "object".into(),
-                properties: Some(HashMap::from([
-                    ("path".into(), SchemaProperty {
-                        prop_type: "string".into(),
-                        description: Some("المسار (اختياري — الافتراضي هو الجذر)".into()),
-                        enum_values: None,
-                        default: Some(serde_json::json!("")),
-                        required: Some(false),
-                    }),
-                    ("depth".into(), SchemaProperty {
-                        prop_type: "integer".into(),
-                        description: Some("عمق العرض (1-5)".into()),
-                        enum_values: None,
-                        default: Some(serde_json::json!(3)),
-                        required: Some(false),
-                    }),
-                ])),
-                required: Some(vec![]),
-                description: Some("عرض هيكل المشروع".to_string()),
+        tools.insert(
+            "file_tree".to_string(),
+            ToolDefinition {
+                name: "file_tree".into(),
+                description: "عرض هيكل المجلدات والملفات في مشروع المستخدم.".into(),
+                parameters: JsonSchema {
+                    schema_type: "object".into(),
+                    properties: Some(HashMap::from([
+                        (
+                            "path".into(),
+                            SchemaProperty {
+                                prop_type: "string".into(),
+                                description: Some("المسار (اختياري — الافتراضي هو الجذر)".into()),
+                                enum_values: None,
+                                default: Some(serde_json::json!("")),
+                                required: Some(false),
+                            },
+                        ),
+                        (
+                            "depth".into(),
+                            SchemaProperty {
+                                prop_type: "integer".into(),
+                                description: Some("عمق العرض (1-5)".into()),
+                                enum_values: None,
+                                default: Some(serde_json::json!(3)),
+                                required: Some(false),
+                            },
+                        ),
+                    ])),
+                    required: Some(vec![]),
+                    description: Some("عرض هيكل المشروع".to_string()),
+                },
+                returns: JsonSchema {
+                    schema_type: "array".into(),
+                    properties: None,
+                    required: None,
+                    description: Some("قائمة الملفات والمجلدات مع الأحجام".to_string()),
+                },
+                strictness: Strictness::Normal,
             },
-            returns: JsonSchema {
-                schema_type: "array".into(),
-                properties: None,
-                required: None,
-                description: Some("قائمة الملفات والمجلدات مع الأحجام".to_string()),
-            },
-            strictness: Strictness::Normal,
-        });
+        );
 
         // Project Analyze
-        tools.insert("project_analyze".to_string(), ToolDefinition {
-            name: "project_analyze".into(),
-            description: "تحليل هيكل المشروع بالكامل — اللغات، الملفات الرئيسية، الإحصائيات.".into(),
-            parameters: JsonSchema {
-                schema_type: "object".into(),
-                properties: Some(HashMap::new()),
-                required: Some(vec![]),
-                description: Some("لا معاملات مطلوبة".to_string()),
+        tools.insert(
+            "project_analyze".to_string(),
+            ToolDefinition {
+                name: "project_analyze".into(),
+                description: "تحليل هيكل المشروع بالكامل — اللغات، الملفات الرئيسية، الإحصائيات."
+                    .into(),
+                parameters: JsonSchema {
+                    schema_type: "object".into(),
+                    properties: Some(HashMap::new()),
+                    required: Some(vec![]),
+                    description: Some("لا معاملات مطلوبة".to_string()),
+                },
+                returns: JsonSchema {
+                    schema_type: "object".into(),
+                    properties: None,
+                    required: None,
+                    description: Some(
+                        "{ files, file_count, language_summary, main_files }".to_string(),
+                    ),
+                },
+                strictness: Strictness::Normal,
             },
-            returns: JsonSchema {
-                schema_type: "object".into(),
-                properties: None,
-                required: None,
-                description: Some("{ files, file_count, language_summary, main_files }".to_string()),
-            },
-            strictness: Strictness::Normal,
-        });
+        );
 
         // Model Switch
         tools.insert("model_switch".to_string(), ToolDefinition {
@@ -353,8 +390,14 @@ impl ToolRegistry {
     }
 
     /// التحقق من صحة معاملات الأداة ضد JSON Schema
-    pub fn validate_params(&self, tool_name: &str, params: &serde_json::Value) -> Result<(), String> {
-        let tool = self.tools.get(tool_name)
+    pub fn validate_params(
+        &self,
+        tool_name: &str,
+        params: &serde_json::Value,
+    ) -> Result<(), String> {
+        let tool = self
+            .tools
+            .get(tool_name)
             .ok_or_else(|| format!("Tool '{tool_name}' not found"))?;
 
         let schema = &tool.parameters;
@@ -363,7 +406,9 @@ impl ToolRegistry {
         if let Some(required) = &schema.required {
             for field in required {
                 if params.get(field).is_none() && !field.is_empty() {
-                    return Err(format!("Missing required parameter: '{field}' for tool '{tool_name}'"));
+                    return Err(format!(
+                        "Missing required parameter: '{field}' for tool '{tool_name}'"
+                    ));
                 }
             }
         }
@@ -407,20 +452,23 @@ impl ToolRegistry {
 
     /// تحويل السجل إلى JSON Schema قائمة (لـ OpenAI/Anthropic tool format)
     pub fn to_openai_format(&self) -> Vec<serde_json::Value> {
-        self.tools.values().map(|tool| {
-            serde_json::json!({
-                "type": "function",
-                "function": {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "parameters": {
-                        "type": tool.parameters.schema_type,
-                        "properties": tool.parameters.properties,
-                        "required": tool.parameters.required,
+        self.tools
+            .values()
+            .map(|tool| {
+                serde_json::json!({
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": {
+                            "type": tool.parameters.schema_type,
+                            "properties": tool.parameters.properties,
+                            "required": tool.parameters.required,
+                        }
                     }
-                }
+                })
             })
-        }).collect()
+            .collect()
     }
 }
 

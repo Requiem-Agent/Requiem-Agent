@@ -170,7 +170,10 @@ mod tests {
 
     #[test]
     fn test_migrations_list_not_empty() {
-        assert!(!MIGRATIONS.is_empty(), "يجب أن تكون قائمة الـ migrations غير فارغة");
+        assert!(
+            !MIGRATIONS.is_empty(),
+            "يجب أن تكون قائمة الـ migrations غير فارغة"
+        );
     }
 
     #[test]
@@ -179,7 +182,10 @@ mod tests {
         let names: Vec<&str> = MIGRATIONS.iter().map(|(n, _)| *n).collect();
         let mut sorted = names.clone();
         sorted.sort();
-        assert_eq!(names, sorted, "الـ migrations يجب أن تكون مرتَّبة أبجدياً/رقمياً");
+        assert_eq!(
+            names, sorted,
+            "الـ migrations يجب أن تكون مرتَّبة أبجدياً/رقمياً"
+        );
     }
 
     #[test]
@@ -193,6 +199,10 @@ mod tests {
     fn test_migrations_unique_names() {
         let names: Vec<&str> = MIGRATIONS.iter().map(|(n, _)| *n).collect();
         let unique: std::collections::HashSet<&str> = names.iter().copied().collect();
-        assert_eq!(names.len(), unique.len(), "أسماء الـ migrations يجب أن تكون فريدة");
+        assert_eq!(
+            names.len(),
+            unique.len(),
+            "أسماء الـ migrations يجب أن تكون فريدة"
+        );
     }
 }

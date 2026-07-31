@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, info};
 
-use super::{MemoryEntry, MemoryType, MemoryPriority};
+use super::{MemoryEntry, MemoryPriority, MemoryType};
 
 /// متجه واحد مع بياناته
 #[derive(Debug, Clone)]
@@ -50,7 +50,10 @@ pub struct VectorStore {
 impl VectorStore {
     /// إنشاء مخزن متجهات جديد
     pub fn new(dimension: usize, max_vectors_per_user: usize) -> Arc<Self> {
-        info!("VectorStore initialized: dimension={}, max_per_user={}", dimension, max_vectors_per_user);
+        info!(
+            "VectorStore initialized: dimension={}, max_per_user={}",
+            dimension, max_vectors_per_user
+        );
         Arc::new(Self {
             vectors: RwLock::new(HashMap::new()),
             dimension,
@@ -59,11 +62,7 @@ impl VectorStore {
     }
 
     /// إضافة متجه جديد
-    pub async fn insert(
-        &self,
-        user_id: &str,
-        entry: VectorEntry,
-    ) -> Result<(), VectorStoreError> {
+    pub async fn insert(&self, user_id: &str, entry: VectorEntry) -> Result<(), VectorStoreError> {
         if entry.vector.len() != self.dimension {
             return Err(VectorStoreError::DimensionMismatch {
                 expected: self.dimension,
@@ -124,10 +123,18 @@ impl VectorStore {
             .collect();
 
         // ترتيب حسب النتيجة (الأعلى أولاً)
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(top_k);
 
-        debug!("Search returned {} results for user={}", results.len(), user_id);
+        debug!(
+            "Search returned {} results for user={}",
+            results.len(),
+            user_id
+        );
         Ok(results)
     }
 
@@ -217,7 +224,10 @@ mod tests {
 
         store.insert("user1", entry).await.unwrap();
 
-        let results = store.search("user1", &[1.0, 0.0, 0.0, 0.0], 10, 0.5).await.unwrap();
+        let results = store
+            .search("user1", &[1.0, 0.0, 0.0, 0.0], 10, 0.5)
+            .await
+            .unwrap();
         assert_eq!(results.len(), 1);
         assert!(results[0].score > 0.9);
     }

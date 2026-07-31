@@ -16,9 +16,9 @@ use std::sync::Arc;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::AppState;
-use crate::storage::workspace as ws_store;
 use super::UserId;
+use crate::storage::workspace as ws_store;
+use crate::AppState;
 
 // ─── Request / Response Types ─────────────────────────────────────────────────
 
@@ -68,9 +68,7 @@ pub async fn list_workspaces(
     State(_state): State<Arc<AppState>>,
     Extension(UserId(user_id)): Extension<UserId>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    let workspaces = ws_store::workspace_list(&user_id)
-        .await
-        .map_err(internal)?;
+    let workspaces = ws_store::workspace_list(&user_id).await.map_err(internal)?;
     Ok(Json(json!({ "workspaces": workspaces })))
 }
 
@@ -238,7 +236,9 @@ pub async fn clone_repo(
     let allowed_schemes = ["https://", "http://", "git@", "git://", "ssh://"];
     let looks_ok = allowed_schemes.iter().any(|s| url.starts_with(s));
     if !looks_ok {
-        return Err(bad_req("url must start with https://, http://, git@, git://, or ssh://"));
+        return Err(bad_req(
+            "url must start with https://, http://, git@, git://, or ssh://",
+        ));
     }
 
     // Workspace must already exist (meta.json present)

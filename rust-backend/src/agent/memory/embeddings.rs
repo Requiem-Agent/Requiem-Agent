@@ -24,43 +24,62 @@ pub enum EmbeddingAlgorithm {
 // ── Arabic + English stop words ────────────────────────────────────────────
 fn arabic_stopwords() -> HashSet<&'static str> {
     [
-        "من", "في", "على", "إلى", "عن", "مع", "هذا", "هذه", "ذلك", "تلك",
-        "التي", "الذي", "هو", "هي", "نحن", "أنت", "أنا", "كان", "كانت",
-        "يكون", "لكن", "أو", "و", "ثم", "قد", "لا", "ما", "هل", "أن",
-        "إن", "عند", "بعد", "قبل", "حتى", "كل", "كيف", "لم",
-    ].iter().cloned().collect()
+        "من", "في", "على", "إلى", "عن", "مع", "هذا", "هذه", "ذلك", "تلك", "التي", "الذي", "هو",
+        "هي", "نحن", "أنت", "أنا", "كان", "كانت", "يكون", "لكن", "أو", "و", "ثم", "قد", "لا", "ما",
+        "هل", "أن", "إن", "عند", "بعد", "قبل", "حتى", "كل", "كيف", "لم",
+    ]
+    .iter()
+    .cloned()
+    .collect()
 }
 
 fn english_stopwords() -> HashSet<&'static str> {
     [
-        "the", "a", "an", "is", "it", "in", "on", "at", "to", "of", "for",
-        "and", "or", "but", "not", "with", "this", "that", "are", "was",
-        "be", "been", "have", "has", "do", "does", "i", "you", "we", "he",
-        "she", "they", "my", "your", "our", "its",
-    ].iter().cloned().collect()
+        "the", "a", "an", "is", "it", "in", "on", "at", "to", "of", "for", "and", "or", "but",
+        "not", "with", "this", "that", "are", "was", "be", "been", "have", "has", "do", "does",
+        "i", "you", "we", "he", "she", "they", "my", "your", "our", "its",
+    ]
+    .iter()
+    .cloned()
+    .collect()
 }
 
 // ── Code keywords with weights ─────────────────────────────────────────────
 fn code_keywords() -> HashMap<&'static str, f32> {
     let mut m = HashMap::new();
     // Rust
-    for kw in &["fn", "pub", "struct", "impl", "trait", "enum", "crate", "mod"] {
+    for kw in &[
+        "fn", "pub", "struct", "impl", "trait", "enum", "crate", "mod",
+    ] {
         m.insert(*kw, 0.9f32);
     }
     // TypeScript/JS
-    for kw in &["function", "interface", "export", "extends", "promise", "typeof"] {
+    for kw in &[
+        "function",
+        "interface",
+        "export",
+        "extends",
+        "promise",
+        "typeof",
+    ] {
         m.insert(*kw, 0.85f32);
     }
     // Shared keywords
-    for kw in &["async", "await", "return", "class", "import", "type", "let", "const"] {
+    for kw in &[
+        "async", "await", "return", "class", "import", "type", "let", "const",
+    ] {
         m.insert(*kw, 0.75f32);
     }
     // SQL
-    for kw in &["select", "where", "insert", "update", "delete", "create", "table"] {
+    for kw in &[
+        "select", "where", "insert", "update", "delete", "create", "table",
+    ] {
         m.insert(*kw, 0.85f32);
     }
     // Domain
-    for kw in &["error", "debug", "test", "memory", "session", "user", "api", "auth"] {
+    for kw in &[
+        "error", "debug", "test", "memory", "session", "user", "api", "auth",
+    ] {
         m.insert(*kw, 0.8f32);
     }
     m
@@ -112,7 +131,9 @@ fn tokenize(text: &str) -> Vec<String> {
 // ── L2 normalise ───────────────────────────────────────────────────────────
 fn l2_normalize(v: &mut Vec<f32>) {
     let norm: f32 = v.iter().map(|x| x * x).sum::<f32>().sqrt();
-    if norm > 1e-9 { v.iter_mut().for_each(|x| *x /= norm); }
+    if norm > 1e-9 {
+        v.iter_mut().for_each(|x| *x /= norm);
+    }
 }
 
 // ── Main embedding ─────────────────────────────────────────────────────────
@@ -124,7 +145,9 @@ pub fn generate_embedding(text: &str) -> Vec<f32> {
 
     // Layer 1 (0..64): TF-IDF token hashing
     let mut freq: HashMap<String, f32> = HashMap::new();
-    for t in &tokens { *freq.entry(t.clone()).or_insert(0.0) += 1.0; }
+    for t in &tokens {
+        *freq.entry(t.clone()).or_insert(0.0) += 1.0;
+    }
     for (tok, cnt) in &freq {
         let tf = cnt / total;
         let idf_proxy = 1.0 + (1.0 + tok.len() as f32 * 0.3).ln();
@@ -154,10 +177,14 @@ pub fn generate_embedding(text: &str) -> Vec<f32> {
 
     // Layer 4 (192..256): Structural features
     let code_blocks = text.matches("```").count() / 2;
-    let arabic_chars = text.chars().filter(|c| ('\u{0600}'..='\u{06FF}').contains(c)).count();
+    let arabic_chars = text
+        .chars()
+        .filter(|c| ('\u{0600}'..='\u{06FF}').contains(c))
+        .count();
     let total_chars = text.len().max(1);
     let url_count = text.matches("http").count();
-    let number_count = text.split_whitespace()
+    let number_count = text
+        .split_whitespace()
         .filter(|w| w.chars().all(|c| c.is_ascii_digit() || c == '.'))
         .count();
 
@@ -175,27 +202,37 @@ pub fn generate_embedding(text: &str) -> Vec<f32> {
     }
 
     l2_normalize(&mut emb);
-    debug!("Generated {}-dim embedding for {} chars", EMBEDDING_DIM, text.len());
+    debug!(
+        "Generated {}-dim embedding for {} chars",
+        EMBEDDING_DIM,
+        text.len()
+    );
     emb
 }
 
 // ── Cosine similarity ──────────────────────────────────────────────────────
 pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
-    if a.len() != b.len() || a.is_empty() { return 0.0; }
+    if a.len() != b.len() || a.is_empty() {
+        return 0.0;
+    }
     let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
     let na: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
     let nb: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
-    if na < 1e-9 || nb < 1e-9 { 0.0 } else { dot / (na * nb) }
+    if na < 1e-9 || nb < 1e-9 {
+        0.0
+    } else {
+        dot / (na * nb)
+    }
 }
 
 // ── Priority weight ────────────────────────────────────────────────────────
 pub fn priority_weight(priority: &str) -> f32 {
     match priority {
         "critical" => 2.0,
-        "high"     => 1.5,
-        "medium"   => 1.0,
-        "low"      => 0.5,
-        _          => 1.0,
+        "high" => 1.5,
+        "medium" => 1.0,
+        "low" => 0.5,
+        _ => 1.0,
     }
 }
 
@@ -203,11 +240,17 @@ pub fn priority_weight(priority: &str) -> f32 {
 pub fn recency_weight_from_iso(created_at: &str) -> f32 {
     // Parse ISO 8601 and compute age in days
     if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(created_at) {
-        let age_days = (chrono::Utc::now() - dt.with_timezone(&chrono::Utc))
-            .num_seconds() as f32 / 86400.0;
-        if age_days < 1.0  { return 1.2; }
-        if age_days < 7.0  { return 1.0; }
-        if age_days < 30.0 { return 0.8; }
+        let age_days =
+            (chrono::Utc::now() - dt.with_timezone(&chrono::Utc)).num_seconds() as f32 / 86400.0;
+        if age_days < 1.0 {
+            return 1.2;
+        }
+        if age_days < 7.0 {
+            return 1.0;
+        }
+        if age_days < 30.0 {
+            return 0.8;
+        }
         return 0.6;
     }
     1.0
@@ -224,7 +267,13 @@ pub struct EmbeddingGenerator {
 
 impl EmbeddingGenerator {
     pub fn new(algorithm: EmbeddingAlgorithm, dimension: usize) -> Self {
-        Self { algorithm, dimension, vocabulary: HashMap::new(), word_counts: HashMap::new(), total_documents: 0 }
+        Self {
+            algorithm,
+            dimension,
+            vocabulary: HashMap::new(),
+            word_counts: HashMap::new(),
+            total_documents: 0,
+        }
     }
 
     pub fn embed(&mut self, text: &str) -> Vec<f32> {
@@ -242,19 +291,27 @@ pub fn normalize_vector(v: &mut Vec<f32>) {
 }
 
 pub fn merge_embeddings(embeddings: &[Vec<f32>], weights: &[f32]) -> Vec<f32> {
-    if embeddings.is_empty() { return Vec::new(); }
+    if embeddings.is_empty() {
+        return Vec::new();
+    }
     let dim = embeddings[0].len();
     let mut result = vec![0.0f32; dim];
     let total_w: f32 = weights.iter().sum();
-    if total_w < 1e-9 { return result; }
+    if total_w < 1e-9 {
+        return result;
+    }
     for (emb, w) in embeddings.iter().zip(weights.iter()) {
-        for (i, v) in emb.iter().enumerate() { result[i] += v * w / total_w; }
+        for (i, v) in emb.iter().enumerate() {
+            result[i] += v * w / total_w;
+        }
     }
     l2_normalize(&mut result);
     result
 }
 
-pub fn tokenize_pub(text: &str) -> Vec<String> { tokenize(text) }
+pub fn tokenize_pub(text: &str) -> Vec<String> {
+    tokenize(text)
+}
 
 #[cfg(test)]
 mod tests {

@@ -11,8 +11,8 @@
 //! - `requiem_active_connections`    — الاتصالات النشطة (gauge)
 
 use prometheus::{
-    Counter, CounterVec, Gauge, Histogram, HistogramOpts, HistogramVec,
-    IntCounter, IntCounterVec, Opts, Registry,
+    Counter, CounterVec, Gauge, Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec,
+    Opts, Registry,
 };
 use std::sync::OnceLock;
 
@@ -61,12 +61,13 @@ impl AppMetrics {
 
         // ── HTTP Requests ──────────────────────────────────────────────────
         let http_requests_total = IntCounterVec::new(
-            Opts::new("requiem_http_requests_total", "Total HTTP requests")
-                .namespace("requiem"),
+            Opts::new("requiem_http_requests_total", "Total HTTP requests").namespace("requiem"),
             &["method", "path", "status"],
         )
         .expect("metric creation failed");
-        registry.register(Box::new(http_requests_total.clone())).ok();
+        registry
+            .register(Box::new(http_requests_total.clone()))
+            .ok();
 
         // ── HTTP Duration ──────────────────────────────────────────────────
         let http_duration_seconds = HistogramVec::new(
@@ -75,24 +76,30 @@ impl AppMetrics {
                 "HTTP request duration in seconds",
             )
             .namespace("requiem")
-            .buckets(vec![0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0]),
+            .buckets(vec![
+                0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+            ]),
             &["method", "path"],
         )
         .expect("metric creation failed");
-        registry.register(Box::new(http_duration_seconds.clone())).ok();
+        registry
+            .register(Box::new(http_duration_seconds.clone()))
+            .ok();
 
         // ── Agent Steps ────────────────────────────────────────────────────
         let agent_steps_total = IntCounter::with_opts(
-            Opts::new("requiem_agent_steps_total", "Total agent loop steps executed")
-                .namespace("requiem"),
+            Opts::new(
+                "requiem_agent_steps_total",
+                "Total agent loop steps executed",
+            )
+            .namespace("requiem"),
         )
         .expect("metric creation failed");
         registry.register(Box::new(agent_steps_total.clone())).ok();
 
         // ── LLM Calls ─────────────────────────────────────────────────────
         let llm_calls_total = IntCounterVec::new(
-            Opts::new("requiem_llm_calls_total", "Total LLM API calls")
-                .namespace("requiem"),
+            Opts::new("requiem_llm_calls_total", "Total LLM API calls").namespace("requiem"),
             &["model", "success"],
         )
         .expect("metric creation failed");
@@ -100,17 +107,25 @@ impl AppMetrics {
 
         // ── Rate Limit Hits ────────────────────────────────────────────────
         let rate_limit_hits_total = IntCounterVec::new(
-            Opts::new("requiem_rate_limit_hits_total", "Total rate limit rejections")
-                .namespace("requiem"),
+            Opts::new(
+                "requiem_rate_limit_hits_total",
+                "Total rate limit rejections",
+            )
+            .namespace("requiem"),
             &["endpoint"],
         )
         .expect("metric creation failed");
-        registry.register(Box::new(rate_limit_hits_total.clone())).ok();
+        registry
+            .register(Box::new(rate_limit_hits_total.clone()))
+            .ok();
 
         // ── Active Connections ─────────────────────────────────────────────
         let active_connections = Gauge::with_opts(
-            Opts::new("requiem_active_connections", "Current active HTTP connections")
-                .namespace("requiem"),
+            Opts::new(
+                "requiem_active_connections",
+                "Current active HTTP connections",
+            )
+            .namespace("requiem"),
         )
         .expect("metric creation failed");
         registry.register(Box::new(active_connections.clone())).ok();

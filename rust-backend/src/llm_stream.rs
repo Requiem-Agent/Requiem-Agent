@@ -32,8 +32,7 @@ impl Default for LlmStreamConfig {
     fn default() -> Self {
         Self {
             api_key: std::env::var("ANTHROPIC_API_KEY").unwrap_or_default(),
-            model: std::env::var("ANTHROPIC_MODEL")
-                .unwrap_or_else(|_| "claude-sonnet-4-5".into()),
+            model: std::env::var("ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-sonnet-4-5".into()),
             system: None,
             max_tokens: 4096,
             temperature: 0.7,
@@ -65,15 +64,11 @@ enum AnthropicEvent {
         index: usize,
     },
     /// Emitted with final usage stats
-    MessageDelta {
-        usage: Option<MessageUsage>,
-    },
+    MessageDelta { usage: Option<MessageUsage> },
     /// Emitted when the full message is complete
     MessageStop,
     /// Emitted on API-level errors
-    Error {
-        error: AnthropicError,
-    },
+    Error { error: AnthropicError },
     /// Ping keepalive (ignore)
     Ping,
     /// message_start — contains the initial message shell (ignore)
@@ -149,7 +144,11 @@ pub async fn stream_anthropic_to_ws(
     if config.api_key.is_empty() {
         let msg = "ANTHROPIC_API_KEY not configured".to_string();
         error!("{}", msg);
-        let _ = tx.send(ServerMessage::Error { message: msg.clone() }).await;
+        let _ = tx
+            .send(ServerMessage::Error {
+                message: msg.clone(),
+            })
+            .await;
         return Err(msg);
     }
 
@@ -182,7 +181,11 @@ pub async fn stream_anthropic_to_ws(
         let body_text = response.text().await.unwrap_or_default();
         let msg = format!("Anthropic API error {}: {}", status, body_text);
         error!("{}", msg);
-        let _ = tx.send(ServerMessage::Error { message: msg.clone() }).await;
+        let _ = tx
+            .send(ServerMessage::Error {
+                message: msg.clone(),
+            })
+            .await;
         return Err(msg);
     }
 
@@ -197,7 +200,11 @@ pub async fn stream_anthropic_to_ws(
     while let Some(chunk) = stream.next().await {
         // Check cancellation on every chunk
         if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
-            let _ = tx.send(ServerMessage::Error { message: "Cancelled".into() }).await;
+            let _ = tx
+                .send(ServerMessage::Error {
+                    message: "Cancelled".into(),
+                })
+                .await;
             return Ok(output_tokens);
         }
 
@@ -248,7 +255,11 @@ pub async fn stream_anthropic_to_ws(
                         ContentDelta::TextDelta { text } => {
                             full_content.push_str(&text);
                             // Forward token to WebSocket
-                            if tx.send(ServerMessage::Token { content: text }).await.is_err() {
+                            if tx
+                                .send(ServerMessage::Token { content: text })
+                                .await
+                                .is_err()
+                            {
                                 warn!("WS channel closed during streaming");
                                 return Ok(output_tokens);
                             }
@@ -269,17 +280,23 @@ pub async fn stream_anthropic_to_ws(
 
                 AnthropicEvent::MessageStop => {
                     debug!("Anthropic stream complete ({} tokens)", output_tokens);
-                    let _ = tx.send(ServerMessage::Done {
-                        content: full_content.clone(),
-                        steps: 0,
-                    }).await;
+                    let _ = tx
+                        .send(ServerMessage::Done {
+                            content: full_content.clone(),
+                            steps: 0,
+                        })
+                        .await;
                     return Ok(output_tokens);
                 }
 
                 AnthropicEvent::Error { error } => {
                     let msg = format!("Anthropic error [{}]: {}", error.error_type, error.message);
                     error!("{}", msg);
-                    let _ = tx.send(ServerMessage::Error { message: msg.clone() }).await;
+                    let _ = tx
+                        .send(ServerMessage::Error {
+                            message: msg.clone(),
+                        })
+                        .await;
                     return Err(msg);
                 }
 
@@ -294,10 +311,12 @@ pub async fn stream_anthropic_to_ws(
 
     // Stream ended without message_stop (shouldn't happen, but handle gracefully)
     if !full_content.is_empty() {
-        let _ = tx.send(ServerMessage::Done {
-            content: full_content,
-            steps: 0,
-        }).await;
+        let _ = tx
+            .send(ServerMessage::Done {
+                content: full_content,
+                steps: 0,
+            })
+            .await;
     }
 
     Ok(output_tokens)
@@ -365,10 +384,9 @@ where
     D: crate::routes::user_api_keys::HasApiKeysDb + Sync,
 {
     let api_key = resolve_api_key_for_user(db, user_id).await;
-    let model = model_override
-        .unwrap_or_else(|| {
-            std::env::var("ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-sonnet-4-5".into())
-        });
+    let model = model_override.unwrap_or_else(|| {
+        std::env::var("ANTHROPIC_MODEL").unwrap_or_else(|_| "claude-sonnet-4-5".into())
+    });
 
     LlmStreamConfig {
         api_key,
@@ -424,7 +442,9 @@ mod s7_tests {
     #[tokio::test]
     async fn test_resolve_no_key_in_db_falls_back_to_env() {
         std::env::set_var("ANTHROPIC_API_KEY", "env-key-123");
-        let db = MockDb { encrypted_key: None };
+        let db = MockDb {
+            encrypted_key: None,
+        };
         let key = resolve_api_key_for_user(&db, "user-1").await;
         assert_eq!(key, "env-key-123");
     }
@@ -443,7 +463,9 @@ mod s7_tests {
     async fn test_build_config_uses_env_model_when_no_override() {
         std::env::set_var("ANTHROPIC_API_KEY", "test-key");
         std::env::set_var("ANTHROPIC_MODEL", "claude-opus-4-5");
-        let db = MockDb { encrypted_key: None };
+        let db = MockDb {
+            encrypted_key: None,
+        };
         let config = build_config_for_user(&db, "user-3", None, None).await;
         assert_eq!(config.model, "claude-opus-4-5");
         assert_eq!(config.api_key, "test-key");
@@ -452,7 +474,9 @@ mod s7_tests {
     #[tokio::test]
     async fn test_build_config_respects_model_override() {
         std::env::set_var("ANTHROPIC_API_KEY", "test-key");
-        let db = MockDb { encrypted_key: None };
+        let db = MockDb {
+            encrypted_key: None,
+        };
         let config =
             build_config_for_user(&db, "user-4", Some("claude-haiku-3-5".into()), None).await;
         assert_eq!(config.model, "claude-haiku-3-5");
@@ -472,7 +496,10 @@ mod tests {
         let json = r#"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}"#;
         let event: AnthropicEvent = serde_json::from_str(json).unwrap();
         match event {
-            AnthropicEvent::ContentBlockDelta { delta: ContentDelta::TextDelta { text }, .. } => {
+            AnthropicEvent::ContentBlockDelta {
+                delta: ContentDelta::TextDelta { text },
+                ..
+            } => {
                 assert_eq!(text, "Hello");
             }
             _ => panic!("wrong variant"),

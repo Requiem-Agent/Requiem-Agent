@@ -11,31 +11,31 @@
 //! 4. Auto-store memories from the conversation
 //! 5. Strict Locks enforcement on final output
 
+use crate::agent::identity_shield::IdentityShieldV3;
+use crate::agent::memory::rag::RagEngine;
+use crate::agent::tools::workspace::{execute_workspace_tool, workspace_tools_schema};
+use crate::enforce::StrictLocksEngine;
+use crate::routes::AuthUser;
+use crate::storage::workspace as ws;
 use axum::{
     body::Body,
     extract::State,
-    http::{StatusCode, header},
+    http::{header, StatusCode},
     response::{IntoResponse, Response},
     Extension, Json,
 };
-use futures::{StreamExt, future::select_ok as _select_ok};
 use futures::future::FutureExt;
+use futures::{future::select_ok as _select_ok, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tracing::{debug, warn, error, info};
-use crate::routes::AuthUser;
-use crate::agent::tools::workspace::{workspace_tools_schema, execute_workspace_tool};
-use crate::storage::workspace as ws;
-use crate::agent::memory::rag::RagEngine;
-use crate::agent::identity_shield::IdentityShieldV3;
-use crate::enforce::StrictLocksEngine;
+use tracing::{debug, error, info, warn};
 // S3-01: ReAct Loop Engine integration
-use crate::react_loop::{ReActEngine, ToolDefinition, ToolResult, default_requiem_tools};
+use crate::react_loop::{default_requiem_tools, ReActEngine, ToolDefinition, ToolResult};
 // S3-04: Prometheus metrics
-use crate::metrics::{record_agent_step, record_llm_call, record_agent_error};
+use crate::metrics::{record_agent_error, record_agent_step, record_llm_call};
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -61,7 +61,11 @@ fn dedup_map() -> &'static Mutex<HashMap<u64, Instant>> {
 /// Hash (user_id + message) using a fast DJB2-style hash.
 fn request_hash(user_id: &str, message: &str) -> u64 {
     let mut h: u64 = 5381;
-    for b in user_id.bytes().chain(std::iter::once(b'|')).chain(message.bytes()) {
+    for b in user_id
+        .bytes()
+        .chain(std::iter::once(b'|'))
+        .chain(message.bytes())
+    {
         h = h.wrapping_mul(33).wrapping_add(b as u64);
     }
     h
@@ -105,34 +109,60 @@ pub struct ImageAttachment {
 
 #[derive(Deserialize)]
 pub struct AgentChatRequest {
-    pub message:      String,
-    pub session_id:   Option<String>,
+    pub message: String,
+    pub session_id: Option<String>,
     /// If set, workspace filesystem tools are enabled
     pub workspace_id: Option<String>,
-    pub mode:         Option<String>,
-    pub effort:       Option<String>,
-    pub model:        Option<String>,
+    pub mode: Option<String>,
+    pub effort: Option<String>,
+    pub model: Option<String>,
     /// Last N messages from history (for context continuity)
-    pub history:      Option<Vec<Value>>,
+    pub history: Option<Vec<Value>>,
     /// Optional image attachments — forces vision model (mimo-v2.5-free)
-    pub images:       Option<Vec<ImageAttachment>>,
+    pub images: Option<Vec<ImageAttachment>>,
 }
 
 /// SSE event variants streamed to the client.
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum AgentEvent {
-    Thinking   { content: String },
-    ToolUse    { tool: String, input: Value, tool_call_id: String },
-    ToolResult { tool_call_id: String, result: Value },
-    MemoryHit  { count: usize, preview: String },
-    Text       { content: String },
-    Error      { message: String },
-    Done       { usage: Value },
+    Thinking {
+        content: String,
+    },
+    ToolUse {
+        tool: String,
+        input: Value,
+        tool_call_id: String,
+    },
+    ToolResult {
+        tool_call_id: String,
+        result: Value,
+    },
+    MemoryHit {
+        count: usize,
+        preview: String,
+    },
+    Text {
+        content: String,
+    },
+    Error {
+        message: String,
+    },
+    Done {
+        usage: Value,
+    },
     /// Progress bar update (0.0 to 1.0)
-    Progress   { step: usize, total: usize, label: String },
+    Progress {
+        step: usize,
+        total: usize,
+        label: String,
+    },
     /// File was written/modified by the agent
-    FileWritten { path: String, lines: usize, action: String },
+    FileWritten {
+        path: String,
+        lines: usize,
+        action: String,
+    },
 }
 
 impl AgentEvent {
@@ -148,121 +178,121 @@ impl AgentEvent {
 
 const PROXIES: &[(&str, u16, &str, &str)] = &[
     // Account 1
-    ("31.59.20.176",6754,"cchsbntj","8ocnhyz7f53b"),
-    ("31.56.127.193",7684,"cchsbntj","8ocnhyz7f53b"),
-    ("45.38.107.97",6014,"cchsbntj","8ocnhyz7f53b"),
-    ("198.105.121.200",6462,"cchsbntj","8ocnhyz7f53b"),
-    ("64.137.96.74",6641,"cchsbntj","8ocnhyz7f53b"),
-    ("198.23.243.226",6361,"cchsbntj","8ocnhyz7f53b"),
-    ("38.154.185.97",6370,"cchsbntj","8ocnhyz7f53b"),
-    ("84.247.60.125",6095,"cchsbntj","8ocnhyz7f53b"),
-    ("142.111.67.146",5611,"cchsbntj","8ocnhyz7f53b"),
-    ("191.96.254.138",6185,"cchsbntj","8ocnhyz7f53b"),
+    ("31.59.20.176", 6754, "cchsbntj", "8ocnhyz7f53b"),
+    ("31.56.127.193", 7684, "cchsbntj", "8ocnhyz7f53b"),
+    ("45.38.107.97", 6014, "cchsbntj", "8ocnhyz7f53b"),
+    ("198.105.121.200", 6462, "cchsbntj", "8ocnhyz7f53b"),
+    ("64.137.96.74", 6641, "cchsbntj", "8ocnhyz7f53b"),
+    ("198.23.243.226", 6361, "cchsbntj", "8ocnhyz7f53b"),
+    ("38.154.185.97", 6370, "cchsbntj", "8ocnhyz7f53b"),
+    ("84.247.60.125", 6095, "cchsbntj", "8ocnhyz7f53b"),
+    ("142.111.67.146", 5611, "cchsbntj", "8ocnhyz7f53b"),
+    ("191.96.254.138", 6185, "cchsbntj", "8ocnhyz7f53b"),
     // Account 2
-    ("31.59.20.176",6754,"chimgwqf","3693u6fbvvdq"),
-    ("31.56.127.193",7684,"chimgwqf","3693u6fbvvdq"),
-    ("45.38.107.97",6014,"chimgwqf","3693u6fbvvdq"),
-    ("198.105.121.200",6462,"chimgwqf","3693u6fbvvdq"),
-    ("64.137.96.74",6641,"chimgwqf","3693u6fbvvdq"),
-    ("198.23.243.226",6361,"chimgwqf","3693u6fbvvdq"),
-    ("38.154.185.97",6370,"chimgwqf","3693u6fbvvdq"),
-    ("84.247.60.125",6095,"chimgwqf","3693u6fbvvdq"),
-    ("142.111.67.146",5611,"chimgwqf","3693u6fbvvdq"),
-    ("191.96.254.138",6185,"chimgwqf","3693u6fbvvdq"),
+    ("31.59.20.176", 6754, "chimgwqf", "3693u6fbvvdq"),
+    ("31.56.127.193", 7684, "chimgwqf", "3693u6fbvvdq"),
+    ("45.38.107.97", 6014, "chimgwqf", "3693u6fbvvdq"),
+    ("198.105.121.200", 6462, "chimgwqf", "3693u6fbvvdq"),
+    ("64.137.96.74", 6641, "chimgwqf", "3693u6fbvvdq"),
+    ("198.23.243.226", 6361, "chimgwqf", "3693u6fbvvdq"),
+    ("38.154.185.97", 6370, "chimgwqf", "3693u6fbvvdq"),
+    ("84.247.60.125", 6095, "chimgwqf", "3693u6fbvvdq"),
+    ("142.111.67.146", 5611, "chimgwqf", "3693u6fbvvdq"),
+    ("191.96.254.138", 6185, "chimgwqf", "3693u6fbvvdq"),
     // Account 3
-    ("31.59.20.176",6754,"qnotadmv","tk20kqtx2wfs"),
-    ("31.56.127.193",7684,"qnotadmv","tk20kqtx2wfs"),
-    ("45.38.107.97",6014,"qnotadmv","tk20kqtx2wfs"),
-    ("198.105.121.200",6462,"qnotadmv","tk20kqtx2wfs"),
-    ("64.137.96.74",6641,"qnotadmv","tk20kqtx2wfs"),
-    ("198.23.243.226",6361,"qnotadmv","tk20kqtx2wfs"),
-    ("38.154.185.97",6370,"qnotadmv","tk20kqtx2wfs"),
-    ("84.247.60.125",6095,"qnotadmv","tk20kqtx2wfs"),
-    ("142.111.67.146",5611,"qnotadmv","tk20kqtx2wfs"),
-    ("191.96.254.138",6185,"qnotadmv","tk20kqtx2wfs"),
+    ("31.59.20.176", 6754, "qnotadmv", "tk20kqtx2wfs"),
+    ("31.56.127.193", 7684, "qnotadmv", "tk20kqtx2wfs"),
+    ("45.38.107.97", 6014, "qnotadmv", "tk20kqtx2wfs"),
+    ("198.105.121.200", 6462, "qnotadmv", "tk20kqtx2wfs"),
+    ("64.137.96.74", 6641, "qnotadmv", "tk20kqtx2wfs"),
+    ("198.23.243.226", 6361, "qnotadmv", "tk20kqtx2wfs"),
+    ("38.154.185.97", 6370, "qnotadmv", "tk20kqtx2wfs"),
+    ("84.247.60.125", 6095, "qnotadmv", "tk20kqtx2wfs"),
+    ("142.111.67.146", 5611, "qnotadmv", "tk20kqtx2wfs"),
+    ("191.96.254.138", 6185, "qnotadmv", "tk20kqtx2wfs"),
     // Account 4
-    ("31.59.20.176",6754,"oarzdrmm","lzjj8fezq82r"),
-    ("31.56.127.193",7684,"oarzdrmm","lzjj8fezq82r"),
-    ("45.38.107.97",6014,"oarzdrmm","lzjj8fezq82r"),
-    ("198.105.121.200",6462,"oarzdrmm","lzjj8fezq82r"),
-    ("64.137.96.74",6641,"oarzdrmm","lzjj8fezq82r"),
-    ("198.23.243.226",6361,"oarzdrmm","lzjj8fezq82r"),
-    ("38.154.185.97",6370,"oarzdrmm","lzjj8fezq82r"),
-    ("84.247.60.125",6095,"oarzdrmm","lzjj8fezq82r"),
-    ("142.111.67.146",5611,"oarzdrmm","lzjj8fezq82r"),
-    ("191.96.254.138",6185,"oarzdrmm","lzjj8fezq82r"),
+    ("31.59.20.176", 6754, "oarzdrmm", "lzjj8fezq82r"),
+    ("31.56.127.193", 7684, "oarzdrmm", "lzjj8fezq82r"),
+    ("45.38.107.97", 6014, "oarzdrmm", "lzjj8fezq82r"),
+    ("198.105.121.200", 6462, "oarzdrmm", "lzjj8fezq82r"),
+    ("64.137.96.74", 6641, "oarzdrmm", "lzjj8fezq82r"),
+    ("198.23.243.226", 6361, "oarzdrmm", "lzjj8fezq82r"),
+    ("38.154.185.97", 6370, "oarzdrmm", "lzjj8fezq82r"),
+    ("84.247.60.125", 6095, "oarzdrmm", "lzjj8fezq82r"),
+    ("142.111.67.146", 5611, "oarzdrmm", "lzjj8fezq82r"),
+    ("191.96.254.138", 6185, "oarzdrmm", "lzjj8fezq82r"),
     // Account 5
-    ("31.59.20.176",6754,"yvptbhkt","0v8zzv1j120y"),
-    ("31.56.127.193",7684,"yvptbhkt","0v8zzv1j120y"),
-    ("45.38.107.97",6014,"yvptbhkt","0v8zzv1j120y"),
-    ("198.105.121.200",6462,"yvptbhkt","0v8zzv1j120y"),
-    ("64.137.96.74",6641,"yvptbhkt","0v8zzv1j120y"),
-    ("198.23.243.226",6361,"yvptbhkt","0v8zzv1j120y"),
-    ("38.154.185.97",6370,"yvptbhkt","0v8zzv1j120y"),
-    ("84.247.60.125",6095,"yvptbhkt","0v8zzv1j120y"),
-    ("142.111.67.146",5611,"yvptbhkt","0v8zzv1j120y"),
-    ("191.96.254.138",6185,"yvptbhkt","0v8zzv1j120y"),
+    ("31.59.20.176", 6754, "yvptbhkt", "0v8zzv1j120y"),
+    ("31.56.127.193", 7684, "yvptbhkt", "0v8zzv1j120y"),
+    ("45.38.107.97", 6014, "yvptbhkt", "0v8zzv1j120y"),
+    ("198.105.121.200", 6462, "yvptbhkt", "0v8zzv1j120y"),
+    ("64.137.96.74", 6641, "yvptbhkt", "0v8zzv1j120y"),
+    ("198.23.243.226", 6361, "yvptbhkt", "0v8zzv1j120y"),
+    ("38.154.185.97", 6370, "yvptbhkt", "0v8zzv1j120y"),
+    ("84.247.60.125", 6095, "yvptbhkt", "0v8zzv1j120y"),
+    ("142.111.67.146", 5611, "yvptbhkt", "0v8zzv1j120y"),
+    ("191.96.254.138", 6185, "yvptbhkt", "0v8zzv1j120y"),
     // Account 6
-    ("31.59.20.176",6754,"ukhiyovs","nuiyu4j6b199"),
-    ("31.56.127.193",7684,"ukhiyovs","nuiyu4j6b199"),
-    ("45.38.107.97",6014,"ukhiyovs","nuiyu4j6b199"),
-    ("198.105.121.200",6462,"ukhiyovs","nuiyu4j6b199"),
-    ("64.137.96.74",6641,"ukhiyovs","nuiyu4j6b199"),
-    ("198.23.243.226",6361,"ukhiyovs","nuiyu4j6b199"),
-    ("38.154.185.97",6370,"ukhiyovs","nuiyu4j6b199"),
-    ("84.247.60.125",6095,"ukhiyovs","nuiyu4j6b199"),
-    ("142.111.67.146",5611,"ukhiyovs","nuiyu4j6b199"),
-    ("191.96.254.138",6185,"ukhiyovs","nuiyu4j6b199"),
+    ("31.59.20.176", 6754, "ukhiyovs", "nuiyu4j6b199"),
+    ("31.56.127.193", 7684, "ukhiyovs", "nuiyu4j6b199"),
+    ("45.38.107.97", 6014, "ukhiyovs", "nuiyu4j6b199"),
+    ("198.105.121.200", 6462, "ukhiyovs", "nuiyu4j6b199"),
+    ("64.137.96.74", 6641, "ukhiyovs", "nuiyu4j6b199"),
+    ("198.23.243.226", 6361, "ukhiyovs", "nuiyu4j6b199"),
+    ("38.154.185.97", 6370, "ukhiyovs", "nuiyu4j6b199"),
+    ("84.247.60.125", 6095, "ukhiyovs", "nuiyu4j6b199"),
+    ("142.111.67.146", 5611, "ukhiyovs", "nuiyu4j6b199"),
+    ("191.96.254.138", 6185, "ukhiyovs", "nuiyu4j6b199"),
     // Account 7
-    ("31.59.20.176",6754,"anvqpams","bkrvfs0gyckg"),
-    ("31.56.127.193",7684,"anvqpams","bkrvfs0gyckg"),
-    ("45.38.107.97",6014,"anvqpams","bkrvfs0gyckg"),
-    ("198.105.121.200",6462,"anvqpams","bkrvfs0gyckg"),
-    ("64.137.96.74",6641,"anvqpams","bkrvfs0gyckg"),
-    ("198.23.243.226",6361,"anvqpams","bkrvfs0gyckg"),
-    ("38.154.185.97",6370,"anvqpams","bkrvfs0gyckg"),
-    ("84.247.60.125",6095,"anvqpams","bkrvfs0gyckg"),
-    ("142.111.67.146",5611,"anvqpams","bkrvfs0gyckg"),
-    ("191.96.254.138",6185,"anvqpams","bkrvfs0gyckg"),
+    ("31.59.20.176", 6754, "anvqpams", "bkrvfs0gyckg"),
+    ("31.56.127.193", 7684, "anvqpams", "bkrvfs0gyckg"),
+    ("45.38.107.97", 6014, "anvqpams", "bkrvfs0gyckg"),
+    ("198.105.121.200", 6462, "anvqpams", "bkrvfs0gyckg"),
+    ("64.137.96.74", 6641, "anvqpams", "bkrvfs0gyckg"),
+    ("198.23.243.226", 6361, "anvqpams", "bkrvfs0gyckg"),
+    ("38.154.185.97", 6370, "anvqpams", "bkrvfs0gyckg"),
+    ("84.247.60.125", 6095, "anvqpams", "bkrvfs0gyckg"),
+    ("142.111.67.146", 5611, "anvqpams", "bkrvfs0gyckg"),
+    ("191.96.254.138", 6185, "anvqpams", "bkrvfs0gyckg"),
     // Account 8
-    ("31.59.20.176",6754,"shwcmvdj","7f0dmrhg0l92"),
-    ("31.56.127.193",7684,"shwcmvdj","7f0dmrhg0l92"),
-    ("45.38.107.97",6014,"shwcmvdj","7f0dmrhg0l92"),
-    ("198.105.121.200",6462,"shwcmvdj","7f0dmrhg0l92"),
-    ("64.137.96.74",6641,"shwcmvdj","7f0dmrhg0l92"),
-    ("198.23.243.226",6361,"shwcmvdj","7f0dmrhg0l92"),
-    ("38.154.185.97",6370,"shwcmvdj","7f0dmrhg0l92"),
-    ("84.247.60.125",6095,"shwcmvdj","7f0dmrhg0l92"),
-    ("142.111.67.146",5611,"shwcmvdj","7f0dmrhg0l92"),
-    ("191.96.254.138",6185,"shwcmvdj","7f0dmrhg0l92"),
+    ("31.59.20.176", 6754, "shwcmvdj", "7f0dmrhg0l92"),
+    ("31.56.127.193", 7684, "shwcmvdj", "7f0dmrhg0l92"),
+    ("45.38.107.97", 6014, "shwcmvdj", "7f0dmrhg0l92"),
+    ("198.105.121.200", 6462, "shwcmvdj", "7f0dmrhg0l92"),
+    ("64.137.96.74", 6641, "shwcmvdj", "7f0dmrhg0l92"),
+    ("198.23.243.226", 6361, "shwcmvdj", "7f0dmrhg0l92"),
+    ("38.154.185.97", 6370, "shwcmvdj", "7f0dmrhg0l92"),
+    ("84.247.60.125", 6095, "shwcmvdj", "7f0dmrhg0l92"),
+    ("142.111.67.146", 5611, "shwcmvdj", "7f0dmrhg0l92"),
+    ("191.96.254.138", 6185, "shwcmvdj", "7f0dmrhg0l92"),
     // Account 9
-    ("31.59.20.176",6754,"rdtkrpec","ha7nsmzzw8xe"),
-    ("31.56.127.193",7684,"rdtkrpec","ha7nsmzzw8xe"),
-    ("45.38.107.97",6014,"rdtkrpec","ha7nsmzzw8xe"),
-    ("198.105.121.200",6462,"rdtkrpec","ha7nsmzzw8xe"),
-    ("64.137.96.74",6641,"rdtkrpec","ha7nsmzzw8xe"),
-    ("198.23.243.226",6361,"rdtkrpec","ha7nsmzzw8xe"),
-    ("38.154.185.97",6370,"rdtkrpec","ha7nsmzzw8xe"),
-    ("84.247.60.125",6095,"rdtkrpec","ha7nsmzzw8xe"),
-    ("142.111.67.146",5611,"rdtkrpec","ha7nsmzzw8xe"),
-    ("191.96.254.138",6185,"rdtkrpec","ha7nsmzzw8xe"),
+    ("31.59.20.176", 6754, "rdtkrpec", "ha7nsmzzw8xe"),
+    ("31.56.127.193", 7684, "rdtkrpec", "ha7nsmzzw8xe"),
+    ("45.38.107.97", 6014, "rdtkrpec", "ha7nsmzzw8xe"),
+    ("198.105.121.200", 6462, "rdtkrpec", "ha7nsmzzw8xe"),
+    ("64.137.96.74", 6641, "rdtkrpec", "ha7nsmzzw8xe"),
+    ("198.23.243.226", 6361, "rdtkrpec", "ha7nsmzzw8xe"),
+    ("38.154.185.97", 6370, "rdtkrpec", "ha7nsmzzw8xe"),
+    ("84.247.60.125", 6095, "rdtkrpec", "ha7nsmzzw8xe"),
+    ("142.111.67.146", 5611, "rdtkrpec", "ha7nsmzzw8xe"),
+    ("191.96.254.138", 6185, "rdtkrpec", "ha7nsmzzw8xe"),
     // Account 10
-    ("31.59.20.176",6754,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("31.56.127.193",7684,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("45.38.107.97",6014,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("198.105.121.200",6462,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("64.137.96.74",6641,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("198.23.243.226",6361,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("38.154.185.97",6370,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("84.247.60.125",6095,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("142.111.67.146",5611,"qyuvyzeu","5ayzwc8rfvw5"),
-    ("191.96.254.138",6185,"qyuvyzeu","5ayzwc8rfvw5"),
+    ("31.59.20.176", 6754, "qyuvyzeu", "5ayzwc8rfvw5"),
+    ("31.56.127.193", 7684, "qyuvyzeu", "5ayzwc8rfvw5"),
+    ("45.38.107.97", 6014, "qyuvyzeu", "5ayzwc8rfvw5"),
+    ("198.105.121.200", 6462, "qyuvyzeu", "5ayzwc8rfvw5"),
+    ("64.137.96.74", 6641, "qyuvyzeu", "5ayzwc8rfvw5"),
+    ("198.23.243.226", 6361, "qyuvyzeu", "5ayzwc8rfvw5"),
+    ("38.154.185.97", 6370, "qyuvyzeu", "5ayzwc8rfvw5"),
+    ("84.247.60.125", 6095, "qyuvyzeu", "5ayzwc8rfvw5"),
+    ("142.111.67.146", 5611, "qyuvyzeu", "5ayzwc8rfvw5"),
+    ("191.96.254.138", 6185, "qyuvyzeu", "5ayzwc8rfvw5"),
 ];
 
 fn proxy_index_for_user(user_id: &str) -> usize {
-    let hash: u64 = user_id.bytes().fold(0u64, |acc, b| {
-        acc.wrapping_mul(31).wrapping_add(b as u64)
-    });
+    let hash: u64 = user_id
+        .bytes()
+        .fold(0u64, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u64));
     (hash as usize) % PROXIES.len()
 }
 
@@ -277,7 +307,7 @@ fn make_proxy_client(proxy_idx: usize, timeout_secs: u64) -> Result<reqwest::Cli
     reqwest::Client::builder()
         .timeout(Duration::from_secs(timeout_secs))
         .proxy(reqwest::Proxy::all(&proxy_url).map_err(|e| e.to_string())?)
-        .pool_max_idle_per_host(0)   // don't reuse connections through proxy
+        .pool_max_idle_per_host(0) // don't reuse connections through proxy
         .build()
         .map_err(|e| e.to_string())
 }
@@ -290,7 +320,8 @@ async fn call_one_proxy(
 ) -> Result<Value, String> {
     let cli = make_proxy_client(proxy_idx, timeout_secs)?;
     let t0 = Instant::now();
-    let resp = cli.post(ZEN_ENDPOINT)
+    let resp = cli
+        .post(ZEN_ENDPOINT)
         .header("Content-Type", "application/json")
         .header("Authorization", "Bearer public")
         .json(body)
@@ -309,7 +340,10 @@ async fn call_one_proxy(
     } else if status.as_u16() == 429 {
         Err(format!("rate-limited (429) proxy[{proxy_idx}]"))
     } else {
-        Err(format!("HTTP {status} proxy[{proxy_idx}]: {}", &text[..text.len().min(150)]))
+        Err(format!(
+            "HTTP {status} proxy[{proxy_idx}]: {}",
+            &text[..text.len().min(150)]
+        ))
     }
 }
 
@@ -347,18 +381,18 @@ async fn call_llm_parallel(
     let t0 = Instant::now();
 
     // Build futures — one per proxy
-    let futures_vec: Vec<_> = indices.into_iter().map(|idx| {
-        let b = body_arc.clone();
-        let ts = timeout_secs;
-        Box::pin(async move {
-            tokio::time::timeout(
-                Duration::from_secs(ts),
-                call_one_proxy(idx, &b, ts),
-            )
-            .await
-            .unwrap_or_else(|_| Err(format!("proxy[{idx}] timed out")))
+    let futures_vec: Vec<_> = indices
+        .into_iter()
+        .map(|idx| {
+            let b = body_arc.clone();
+            let ts = timeout_secs;
+            Box::pin(async move {
+                tokio::time::timeout(Duration::from_secs(ts), call_one_proxy(idx, &b, ts))
+                    .await
+                    .unwrap_or_else(|_| Err(format!("proxy[{idx}] timed out")))
+            })
         })
-    }).collect();
+        .collect();
 
     // Race: first Ok wins; collect errors otherwise
     let mut futs = futures_vec;
@@ -368,7 +402,10 @@ async fn call_llm_parallel(
         // select_ok: returns (Ok_value, remaining_futures) or Err
         match futures::future::select_ok(futs).await {
             Ok((val, _rest)) => {
-                info!("call_llm_parallel model={model} won in {}ms", t0.elapsed().as_millis());
+                info!(
+                    "call_llm_parallel model={model} won in {}ms",
+                    t0.elapsed().as_millis()
+                );
                 return Ok(val);
             }
             Err(e) => {
@@ -394,9 +431,14 @@ async fn call_llm(
     match tokio::time::timeout(
         Duration::from_secs(MODEL_CALL_TIMEOUT_SECS),
         call_llm_parallel(user_id, model, messages, tools, MODEL_CALL_TIMEOUT_SECS),
-    ).await {
+    )
+    .await
+    {
         Ok(Ok(v)) => {
-            info!("call_llm model={model} ok in {}ms", t0.elapsed().as_millis());
+            info!(
+                "call_llm model={model} ok in {}ms",
+                t0.elapsed().as_millis()
+            );
             // S3-04: تسجيل نجاح LLM call
             record_llm_call(model, true);
             return Ok(v);
@@ -417,7 +459,8 @@ async fn call_llm(
         let result = tokio::time::timeout(
             Duration::from_secs(ZEN_TIMEOUT_SECS),
             call_llm_parallel(user_id, FALLBACK_MODEL, messages, tools, ZEN_TIMEOUT_SECS),
-        ).await
+        )
+        .await
         .unwrap_or_else(|_| Err(format!("fallback {FALLBACK_MODEL} also timed out")));
         record_llm_call(FALLBACK_MODEL, result.is_ok());
         result
@@ -435,9 +478,15 @@ async fn build_workspace_context(user_id: &str, workspace_id: &str) -> String {
     let mut files: Vec<String> = Vec::new();
     collect_paths(&tree_json, &mut files);
     if files.is_empty() {
-        return format!("Active workspace `{workspace_id}` is empty — use ws_write to create files.\n");
+        return format!(
+            "Active workspace `{workspace_id}` is empty — use ws_write to create files.\n"
+        );
     }
-    let list = files.iter().map(|f| format!("  {f}")).collect::<Vec<_>>().join("\n");
+    let list = files
+        .iter()
+        .map(|f| format!("  {f}"))
+        .collect::<Vec<_>>()
+        .join("\n");
     format!(
         "## Active Workspace: `{workspace_id}`\nFile count: {}\nTree:\n{list}\n\
          \nUse ws_read before editing any file. Use ws_write to create new files. \
@@ -447,11 +496,18 @@ async fn build_workspace_context(user_id: &str, workspace_id: &str) -> String {
 }
 
 fn collect_paths(node: &Value, out: &mut Vec<String>) {
-    let arr = match node.as_array() { Some(a) => a, None => return };
+    let arr = match node.as_array() {
+        Some(a) => a,
+        None => return,
+    };
     for item in arr {
         match item["type"].as_str().unwrap_or("file") {
             "file" => out.push(item["path"].as_str().unwrap_or("").to_string()),
-            "dir"  => if let Some(c) = item.get("children") { collect_paths(c, out); },
+            "dir" => {
+                if let Some(c) = item.get("children") {
+                    collect_paths(c, out);
+                }
+            }
             _ => {}
         }
     }
@@ -460,11 +516,11 @@ fn collect_paths(node: &Value, out: &mut Vec<String>) {
 // ─── Full system prompt builder (Requiem Agent 1.2) ──────────────────────────
 
 fn build_system_prompt(
-    user_id:       &str,
-    mode:          &str,
-    effort:        &str,
+    user_id: &str,
+    mode: &str,
+    effort: &str,
     workspace_ctx: &str,
-    rag_context:   &str,
+    rag_context: &str,
 ) -> String {
     // Strict Locks — prevent leakage / jailbreak
     let locks = {
@@ -585,12 +641,13 @@ You are running inside a CLOUD SANDBOX on Hugging Face Spaces (not a local compu
     )
 }
 
-
 // ─── Web Search Tool ─────────────────────────────────────────────────────────
 
 /// Execute a web search using DuckDuckGo instant answer API (no key required)
 async fn execute_web_search(args: &serde_json::Value) -> Result<serde_json::Value, String> {
-    let query = args["query"].as_str().ok_or("ws_web_search: missing 'query'")?;
+    let query = args["query"]
+        .as_str()
+        .ok_or("ws_web_search: missing 'query'")?;
     let num = args["num_results"].as_u64().unwrap_or(5).min(10) as usize;
 
     let encoded = urlencoding::encode(query);
@@ -657,7 +714,6 @@ async fn execute_web_search(args: &serde_json::Value) -> Result<serde_json::Valu
     }))
 }
 
-
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
 pub async fn agent_chat_handler(
@@ -665,39 +721,43 @@ pub async fn agent_chat_handler(
     Extension(auth_user): Extension<AuthUser>,
     Json(body): Json<AgentChatRequest>,
 ) -> Response {
-    let user_id      = auth_user.user_id.clone();
+    let user_id = auth_user.user_id.clone();
     let workspace_id = body.workspace_id.clone();
-    let session_id   = body.session_id.clone().unwrap_or_else(|| "default".to_string());
-    let message      = body.message.clone();
-    let mode         = body.mode.clone().unwrap_or_else(|| "coder".to_string());
-    let effort       = body.effort.clone().unwrap_or_else(|| "medium".to_string());
-    let history      = body.history.clone().unwrap_or_default();
-    let images       = body.images.clone().unwrap_or_default();
-    let has_images   = !images.is_empty();
+    let session_id = body
+        .session_id
+        .clone()
+        .unwrap_or_else(|| "default".to_string());
+    let message = body.message.clone();
+    let mode = body.mode.clone().unwrap_or_else(|| "coder".to_string());
+    let effort = body.effort.clone().unwrap_or_else(|| "medium".to_string());
+    let history = body.history.clone().unwrap_or_default();
+    let images = body.images.clone().unwrap_or_default();
+    let has_images = !images.is_empty();
     // Model selection: respect user choice; images force vision model
     let model = if has_images {
         "mimo-v2.5-free".to_string()
     } else {
         body.model.clone().unwrap_or_else(|| {
             match (mode.as_str(), effort.as_str()) {
-                ("debugger",  _)          => "nemotron-3-ultra-free",
-                ("planner",   _)          => "hy3-free",
-                ("researcher",_)          => "hy3-free",
-                ("reviewer",  _)          => "north-mini-code-free",
-                ("orchestrator", "max")   => "mimo-v2.5-free",
-                (_, "high") | (_, "max")  => "big-pickle",
-                _                         => "deepseek-v4-flash-free",
-            }.to_string()
+                ("debugger", _) => "nemotron-3-ultra-free",
+                ("planner", _) => "hy3-free",
+                ("researcher", _) => "hy3-free",
+                ("reviewer", _) => "north-mini-code-free",
+                ("orchestrator", "max") => "mimo-v2.5-free",
+                (_, "high") | (_, "max") => "big-pickle",
+                _ => "deepseek-v4-flash-free",
+            }
+            .to_string()
         })
     };
 
     // ── Effort-derived loop parameters ────────────────────────────────────
     let (max_steps, max_history, rag_chars) = match effort.as_str() {
-        "lite"   => (3usize,  4usize,  600usize),
-        "medium" => (7,       8,       800),
-        "high"   => (12,      12,      1200),
-        "max"    => (20,      usize::MAX, 2000),
-        _        => (7,       8,       800),
+        "lite" => (3usize, 4usize, 600usize),
+        "medium" => (7, 8, 800),
+        "high" => (12, 12, 1200),
+        "max" => (20, usize::MAX, 2000),
+        _ => (7, 8, 800),
     };
 
     info!("agent_chat: user={user_id} model={model} mode={mode} effort={effort} max_steps={max_steps} ws={workspace_id:?} images={}", images.len());
@@ -714,25 +774,34 @@ pub async fn agent_chat_handler(
             );
             return (
                 StatusCode::OK,
-                [("Content-Type", "text/event-stream; charset=utf-8"),
-                 ("Cache-Control", "no-cache, no-store"),
-                 ("X-Accel-Buffering", "no")],
+                [
+                    ("Content-Type", "text/event-stream; charset=utf-8"),
+                    ("Cache-Control", "no-cache, no-store"),
+                    ("X-Accel-Buffering", "no"),
+                ],
                 sse,
-            ).into_response();
+            )
+                .into_response();
         }
     }
 
     // ── 0b. Request deduplication — reject same (user_id + message) within 5s ─
     if is_duplicate_request(&user_id, &message) {
-        warn!("Duplicate request rejected: user={user_id} msg_len={}", message.len());
+        warn!(
+            "Duplicate request rejected: user={user_id} msg_len={}",
+            message.len()
+        );
         let sse = "data: {\"type\":\"error\",\"message\":\"Duplicate request — please wait a moment before retrying.\"}\n\ndata: {\"type\":\"done\",\"usage\":{}}\n\n";
         return (
             StatusCode::OK,
-            [("Content-Type", "text/event-stream; charset=utf-8"),
-             ("Cache-Control", "no-cache, no-store"),
-             ("X-Accel-Buffering", "no")],
+            [
+                ("Content-Type", "text/event-stream; charset=utf-8"),
+                ("Cache-Control", "no-cache, no-store"),
+                ("X-Accel-Buffering", "no"),
+            ],
             sse,
-        ).into_response();
+        )
+            .into_response();
     }
 
     let (tx, rx) = futures::channel::mpsc::channel::<bytes::Bytes>(64);
@@ -740,12 +809,22 @@ pub async fn agent_chat_handler(
 
     tokio::spawn(async move {
         run_agent_loop(
-            &user_id, workspace_id.as_deref(),
-            &model, &mode, &effort, &message,
-            &session_id, &history, images,
-            conn_clone, tx,
-            max_steps, max_history, rag_chars,
-        ).await;
+            &user_id,
+            workspace_id.as_deref(),
+            &model,
+            &mode,
+            &effort,
+            &message,
+            &session_id,
+            &history,
+            images,
+            conn_clone,
+            tx,
+            max_steps,
+            max_history,
+            rag_chars,
+        )
+        .await;
     });
 
     let stream = rx.map(|b| Ok::<_, std::io::Error>(b));
@@ -757,7 +836,11 @@ pub async fn agent_chat_handler(
         .body(Body::from_stream(stream))
         .unwrap_or_else(|e| {
             error!("agent_chat response build failed: {e}");
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error":"stream build failed"}))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error":"stream build failed"})),
+            )
+                .into_response()
         })
 }
 
@@ -766,9 +849,7 @@ pub async fn agent_chat_handler(
 /// Build a multimodal content array for vision requests.
 /// Returns a JSON array with text + image blocks.
 fn build_multimodal_content(text: &str, images: &[ImageAttachment]) -> Value {
-    let mut parts: Vec<Value> = vec![
-        json!({"type": "text", "text": text})
-    ];
+    let mut parts: Vec<Value> = vec![json!({"type": "text", "text": text})];
 
     for img in images {
         if let Some(url) = &img.url {
@@ -796,39 +877,47 @@ fn build_multimodal_content(text: &str, images: &[ImageAttachment]) -> Value {
 
 #[allow(clippy::too_many_arguments)]
 async fn run_agent_loop(
-    user_id:      &str,
+    user_id: &str,
     workspace_id: Option<&str>,
-    model:        &str,
-    mode:         &str,
-    effort:       &str,
+    model: &str,
+    mode: &str,
+    effort: &str,
     user_message: &str,
-    session_id:   &str,
-    history:      &[Value],
-    images:       Vec<ImageAttachment>,
-    conn:         Arc<libsql::Connection>,
-    mut tx:       futures::channel::mpsc::Sender<bytes::Bytes>,
-    max_steps:    usize,
-    max_history:  usize,
-    rag_chars:    usize,
+    session_id: &str,
+    history: &[Value],
+    images: Vec<ImageAttachment>,
+    conn: Arc<libsql::Connection>,
+    mut tx: futures::channel::mpsc::Sender<bytes::Bytes>,
+    max_steps: usize,
+    max_history: usize,
+    rag_chars: usize,
 ) {
     macro_rules! emit {
-        ($event:expr) => { let _ = tx.try_send(bytes::Bytes::from($event.to_sse_line())); };
+        ($event:expr) => {
+            let _ = tx.try_send(bytes::Bytes::from($event.to_sse_line()));
+        };
     }
 
     // ── STEP 0: Emit IMMEDIATELY so user sees activity within 100ms ────────
-    emit!(AgentEvent::Thinking { content: "Agent activating…".to_string() });
+    emit!(AgentEvent::Thinking {
+        content: "Agent activating…".to_string()
+    });
 
     // ── 1. RAG retrieval with strict 3s timeout — never block agent startup ─
-    emit!(AgentEvent::Thinking { content: "Retrieving context…".to_string() });
+    emit!(AgentEvent::Thinking {
+        content: "Retrieving context…".to_string()
+    });
     let rag_context = {
         let rag = RagEngine::new(conn.clone(), user_id);
         match tokio::time::timeout(
             Duration::from_secs(3),
             rag.build_context(user_message, Some(session_id), rag_chars),
-        ).await {
+        )
+        .await
+        {
             Ok(Ok(r)) if r.memories_used > 0 => {
                 emit!(AgentEvent::MemoryHit {
-                    count:   r.memories_used,
+                    count: r.memories_used,
                     preview: r.system_context.chars().take(60).collect::<String>(),
                 });
                 r.system_context
@@ -847,7 +936,9 @@ async fn run_agent_loop(
 
     // ── 2. Workspace context ────────────────────────────────────────────────
     let workspace_ctx = if let Some(wid) = workspace_id {
-        emit!(AgentEvent::Thinking { content: "Loading workspace…".to_string() });
+        emit!(AgentEvent::Thinking {
+            content: "Loading workspace…".to_string()
+        });
         build_workspace_context(user_id, wid).await
     } else {
         String::new()
@@ -874,10 +965,14 @@ async fn run_agent_loop(
     messages.push(user_msg);
 
     // ── 5. Tools ────────────────────────────────────────────────────────────
-    let tools: Vec<Value> = if workspace_id.is_some() { workspace_tools_schema() } else { vec![] };
+    let tools: Vec<Value> = if workspace_id.is_some() {
+        workspace_tools_schema()
+    } else {
+        vec![]
+    };
 
     // ── 6. Agentic loop ──────────────────────────────────────────────────────────
-    let mut steps      = 0usize;
+    let mut steps = 0usize;
     let mut final_text = String::new();
 
     // S3-01: إذا كان mode=orchestrator، نستخدم ReActEngine بدلاً من الـ loop اليدوي
@@ -892,10 +987,8 @@ async fn run_agent_loop(
         let model_clone = model.to_string();
         let sys_clone = system_content.clone();
 
-        let react_result = react_engine.run(
-            user_message,
-            Some(&sys_clone),
-            |tool_name, tool_args| {
+        let react_result = react_engine
+            .run(user_message, Some(&sys_clone), |tool_name, tool_args| {
                 let uid = uid_clone.clone();
                 let wid = wid_clone.clone();
                 async move {
@@ -903,7 +996,8 @@ async fn run_agent_loop(
                         .await
                         .unwrap_or_else(|e| serde_json::json!({"error": e.to_string()}));
                     let has_error = result.get("error").is_some();
-                    let err_msg = result.get("error")
+                    let err_msg = result
+                        .get("error")
                         .and_then(|e| e.as_str())
                         .map(String::from);
                     ToolResult {
@@ -914,8 +1008,8 @@ async fn run_agent_loop(
                         duration_ms: 0,
                     }
                 }
-            },
-        ).await;
+            })
+            .await;
 
         // S3-04: تسجيل خطوات ReAct
         for _ in &react_result.steps {
@@ -924,7 +1018,9 @@ async fn run_agent_loop(
 
         if react_result.success {
             final_text = react_result.final_answer.unwrap_or_default();
-            emit!(AgentEvent::Text { content: final_text.clone() });
+            emit!(AgentEvent::Text {
+                content: final_text.clone()
+            });
         } else {
             let err_msg = format!("ReAct loop ended: {:?}", react_result.stop_reason);
             record_agent_error("react_loop_failed");
@@ -950,7 +1046,9 @@ async fn run_agent_loop(
     loop {
         steps += 1;
         if steps > max_steps {
-            emit!(AgentEvent::Error { message: "Max agent steps reached".to_string() });
+            emit!(AgentEvent::Error {
+                message: "Max agent steps reached".to_string()
+            });
             record_agent_error("max_steps_exceeded");
             break;
         }
@@ -960,7 +1058,7 @@ async fn run_agent_loop(
 
         // Progress indicator for frontend progress bar
         emit!(AgentEvent::Progress {
-            step:  steps,
+            step: steps,
             total: max_steps,
             label: format!("Processing step {steps}"),
         });
@@ -969,40 +1067,54 @@ async fn run_agent_loop(
             content: format!("Thinking (step {steps}/{max_steps})…")
         });
 
-        let tools_ref = if tools.is_empty() { None } else { Some(tools.as_slice()) };
-        let llm_resp  = match call_llm(user_id, model, &messages, tools_ref).await {
-            Ok(r)  => r,
-            Err(e) => { emit!(AgentEvent::Error { message: format!("LLM: {e}") }); break; }
+        let tools_ref = if tools.is_empty() {
+            None
+        } else {
+            Some(tools.as_slice())
+        };
+        let llm_resp = match call_llm(user_id, model, &messages, tools_ref).await {
+            Ok(r) => r,
+            Err(e) => {
+                emit!(AgentEvent::Error {
+                    message: format!("LLM: {e}")
+                });
+                break;
+            }
         };
 
-        let choice  = &llm_resp["choices"][0];
+        let choice = &llm_resp["choices"][0];
         let msg_val = &choice["message"];
         messages.push(msg_val.clone());
 
-        let tool_calls = msg_val["tool_calls"].as_array().cloned().unwrap_or_default();
+        let tool_calls = msg_val["tool_calls"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
 
         if !tool_calls.is_empty() {
             let mut results: Vec<Value> = Vec::new();
             for call in &tool_calls {
                 let call_id = call["id"].as_str().unwrap_or("").to_string();
                 let fn_name = call["function"]["name"].as_str().unwrap_or("").to_string();
-                let args: Value = serde_json::from_str(
-                    call["function"]["arguments"].as_str().unwrap_or("{}")
-                ).unwrap_or(json!({}));
+                let args: Value =
+                    serde_json::from_str(call["function"]["arguments"].as_str().unwrap_or("{}"))
+                        .unwrap_or(json!({}));
 
                 emit!(AgentEvent::ToolUse {
-                    tool: fn_name.clone(), input: args.clone(), tool_call_id: call_id.clone()
+                    tool: fn_name.clone(),
+                    input: args.clone(),
+                    tool_call_id: call_id.clone()
                 });
 
                 let result = match fn_name.as_str() {
-                    "ws_web_search" => {
-                        execute_web_search(&args).await
-                            .unwrap_or_else(|e| json!({"error": e}))
-                    },
+                    "ws_web_search" => execute_web_search(&args)
+                        .await
+                        .unwrap_or_else(|e| json!({"error": e})),
                     _ => {
                         if let Some(wid) = workspace_id {
                             execute_workspace_tool(&fn_name, &args, user_id, wid)
-                                .await.unwrap_or_else(|e| json!({"error": e}))
+                                .await
+                                .unwrap_or_else(|e| json!({"error": e}))
                         } else {
                             json!({"error": "no workspace — tool not available"})
                         }
@@ -1010,7 +1122,8 @@ async fn run_agent_loop(
                 };
 
                 // Emit FileWritten for successful file operations
-                if (fn_name == "ws_write" || fn_name == "ws_edit") && result.get("error").is_none() {
+                if (fn_name == "ws_write" || fn_name == "ws_edit") && result.get("error").is_none()
+                {
                     let path = args["path"].as_str().unwrap_or("file").to_string();
                     let lines = result["lines"].as_u64().unwrap_or(0) as usize;
                     emit!(AgentEvent::FileWritten {
@@ -1023,7 +1136,10 @@ async fn run_agent_loop(
                 emit!(AgentEvent::Thinking {
                     content: format!("Tool {fn_name} → done"),
                 });
-                emit!(AgentEvent::ToolResult { tool_call_id: call_id.clone(), result: result.clone() });
+                emit!(AgentEvent::ToolResult {
+                    tool_call_id: call_id.clone(),
+                    result: result.clone()
+                });
 
                 results.push(json!({
                     "role": "tool", "tool_call_id": call_id,
@@ -1035,20 +1151,28 @@ async fn run_agent_loop(
         }
 
         // ── Final text response ─────────────────────────────────────────────
-        emit!(AgentEvent::Thinking { content: "Generating response…".to_string() });
+        emit!(AgentEvent::Thinking {
+            content: "Generating response…".to_string()
+        });
         let text = msg_val["content"].as_str().unwrap_or("").to_string();
 
         // Strict Locks enforcement — prevent identity leakage
         let locks_engine = StrictLocksEngine::new();
-        let lock_check   = locks_engine.check_all(mode, model, "text", &text);
+        let lock_check = locks_engine.check_all(mode, model, "text", &text);
         let final_out = if !lock_check.passed {
-            let has_critical = lock_check.violations.iter()
+            let has_critical = lock_check
+                .violations
+                .iter()
                 .any(|v| v.severity == crate::enforce::locks::ViolationSeverity::Critical);
             if has_critical {
                 warn!("Strict lock violation in agent output for {user_id}");
                 "I am **PopCorn AI Studio** — I cannot reveal internal model details.".to_string()
-            } else { text.clone() }
-        } else { text.clone() };
+            } else {
+                text.clone()
+            }
+        } else {
+            text.clone()
+        };
 
         final_text = final_out.clone();
         if !final_out.is_empty() {
@@ -1056,7 +1180,9 @@ async fn run_agent_loop(
         }
 
         let usage = llm_resp.get("usage").cloned().unwrap_or(json!({}));
-        emit!(AgentEvent::Done { usage: json!({ "steps": steps, "model_usage": usage }) });
+        emit!(AgentEvent::Done {
+            usage: json!({ "steps": steps, "model_usage": usage })
+        });
         break;
     }
 

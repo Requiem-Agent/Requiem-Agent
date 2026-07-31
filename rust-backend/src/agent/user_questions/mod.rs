@@ -127,8 +127,14 @@ impl QuestionStore {
     }
 
     /// الإجابة على سؤال
-    pub fn answer(&mut self, question_id: &str, answer: QuestionAnswer) -> Result<AgentQuestion, String> {
-        let question = self.questions.get_mut(question_id)
+    pub fn answer(
+        &mut self,
+        question_id: &str,
+        answer: QuestionAnswer,
+    ) -> Result<AgentQuestion, String> {
+        let question = self
+            .questions
+            .get_mut(question_id)
             .ok_or_else(|| format!("السؤال {} غير موجود", question_id))?;
 
         if question.status != QuestionStatus::Pending {
@@ -144,7 +150,9 @@ impl QuestionStore {
 
     /// إلغاء سؤال
     pub fn cancel(&mut self, question_id: &str, _reason: &str) -> Result<(), String> {
-        let question = self.questions.get_mut(question_id)
+        let question = self
+            .questions
+            .get_mut(question_id)
             .ok_or_else(|| format!("السؤال {} غير موجود", question_id))?;
 
         if question.status != QuestionStatus::Pending {
@@ -157,14 +165,16 @@ impl QuestionStore {
 
     /// الأسئلة المعلقة
     pub fn pending(&self) -> Vec<&AgentQuestion> {
-        self.questions.values()
+        self.questions
+            .values()
             .filter(|q| q.status == QuestionStatus::Pending)
             .collect()
     }
 
     /// الأسئلة المعلقة لوكيل معين
     pub fn pending_for_agent(&self, agent_id: &str) -> Vec<&AgentQuestion> {
-        self.questions.values()
+        self.questions
+            .values()
             .filter(|q| q.status == QuestionStatus::Pending && q.asked_by_agent_id == agent_id)
             .collect()
     }
@@ -177,8 +187,16 @@ impl QuestionStore {
     /// إحصائيات
     pub fn stats(&self) -> serde_json::Value {
         let total = self.questions.len();
-        let pending = self.questions.values().filter(|q| q.status == QuestionStatus::Pending).count();
-        let answered = self.questions.values().filter(|q| q.status == QuestionStatus::Answered).count();
+        let pending = self
+            .questions
+            .values()
+            .filter(|q| q.status == QuestionStatus::Pending)
+            .count();
+        let answered = self
+            .questions
+            .values()
+            .filter(|q| q.status == QuestionStatus::Answered)
+            .count();
 
         serde_json::json!({
             "total": total,
@@ -287,19 +305,37 @@ impl AutonomyScorer {
         let mut score = 0.5f32;
 
         // مهمة واضحة
-        if lower.len() > 50 { score += 0.2; }
-        if task.contains("?") || task.contains("؟") { score -= 0.1; }
+        if lower.len() > 50 {
+            score += 0.2;
+        }
+        if task.contains("?") || task.contains("؟") {
+            score -= 0.1;
+        }
 
         // كلمات تدل على عدم الوضوح
         let vague_words = ["ماذا", "كيف", "هل", "what", "how", "which", "maybe", "ربما"];
         for w in &vague_words {
-            if lower.contains(w) { score -= 0.1; }
+            if lower.contains(w) {
+                score -= 0.1;
+            }
         }
 
         // كلمات تدل على الوضوح
-        let clear_words = ["افعل", "اكتب", "أنشئ", "حول", "غيّر", "create", "write", "implement", "change"];
+        let clear_words = [
+            "افعل",
+            "اكتب",
+            "أنشئ",
+            "حول",
+            "غيّر",
+            "create",
+            "write",
+            "implement",
+            "change",
+        ];
         for w in &clear_words {
-            if lower.contains(w) { score += 0.1; }
+            if lower.contains(w) {
+                score += 0.1;
+            }
         }
 
         score.clamp(0.0, 1.0)
@@ -310,16 +346,24 @@ impl AutonomyScorer {
         let mut score = 0.3f32;
 
         if let Some(files) = context.get("files") {
-            if files.as_array().map(|a| a.len()).unwrap_or(0) > 0 { score += 0.2; }
+            if files.as_array().map(|a| a.len()).unwrap_or(0) > 0 {
+                score += 0.2;
+            }
         }
         if let Some(history) = context.get("conversation_history") {
-            if history.as_str().map(|s| s.len()).unwrap_or(0) > 100 { score += 0.2; }
+            if history.as_str().map(|s| s.len()).unwrap_or(0) > 100 {
+                score += 0.2;
+            }
         }
         if let Some(env) = context.get("environment") {
-            if !env.is_null() { score += 0.1; }
+            if !env.is_null() {
+                score += 0.1;
+            }
         }
         if let Some(models) = context.get("available_models") {
-            if models.as_array().map(|a| a.len()).unwrap_or(0) > 0 { score += 0.1; }
+            if models.as_array().map(|a| a.len()).unwrap_or(0) > 0 {
+                score += 0.1;
+            }
         }
 
         score.clamp(0.0, 1.0)
@@ -342,11 +386,19 @@ mod tests {
     fn test_question_store() {
         let mut store = QuestionStore::new(100);
         let mut q = AgentQuestion {
-            id: String::new(), title: "سؤال".into(), body: "ماذا تريد؟".into(),
-            question_type: QuestionType::YesNo, options: vec![], allow_free_text: false,
-            context: serde_json::json!({}), priority: QuestionPriority::Medium,
-            status: QuestionStatus::Pending, created_at: String::new(),
-            answered_at: None, answer: None, timeout_minutes: None,
+            id: String::new(),
+            title: "سؤال".into(),
+            body: "ماذا تريد؟".into(),
+            question_type: QuestionType::YesNo,
+            options: vec![],
+            allow_free_text: false,
+            context: serde_json::json!({}),
+            priority: QuestionPriority::Medium,
+            status: QuestionStatus::Pending,
+            created_at: String::new(),
+            answered_at: None,
+            answer: None,
+            timeout_minutes: None,
             asked_by_agent_id: "agent-1".into(),
         };
         let id = store.add(&mut q).unwrap();
@@ -399,13 +451,19 @@ mod tests {
         scorer.questions_asked = 2;
         // حتى لو المهمة غير واضحة، لا يسأل
         let decision = scorer.evaluate("???", &serde_json::json!({}));
-        assert!(matches!(decision, AutonomyDecision::Proceed | AutonomyDecision::DecomposeFirst));
+        assert!(matches!(
+            decision,
+            AutonomyDecision::Proceed | AutonomyDecision::DecomposeFirst
+        ));
     }
 
     #[test]
     fn test_estimate_clarity() {
         let scorer = AutonomyScorer::new();
-        let high = scorer.estimate_clarity("أنشئ REST API كامل مع Axum في Rust يشمل JWT Auth و middleware", &serde_json::json!({}));
+        let high = scorer.estimate_clarity(
+            "أنشئ REST API كامل مع Axum في Rust يشمل JWT Auth و middleware",
+            &serde_json::json!({}),
+        );
         let low = scorer.estimate_clarity("ماذا؟", &serde_json::json!({}));
         assert!(high > low);
     }

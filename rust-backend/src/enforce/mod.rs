@@ -15,16 +15,16 @@
 //! ```
 
 pub mod audit;
-pub mod scanner;
 pub mod locks;
+pub mod scanner;
 
+use crate::enforce::audit::AuditLog;
+use crate::enforce::scanner::SecurityScanner;
+pub use locks::*;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use crate::enforce::audit::AuditLog;
-use crate::enforce::scanner::SecurityScanner;
-pub use locks::*;
 
 // ─── Enforcer ──────────────────────────────────────────────────────────────
 
@@ -53,9 +53,12 @@ impl Enforcer {
     }
 
     /// التحقق من أمان مسار — يعيد استخدام path_safety::ensure_safe_path
-    pub fn validate_path(&self, path: &Path, user_root: &Path) -> Result<std::path::PathBuf, String> {
-        crate::path_safety::ensure_safe_path(path, user_root)
-            .map_err(|e| e.to_string())
+    pub fn validate_path(
+        &self,
+        path: &Path,
+        user_root: &Path,
+    ) -> Result<std::path::PathBuf, String> {
+        crate::path_safety::ensure_safe_path(path, user_root).map_err(|e| e.to_string())
     }
 
     /// تسجيل إجراء في سجل التدقيق
@@ -66,7 +69,9 @@ impl Enforcer {
 
     /// تسجيل إجراء متزامن (للأماكن التي لا يمكن استخدام async فيها)
     pub fn audit_sync(&self, action: &str, params: &serde_json::Value, success: bool) {
-        let mut log = self.audit_log.try_write()
+        let mut log = self
+            .audit_log
+            .try_write()
             .expect("AuditLog try_write failed (deadlock?)");
         log.record(&self.user_id, action, params, success);
     }
@@ -79,7 +84,8 @@ impl Enforcer {
         response_format: &str,
         output: &str,
     ) -> LockCheckResult {
-        self.strict_locks.check_all(current_mode, current_model, response_format, output)
+        self.strict_locks
+            .check_all(current_mode, current_model, response_format, output)
     }
 
     /// توليد سياق الأقفال

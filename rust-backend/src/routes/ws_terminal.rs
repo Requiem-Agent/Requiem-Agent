@@ -9,22 +9,22 @@
 //! Server → Client: { "type": "output", "data": "file1.txt\n" }
 //! Server → Client: { "type": "ready" }
 
+use crate::AppState;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Query, Path, State,
+        Path, Query, State,
     },
     response::IntoResponse,
     routing::get,
     Router,
 };
-use std::sync::Arc;
-use crate::AppState;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
-use tracing::{info, warn, error};
+use tracing::{error, info, warn};
 
 /// معاملات الاتصال
 #[derive(Debug, Deserialize)]

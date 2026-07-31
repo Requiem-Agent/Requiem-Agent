@@ -47,12 +47,21 @@ impl Intent {
 
     /// هل تتطلب هذه النية تنفيذ أدوات؟
     pub fn requires_tool_execution(&self) -> bool {
-        matches!(self, Self::TaskExecution | Self::CodeModification | Self::Exploration | Self::ErrorCorrection)
+        matches!(
+            self,
+            Self::TaskExecution
+                | Self::CodeModification
+                | Self::Exploration
+                | Self::ErrorCorrection
+        )
     }
 
     /// هل تتطلب هذه النية تفكيراً عميقاً؟
     pub fn requires_deep_thinking(&self) -> bool {
-        matches!(self, Self::Analysis | Self::ErrorCorrection | Self::TaskExecution)
+        matches!(
+            self,
+            Self::Analysis | Self::ErrorCorrection | Self::TaskExecution
+        )
     }
 }
 
@@ -101,13 +110,82 @@ impl Default for SemanticEngine {
     fn default() -> Self {
         Self {
             keyword_map: vec![
-                (vec!["what", "why", "when", "where", "who", "how", "tell", "explain", "describe", "meaning", "difference"], Intent::InformationalQuery),
-                (vec!["create", "build", "make", "generate", "implement", "add", "write", "produce", "develop"], Intent::TaskExecution),
-                (vec!["fix", "change", "update", "modify", "edit", "refactor", "rename", "remove", "delete"], Intent::CodeModification),
-                (vec!["analyze", "debug", "review", "check", "test", "examine", "inspect", "investigate"], Intent::Analysis),
-                (vec!["design", "draw", "chart", "svg", "visualize", "plot", "diagram", "ui", "interface"], Intent::ContentCreation),
-                (vec!["explore", "show", "list", "find", "search", "browse", "navigate"], Intent::Exploration),
-                (vec!["error", "wrong", "bug", "issue", "problem", "crash", "fail", "mistake"], Intent::ErrorCorrection),
+                (
+                    vec![
+                        "what",
+                        "why",
+                        "when",
+                        "where",
+                        "who",
+                        "how",
+                        "tell",
+                        "explain",
+                        "describe",
+                        "meaning",
+                        "difference",
+                    ],
+                    Intent::InformationalQuery,
+                ),
+                (
+                    vec![
+                        "create",
+                        "build",
+                        "make",
+                        "generate",
+                        "implement",
+                        "add",
+                        "write",
+                        "produce",
+                        "develop",
+                    ],
+                    Intent::TaskExecution,
+                ),
+                (
+                    vec![
+                        "fix", "change", "update", "modify", "edit", "refactor", "rename",
+                        "remove", "delete",
+                    ],
+                    Intent::CodeModification,
+                ),
+                (
+                    vec![
+                        "analyze",
+                        "debug",
+                        "review",
+                        "check",
+                        "test",
+                        "examine",
+                        "inspect",
+                        "investigate",
+                    ],
+                    Intent::Analysis,
+                ),
+                (
+                    vec![
+                        "design",
+                        "draw",
+                        "chart",
+                        "svg",
+                        "visualize",
+                        "plot",
+                        "diagram",
+                        "ui",
+                        "interface",
+                    ],
+                    Intent::ContentCreation,
+                ),
+                (
+                    vec![
+                        "explore", "show", "list", "find", "search", "browse", "navigate",
+                    ],
+                    Intent::Exploration,
+                ),
+                (
+                    vec![
+                        "error", "wrong", "bug", "issue", "problem", "crash", "fail", "mistake",
+                    ],
+                    Intent::ErrorCorrection,
+                ),
             ],
             confidence_threshold: 0.4,
             context_history: vec![],
@@ -116,20 +194,24 @@ impl Default for SemanticEngine {
 }
 
 impl SemanticEngine {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     /// تحليل دلالي لنص الإدخال
     pub fn analyze(&mut self, text: &str, step_id: u64) -> SemanticResult {
         let lower = text.to_lowercase();
         let words: Vec<&str> = lower.split_whitespace().collect();
-        let mut keywords: Vec<String> = words.iter()
+        let mut keywords: Vec<String> = words
+            .iter()
             .filter(|w| w.len() > 3)
             .map(|w| w.to_string())
             .collect();
         keywords.dedup();
 
         // استخراج الكيانات (أسماء ملفات بامتدادات)
-        let entities: Vec<String> = words.iter()
+        let entities: Vec<String> = words
+            .iter()
             .filter(|w| w.contains('.') && w.len() > 3)
             .map(|w| w.to_string())
             .collect();
@@ -189,13 +271,19 @@ impl SemanticEngine {
 
         // كشف الاستفسار (هل) والجمل الاستفهامية
         if lower.contains('?') || lower.starts_with("هل") {
-            if let Some(entry) = scores.iter_mut().find(|(i, _)| *i == Intent::InformationalQuery) {
+            if let Some(entry) = scores
+                .iter_mut()
+                .find(|(i, _)| *i == Intent::InformationalQuery)
+            {
                 entry.1 += 2;
             }
         }
 
         // كشف التوضيح
-        if keywords.iter().any(|k| k.contains("clarif") || k.contains("meaning") || k.contains("what do you")) {
+        if keywords
+            .iter()
+            .any(|k| k.contains("clarif") || k.contains("meaning") || k.contains("what do you"))
+        {
             if let Some(entry) = scores.iter_mut().find(|(i, _)| *i == Intent::Clarification) {
                 entry.1 += 3;
             }
@@ -209,7 +297,11 @@ impl SemanticEngine {
         }
 
         let confidence = max_score as f64 / total_score.max(1) as f64;
-        let best_intent = scores.into_iter().max_by_key(|(_, c)| *c).map(|(i, _)| i).unwrap_or(Intent::Unknown);
+        let best_intent = scores
+            .into_iter()
+            .max_by_key(|(_, c)| *c)
+            .map(|(i, _)| i)
+            .unwrap_or(Intent::Unknown);
         (best_intent, confidence)
     }
 
@@ -230,12 +322,24 @@ impl SemanticEngine {
 
     /// التحقق من تناسق السياق (هل الـ intent يتغير بشكل غير طبيعي؟)
     pub fn validate_context_switch(&self, _new_intent: &Intent, threshold: usize) -> bool {
-        if self.context_history.len() < 3 { return true; }
-        let recent: Vec<&Intent> = self.context_history.iter().rev().take(3).map(|f| &f.intent).collect();
+        if self.context_history.len() < 3 {
+            return true;
+        }
+        let recent: Vec<&Intent> = self
+            .context_history
+            .iter()
+            .rev()
+            .take(3)
+            .map(|f| &f.intent)
+            .collect();
         let changes = recent.windows(2).filter(|w| w[0] != w[1]).count();
         changes <= threshold
     }
 
-    pub fn context(&self) -> &[ContextFrame] { &self.context_history }
-    pub fn set_threshold(&mut self, t: f64) { self.confidence_threshold = t; }
+    pub fn context(&self) -> &[ContextFrame] {
+        &self.context_history
+    }
+    pub fn set_threshold(&mut self, t: f64) {
+        self.confidence_threshold = t;
+    }
 }

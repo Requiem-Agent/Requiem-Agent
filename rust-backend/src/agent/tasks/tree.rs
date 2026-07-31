@@ -70,11 +70,11 @@ pub struct TaskNode {
     pub content: String,
     pub status: TaskStatus,
     pub priority: Priority,
-    pub effort_estimate: String,     // "low", "medium", "high", "max"
+    pub effort_estimate: String, // "low", "medium", "high", "max"
     pub parent_id: Option<String>,
     pub children: Vec<String>,
-    pub depends_on: Vec<String>,      // IDs of tasks this depends on
-    pub depended_by: Vec<String>,     // IDs of tasks that depend on this
+    pub depends_on: Vec<String>,  // IDs of tasks this depends on
+    pub depended_by: Vec<String>, // IDs of tasks that depend on this
     pub assigned_model: Option<String>,
     pub sub_agent_id: Option<String>,
     pub result: Option<serde_json::Value>,
@@ -121,10 +121,15 @@ impl TaskTree {
     pub fn new(root_content: &str, _owner: &str) -> Self {
         let root_id = "task-root".to_string();
         let mut nodes = HashMap::new();
-        nodes.insert(root_id.clone(), TaskNode::new(
-            root_id.clone(), root_content.to_string(), None,
-        ));
-        Self { root_id, nodes, next_id: 1 }
+        nodes.insert(
+            root_id.clone(),
+            TaskNode::new(root_id.clone(), root_content.to_string(), None),
+        );
+        Self {
+            root_id,
+            nodes,
+            next_id: 1,
+        }
     }
 
     /// إضافة مهمة فرعية
@@ -176,12 +181,14 @@ impl TaskTree {
 
     /// تحديث حالة مهمة
     pub fn update_status(&mut self, task_id: &str, status: TaskStatus) -> Result<(), String> {
-        let task = self.nodes.get_mut(task_id)
+        let task = self
+            .nodes
+            .get_mut(task_id)
             .ok_or_else(|| format!("المهمة {} غير موجودة", task_id))?;
 
         task.status = status.clone();
 
- match &status {
+        match &status {
             TaskStatus::InProgress => {
                 task.started_at = Some(chrono::Utc::now().to_rfc3339());
             }
@@ -204,7 +211,9 @@ impl TaskTree {
 
     /// تعيين نموذج لمهمة
     pub fn assign_model(&mut self, task_id: &str, model_id: &str) -> Result<(), String> {
-        let task = self.nodes.get_mut(task_id)
+        let task = self
+            .nodes
+            .get_mut(task_id)
             .ok_or_else(|| format!("المهمة {} غير موجودة", task_id))?;
         task.assigned_model = Some(model_id.to_string());
         Ok(())
@@ -212,7 +221,9 @@ impl TaskTree {
 
     /// تعيين وكيل فرعي لمهمة
     pub fn assign_sub_agent(&mut self, task_id: &str, sub_agent_id: &str) -> Result<(), String> {
-        let task = self.nodes.get_mut(task_id)
+        let task = self
+            .nodes
+            .get_mut(task_id)
             .ok_or_else(|| format!("المهمة {} غير موجودة", task_id))?;
         task.sub_agent_id = Some(sub_agent_id.to_string());
         Ok(())
@@ -220,13 +231,16 @@ impl TaskTree {
 
     /// إلغاء قفل المهام التابعة عند اكتمال مهمة
     fn unblock_children(&mut self, task_id: &str) {
-        let dependents: Vec<String> = self.nodes.get(task_id)
+        let dependents: Vec<String> = self
+            .nodes
+            .get(task_id)
             .map(|t| t.depended_by.clone())
             .unwrap_or_default();
 
         for dep_id in dependents {
             if let Some(dep) = self.nodes.get(&dep_id) {
-                if matches!(&dep.status, TaskStatus::Blocked(reason) if reason.contains("تنتظر")) {
+                if matches!(&dep.status, TaskStatus::Blocked(reason) if reason.contains("تنتظر"))
+                {
                     let _ = self.update_status(&dep_id, TaskStatus::Pending);
                 }
             }
@@ -235,7 +249,9 @@ impl TaskTree {
 
     /// حظر المهام التابعة عند فشل مهمة
     fn block_dependents(&mut self, task_id: &str, reason: &str) {
-        let dependents: Vec<String> = self.nodes.get(task_id)
+        let dependents: Vec<String> = self
+            .nodes
+            .get(task_id)
             .map(|t| t.depended_by.clone())
             .unwrap_or_default();
 
@@ -246,21 +262,45 @@ impl TaskTree {
 
     /// المهام الجاهزة للتنفيذ (Pending وليس لها اعتماديات غير مكتملة)
     pub fn ready_tasks(&self) -> Vec<&TaskNode> {
-        self.nodes.values().filter(|task| {
-            if task.status != TaskStatus::Pending { return false; }
-            task.depends_on.iter().all(|dep_id| {
-                self.nodes.get(dep_id).map(|d| d.status == TaskStatus::Completed).unwrap_or(false)
+        self.nodes
+            .values()
+            .filter(|task| {
+                if task.status != TaskStatus::Pending {
+                    return false;
+                }
+                task.depends_on.iter().all(|dep_id| {
+                    self.nodes
+                        .get(dep_id)
+                        .map(|d| d.status == TaskStatus::Completed)
+                        .unwrap_or(false)
+                })
             })
-        }).collect()
+            .collect()
     }
 
     /// تقرير التقدم
     pub fn progress_report(&self) -> TaskProgressReport {
         let total = self.nodes.len();
-        let completed = self.nodes.values().filter(|t| t.status == TaskStatus::Completed).count();
-        let in_progress = self.nodes.values().filter(|t| t.status == TaskStatus::InProgress).count();
-        let blocked = self.nodes.values().filter(|t| matches!(t.status, TaskStatus::Blocked(_))).count();
-        let failed = self.nodes.values().filter(|t| matches!(t.status, TaskStatus::Failed(_))).count();
+        let completed = self
+            .nodes
+            .values()
+            .filter(|t| t.status == TaskStatus::Completed)
+            .count();
+        let in_progress = self
+            .nodes
+            .values()
+            .filter(|t| t.status == TaskStatus::InProgress)
+            .count();
+        let blocked = self
+            .nodes
+            .values()
+            .filter(|t| matches!(t.status, TaskStatus::Blocked(_)))
+            .count();
+        let failed = self
+            .nodes
+            .values()
+            .filter(|t| matches!(t.status, TaskStatus::Failed(_)))
+            .count();
 
         TaskProgressReport {
             total,
@@ -268,26 +308,34 @@ impl TaskTree {
             in_progress,
             blocked,
             failed,
-            percent: if total > 0 { completed as f64 / total as f64 * 100.0 } else { 0.0 },
+            percent: if total > 0 {
+                completed as f64 / total as f64 * 100.0
+            } else {
+                0.0
+            },
             root_id: self.root_id.clone(),
         }
     }
 
     /// تحويل الشجرة إلى JSON
     pub fn to_json(&self) -> serde_json::Value {
-        let nodes: Vec<serde_json::Value> = self.nodes.values().map(|node| {
-            serde_json::json!({
-                "id": node.id,
-                "content": node.content,
-                "status": node.status.name(),
-                "priority": format!("{:?}", node.priority),
-                "parent_id": node.parent_id,
-                "children": node.children,
-                "depends_on": node.depends_on,
-                "assigned_model": node.assigned_model,
-                "progress": self.progress_report(),
+        let nodes: Vec<serde_json::Value> = self
+            .nodes
+            .values()
+            .map(|node| {
+                serde_json::json!({
+                    "id": node.id,
+                    "content": node.content,
+                    "status": node.status.name(),
+                    "priority": format!("{:?}", node.priority),
+                    "parent_id": node.parent_id,
+                    "children": node.children,
+                    "depends_on": node.depends_on,
+                    "assigned_model": node.assigned_model,
+                    "progress": self.progress_report(),
+                })
             })
-        }).collect();
+            .collect();
 
         serde_json::json!({
             "root_id": self.root_id,
@@ -366,7 +414,8 @@ mod tests {
         let a = tree.add_task("أ", Some(&tree.root_id)).unwrap();
         let b = tree.add_task("ب", Some(&tree.root_id)).unwrap();
         tree.add_dependency(&b, &a).unwrap();
-        tree.update_status(&a, TaskStatus::Failed("خطأ".into())).unwrap();
+        tree.update_status(&a, TaskStatus::Failed("خطأ".into()))
+            .unwrap();
 
         // ب يجب أن تكون blocked
         assert!(matches!(tree.nodes[&b].status, TaskStatus::Blocked(_)));

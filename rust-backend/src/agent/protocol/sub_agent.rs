@@ -6,11 +6,11 @@
 //! - إخراج متوقع (Output Schema)
 //! - إمكانية المراقبة والإلغاء
 
+use crate::agent::protocol::mode::AgentMode;
+use crate::tools::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use crate::agent::protocol::mode::AgentMode;
-use crate::tools::JsonSchema;
 
 /// مستوى العزل للوكيل الفرعي
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -135,13 +135,16 @@ impl SubAgentOrchestrator {
         }
 
         let id = spec.id.clone();
-        self.children.insert(id.clone(), SubAgentHandle {
-            spec,
-            status: SubAgentStatus::Spawning,
-            started_at: Some(Instant::now()),
-            steps_taken: 0,
-            tokens_used: 0,
-        });
+        self.children.insert(
+            id.clone(),
+            SubAgentHandle {
+                spec,
+                status: SubAgentStatus::Spawning,
+                started_at: Some(Instant::now()),
+                steps_taken: 0,
+                tokens_used: 0,
+            },
+        );
 
         self.spawn_history.push(SpawnEvent {
             child_id: id.clone(),
@@ -158,7 +161,8 @@ impl SubAgentOrchestrator {
     /// الحصول على تقدم الوكيل الفرعي
     pub fn get_progress(&self, child_id: &str) -> Option<SubAgentProgress> {
         let handle = self.children.get(child_id)?;
-        let duration_ms = handle.started_at
+        let duration_ms = handle
+            .started_at
             .map(|t| t.elapsed().as_millis() as u64)
             .unwrap_or(0);
 
@@ -180,7 +184,9 @@ impl SubAgentOrchestrator {
 
     /// إلغاء وكيل فرعي
     pub fn cancel(&mut self, child_id: &str, reason: &str) -> Result<(), String> {
-        let handle = self.children.get_mut(child_id)
+        let handle = self
+            .children
+            .get_mut(child_id)
             .ok_or_else(|| format!("الوكيل الفرعي {} غير موجود", child_id))?;
 
         match &handle.status {
@@ -201,12 +207,22 @@ impl SubAgentOrchestrator {
 
     /// تحديث حالة وكيل فرعي
     pub fn update_status(&mut self, child_id: &str, status: SubAgentStatus) -> Result<(), String> {
-        let handle = self.children.get_mut(child_id)
+        let handle = self
+            .children
+            .get_mut(child_id)
             .ok_or_else(|| format!("الوكيل الفرعي {} غير موجود", child_id))?;
 
         // تسجيل الإكمال
-        if matches!(&status, SubAgentStatus::Completed { .. } | SubAgentStatus::Failed { .. }) {
-            if let Some(event) = self.spawn_history.iter_mut().rev().find(|e| e.child_id == child_id) {
+        if matches!(
+            &status,
+            SubAgentStatus::Completed { .. } | SubAgentStatus::Failed { .. }
+        ) {
+            if let Some(event) = self
+                .spawn_history
+                .iter_mut()
+                .rev()
+                .find(|e| e.child_id == child_id)
+            {
                 event.completed = true;
                 event.duration_ms = handle.started_at.map(|t| t.elapsed().as_millis() as u64);
             }
@@ -221,7 +237,9 @@ impl SubAgentOrchestrator {
         let mut results = serde_json::Map::new();
 
         for id in child_ids {
-            let handle = self.children.get(id)
+            let handle = self
+                .children
+                .get(id)
                 .ok_or_else(|| format!("الوكيل {} غير موجود", id))?;
 
             let value = match &handle.status {
@@ -243,35 +261,53 @@ impl SubAgentOrchestrator {
 
     /// عدد الوكلاء الفرعيين النشطين
     pub fn active_count(&self) -> usize {
-        self.children.values().filter(|h| {
-            matches!(h.status, SubAgentStatus::Spawning | SubAgentStatus::Running { .. })
-        }).count()
+        self.children
+            .values()
+            .filter(|h| {
+                matches!(
+                    h.status,
+                    SubAgentStatus::Spawning | SubAgentStatus::Running { .. }
+                )
+            })
+            .count()
     }
 
     /// قائمة بجميع الوكلاء الفرعيين
     pub fn list_children(&self) -> Vec<serde_json::Value> {
-        self.children.iter().map(|(id, handle)| {
-            serde_json::json!({
-                "id": id,
-                "task": handle.spec.task,
-                "model": handle.spec.model_id,
-                "mode": format!("{:?}", handle.spec.mode),
-                "status": format!("{:?}", handle.status),
-                "steps": handle.steps_taken,
-                "max_steps": handle.spec.max_steps,
+        self.children
+            .iter()
+            .map(|(id, handle)| {
+                serde_json::json!({
+                    "id": id,
+                    "task": handle.spec.task,
+                    "model": handle.spec.model_id,
+                    "mode": format!("{:?}", handle.spec.mode),
+                    "status": format!("{:?}", handle.status),
+                    "steps": handle.steps_taken,
+                    "max_steps": handle.spec.max_steps,
+                })
             })
-        }).collect()
+            .collect()
     }
 
     /// إحصائيات
     pub fn stats(&self) -> serde_json::Value {
         let total = self.children.len();
-        let completed = self.children.values().filter(|h| {
-            matches!(h.status, SubAgentStatus::Completed { .. })
-        }).count();
-        let failed = self.children.values().filter(|h| {
-            matches!(h.status, SubAgentStatus::Failed { .. } | SubAgentStatus::TimedOut)
-        }).count();
+        let completed = self
+            .children
+            .values()
+            .filter(|h| matches!(h.status, SubAgentStatus::Completed { .. }))
+            .count();
+        let failed = self
+            .children
+            .values()
+            .filter(|h| {
+                matches!(
+                    h.status,
+                    SubAgentStatus::Failed { .. } | SubAgentStatus::TimedOut
+                )
+            })
+            .count();
         let active = self.active_count();
 
         serde_json::json!({
@@ -381,7 +417,8 @@ mod tests {
             context: None,
             priority: 1,
             timeout_minutes: 10,
-        }).unwrap();
+        })
+        .unwrap();
 
         assert!(orch.cancel("child-1", "ألغيت المهمة").is_ok());
         let progress = orch.get_progress("child-1").unwrap();
@@ -392,23 +429,43 @@ mod tests {
     fn test_merge_results() {
         let mut orch = SubAgentOrchestrator::new(5);
         orch.spawn(SubAgentSpec {
-            id: "a".into(), task: "A".into(), model_id: "deepseek".into(),
-            mode: AgentMode::Autonomous, tools: vec![], max_steps: 5,
-            output_schema: dummy_schema(), parent_id: None,
-            isolation: IsolationLevel::Isolated, context: None,
-            priority: 1, timeout_minutes: 10,
-        }).unwrap();
+            id: "a".into(),
+            task: "A".into(),
+            model_id: "deepseek".into(),
+            mode: AgentMode::Autonomous,
+            tools: vec![],
+            max_steps: 5,
+            output_schema: dummy_schema(),
+            parent_id: None,
+            isolation: IsolationLevel::Isolated,
+            context: None,
+            priority: 1,
+            timeout_minutes: 10,
+        })
+        .unwrap();
         orch.spawn(SubAgentSpec {
-            id: "b".into(), task: "B".into(), model_id: "deepseek".into(),
-            mode: AgentMode::Autonomous, tools: vec![], max_steps: 5,
-            output_schema: dummy_schema(), parent_id: None,
-            isolation: IsolationLevel::Isolated, context: None,
-            priority: 1, timeout_minutes: 10,
-        }).unwrap();
+            id: "b".into(),
+            task: "B".into(),
+            model_id: "deepseek".into(),
+            mode: AgentMode::Autonomous,
+            tools: vec![],
+            max_steps: 5,
+            output_schema: dummy_schema(),
+            parent_id: None,
+            isolation: IsolationLevel::Isolated,
+            context: None,
+            priority: 1,
+            timeout_minutes: 10,
+        })
+        .unwrap();
 
-        orch.update_status("a", SubAgentStatus::Completed {
-            result: serde_json::json!({"analysis": "done"}),
-        }).unwrap();
+        orch.update_status(
+            "a",
+            SubAgentStatus::Completed {
+                result: serde_json::json!({"analysis": "done"}),
+            },
+        )
+        .unwrap();
 
         let merged = orch.merge_results(&["a".into(), "b".into()]).unwrap();
         assert_eq!(merged["a"]["analysis"], "done");

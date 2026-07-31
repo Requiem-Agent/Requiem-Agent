@@ -1,12 +1,16 @@
-use axum::{extract::{Path, State}, http::StatusCode, Extension, Json};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Extension, Json,
+};
+use chrono::Utc;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::Utc;
 
-use crate::AppState;
 use super::UserId;
+use crate::AppState;
 
 fn bot_row(r: &libsql::Row) -> Value {
     json!({
@@ -49,7 +53,10 @@ pub async fn create_bot(
     Json(body): Json<CreateBotBody>,
 ) -> Result<(StatusCode, Json<Value>), (StatusCode, Json<Value>)> {
     if body.name.trim().is_empty() || body.username.trim().is_empty() {
-        return Err((StatusCode::BAD_REQUEST, Json(json!({ "error": "name and username are required" }))));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "name and username are required" })),
+        ));
     }
     let clean_username = body.username.trim_start_matches('@').to_string();
     let id = Uuid::new_v4().to_string();
@@ -65,8 +72,12 @@ pub async fn create_bot(
         [id],
     ).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))))?;
 
-    let row = rows.next().await.ok().flatten()
-        .ok_or_else(|| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Failed to fetch created bot" }))))?;
+    let row = rows.next().await.ok().flatten().ok_or_else(|| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "error": "Failed to fetch created bot" })),
+        )
+    })?;
 
     Ok((StatusCode::CREATED, Json(bot_row(&row))))
 }
@@ -81,8 +92,12 @@ pub async fn get_bot(
         libsql::params![id, user_id],
     ).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))))?;
 
-    let row = rows.next().await.ok().flatten()
-        .ok_or_else(|| (StatusCode::NOT_FOUND, Json(json!({ "error": "Bot not found" }))))?;
+    let row = rows.next().await.ok().flatten().ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "Bot not found" })),
+        )
+    })?;
 
     Ok(Json(bot_row(&row)))
 }
@@ -92,15 +107,31 @@ pub async fn delete_bot(
     Extension(UserId(user_id)): Extension<UserId>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, (StatusCode, Json<Value>)> {
-    let mut rows = state.conn.query(
-        "SELECT id FROM bots WHERE id = ?1 AND user_id = ?2",
-        libsql::params![id.clone(), user_id],
-    ).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))))?;
+    let mut rows = state
+        .conn
+        .query(
+            "SELECT id FROM bots WHERE id = ?1 AND user_id = ?2",
+            libsql::params![id.clone(), user_id],
+        )
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+        })?;
 
     if rows.next().await.ok().flatten().is_none() {
-        return Err((StatusCode::NOT_FOUND, Json(json!({ "error": "Bot not found" }))));
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "Bot not found" })),
+        ));
     }
-    state.conn.execute("DELETE FROM bots WHERE id = ?1", [id]).await.ok();
+    state
+        .conn
+        .execute("DELETE FROM bots WHERE id = ?1", [id])
+        .await
+        .ok();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -109,24 +140,51 @@ pub async fn deploy_bot(
     Extension(UserId(user_id)): Extension<UserId>,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    let mut rows = state.conn.query(
-        "SELECT id, username FROM bots WHERE id = ?1 AND user_id = ?2",
-        libsql::params![id.clone(), user_id],
-    ).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": e.to_string() }))))?;
+    let mut rows = state
+        .conn
+        .query(
+            "SELECT id, username FROM bots WHERE id = ?1 AND user_id = ?2",
+            libsql::params![id.clone(), user_id],
+        )
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": e.to_string() })),
+            )
+        })?;
 
-    let row = rows.next().await.ok().flatten()
-        .ok_or_else(|| (StatusCode::NOT_FOUND, Json(json!({ "error": "Bot not found" }))))?;
+    let row = rows.next().await.ok().flatten().ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "Bot not found" })),
+        )
+    })?;
 
     let username: String = row.get(1).unwrap_or_default();
-    state.conn.execute("UPDATE bots SET status = 'building' WHERE id = ?1", [id.clone()]).await.ok();
+    state
+        .conn
+        .execute(
+            "UPDATE bots SET status = 'building' WHERE id = ?1",
+            [id.clone()],
+        )
+        .await
+        .ok();
 
-    let hf_org = state.hf_space_prdcn.split('/').next().unwrap_or("rayig").to_string();
+    let hf_org = state
+        .hf_space_prdcn
+        .split('/')
+        .next()
+        .unwrap_or("rayig")
+        .to_string();
     let hf_space_url = format!("https://huggingface.co/spaces/{hf_org}/{username}");
     let client = reqwest::Client::new();
     let resp = client
         .post("https://huggingface.co/api/spaces")
         .bearer_auth(&state.hf_token)
-        .json(&json!({ "name": username, "organization": hf_org, "sdk": "docker", "private": false }))
+        .json(
+            &json!({ "name": username, "organization": hf_org, "sdk": "docker", "private": false }),
+        )
         .timeout(std::time::Duration::from_secs(15))
         .send()
         .await;
@@ -134,15 +192,19 @@ pub async fn deploy_bot(
     let deployed = matches!(resp, Ok(r) if r.status().is_success() || r.status().as_u16() == 409);
     let now = Utc::now().to_rfc3339();
 
-    state.conn.execute(
-        "UPDATE bots SET status = ?1, hf_space_url = ?2, deployed_at = ?3 WHERE id = ?4",
-        libsql::params![
-            if deployed { "deployed" } else { "error" },
-            hf_space_url.clone(),
-            if deployed { Some(now) } else { None },
-            id,
-        ],
-    ).await.ok();
+    state
+        .conn
+        .execute(
+            "UPDATE bots SET status = ?1, hf_space_url = ?2, deployed_at = ?3 WHERE id = ?4",
+            libsql::params![
+                if deployed { "deployed" } else { "error" },
+                hf_space_url.clone(),
+                if deployed { Some(now) } else { None },
+                id,
+            ],
+        )
+        .await
+        .ok();
 
     Ok(Json(json!({
         "success": deployed,
