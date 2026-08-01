@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { Logo } from "@/components/logo";
 
 // ── Shared styles ──────────────────────────────────────────────────────────────
 const apiBase = import.meta.env.VITE_API_URL || "";
@@ -7,98 +8,61 @@ const apiBase = import.meta.env.VITE_API_URL || "";
 const screenStyle: React.CSSProperties = {
   display: "flex", height: "100dvh", width: "100%",
   alignItems: "center", justifyContent: "center",
-  background: "hsl(240 7% 6%)", flexDirection: "column", gap: "18px",
+  background: "#FFFFFF", flexDirection: "column", gap: "24px",
   padding: "24px", fontFamily: "'Inter','Cairo','Noto Sans Arabic',system-ui,sans-serif",
 };
 
 const inputStyle: React.CSSProperties = {
-  background: "hsl(240 6% 10%)", border: "1px solid hsl(240 6% 16%)",
-  borderRadius: "10px", padding: "12px 14px", fontSize: "14px",
-  color: "#fff", outline: "none", width: "100%", boxSizing: "border-box",
+  background: "#F9FAFB", border: "1.5px solid #E5E5E5",
+  borderRadius: "12px", padding: "14px 16px", fontSize: "15px",
+  color: "#000000", outline: "none", width: "100%", boxSizing: "border-box",
+  transition: "border-color 0.2s, box-shadow 0.2s",
 };
 
 const buttonStyle: React.CSSProperties = {
-  background: "hsl(262 83% 62%)", color: "#fff", border: "none",
-  borderRadius: "10px", padding: "12px", fontSize: "14px",
-  fontWeight: 600, cursor: "pointer", marginTop: "4px", width: "100%",
+  background: "#000000", color: "#FFFFFF", border: "none",
+  borderRadius: "12px", padding: "14px", fontSize: "15px",
+  fontWeight: 600, cursor: "pointer", marginTop: "6px", width: "100%",
+  transition: "transform 0.15s, opacity 0.15s",
+  letterSpacing: "0.3px",
 };
 
 const errorStyle: React.CSSProperties = {
-  color: "hsl(0 83% 62%)", fontSize: "12px", margin: "4px 0 0", textAlign: "center" as const,
+  color: "#DC2626", fontSize: "13px", margin: "6px 0 0", textAlign: "center" as const,
+  background: "#FEF2F2", padding: "10px 14px", borderRadius: "10px",
+  border: "1px solid #FECACA",
 };
 
 const linkStyle: React.CSSProperties = {
-  color: "hsl(262 83% 65%)", textDecoration: "none", fontSize: "12px",
-  background: "none", border: "none", cursor: "pointer", padding: 0,
+  color: "#000000", textDecoration: "none", fontSize: "13px",
+  background: "none", border: "none", cursor: "pointer", padding: "8px 12px",
+  fontWeight: 600, borderRadius: "8px", transition: "background 0.15s",
 };
-
-function Logo() {
-  return (
-    <div style={{
-      height: "60px", width: "60px", borderRadius: "16px",
-      background: "hsl(262 83% 62% / 0.12)", border: "1px solid hsl(262 83% 62% / 0.25)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-    }}>
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="hsl(262 83% 65%)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M6 10h12l-1.2 10a2 2 0 0 1-2 1.8H9.2a2 2 0 0 1-2-1.8L6 10z"/>
-        <circle cx="8.5" cy="7.5" r="1.6"/>
-        <circle cx="12" cy="6" r="1.8"/>
-        <circle cx="15.5" cy="7.5" r="1.6"/>
-      </svg>
-    </div>
-  );
-}
-
-function ScreenTitle({ title, subtitle }: { title: string; subtitle: string }) {
-  return (
-    <div style={{ textAlign: "center" }}>
-      <h1 style={{ fontSize: "20px", fontWeight: 700, color: "#fff", margin: "0 0 6px" }}>
-        {title}
-      </h1>
-      <p style={{ color: "hsl(240 5% 45%)", fontSize: "13px", margin: 0 }}>
-        {subtitle}
-      </p>
-    </div>
-  );
-}
 
 // ── Loading screen ────────────────────────────────────────────────────────────
 function LoadingScreen() {
   return (
     <div style={screenStyle}>
-      <div style={{
-        height: "52px", width: "52px", borderRadius: "14px",
-        background: "hsl(262 83% 62% / 0.12)", border: "1px solid hsl(262 83% 62% / 0.25)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        animation: "ra-float 3s ease-in-out infinite",
-      }}>
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="hsl(262 83% 65%)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M6 10h12l-1.2 10a2 2 0 0 1-2 1.8H9.2a2 2 0 0 1-2-1.8L6 10z"/>
-          <circle cx="8.5" cy="7.5" r="1.6"/>
-          <circle cx="12" cy="6" r="1.8"/>
-          <circle cx="15.5" cy="7.5" r="1.6"/>
-        </svg>
+      <Logo size={72} variant="full" />
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+        <div style={{ width: "160px", height: "3px", background: "#F3F4F6", borderRadius: "2px", overflow: "hidden" }}>
+          <div style={{
+            height: "100%", background: "#000000", borderRadius: "2px",
+            animation: "ra-progress 2s ease-in-out infinite",
+          }} />
+        </div>
+        <p style={{ color: "#737373", fontSize: "13px", margin: 0, letterSpacing: "0.3px" }}>
+          جاري الاتصال…
+        </p>
       </div>
-      <div style={{ width: "140px", height: "2px", background: "hsl(240 6% 14%)", borderRadius: "1px", overflow: "hidden" }}>
-        <div style={{
-          height: "100%",
-          background: "linear-gradient(90deg, hsl(262 83% 62%), hsl(188 94% 38%))",
-          animation: "ra-progress 2s ease-in-out infinite",
-          borderRadius: "1px",
-        }} />
-      </div>
-      <p style={{ color: "hsl(240 5% 45%)", fontSize: "12px", letterSpacing: "0.5px", margin: 0 }}>
-        Connecting…
-      </p>
       <style>{`
-        @keyframes ra-float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-5px); } }
         @keyframes ra-progress { 0% { width: 5%; } 50% { width: 72%; } 100% { width: 94%; } }
       `}</style>
     </div>
   );
 }
 
-// ── Register screen (2 steps, stays inside the Mini App) ──────────────────────
+// ── Register screen ───────────────────────────────────────────────────────────
 function RegisterScreen({ onBack, onRegistered }: { onBack: () => void; onRegistered: () => void }) {
   const { login } = useAuth();
   const [step, setStep] = useState<1 | 2>(1);
@@ -108,11 +72,10 @@ function RegisterScreen({ onBack, onRegistered }: { onBack: () => void; onRegist
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Step 1: verify the PopCorn key via the gateway
   const verifyKey = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!apiKey.trim().startsWith("ppcrn_")) {
-      setError("أدخل مفتاح PopCorn صالحاً (يبدأ بـ ppcrn_)");
+      setError("أدخل مفتاح PopCornصالحاً (يبدأ بـ ppcrn_)");
       return;
     }
     setLoading(true);
@@ -130,7 +93,7 @@ function RegisterScreen({ onBack, onRegistered }: { onBack: () => void; onRegist
         return;
       }
       if (data.account_exists) {
-        setError("هذا المفتاح مرتبط بحساب موجود بالفعل — سجّل الدخول بدلاً من ذلك");
+        setError("هذا المفتاح مرتبط بحساب موجود — سجّل الدخول بدلاً من ذلك");
         setLoading(false);
         return;
       }
@@ -141,7 +104,6 @@ function RegisterScreen({ onBack, onRegistered }: { onBack: () => void; onRegist
     setLoading(false);
   };
 
-  // Step 2: create account + auto sign-in
   const createAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password) {
@@ -162,7 +124,6 @@ function RegisterScreen({ onBack, onRegistered }: { onBack: () => void; onRegist
         setLoading(false);
         return;
       }
-      // auto sign-in with the new credentials
       const result = await login(username.trim(), password);
       if (!result.success) {
         setError(result.error || "تم إنشاء الحساب — سجّل الدخول يدوياً");
@@ -178,20 +139,24 @@ function RegisterScreen({ onBack, onRegistered }: { onBack: () => void; onRegist
 
   return (
     <div dir="rtl" style={screenStyle}>
-      <Logo />
-      <ScreenTitle
-        title={step === 1 ? "تسجيل جديد" : "إنشاء حساب"}
-        subtitle={step === 1 ? "أدخل مفتاح PopCorn الخاص بك للتحقق" : "اختر اسم مستخدم وكلمة مرور"}
-      />
+      <Logo size={72} variant="full" />
+      <div style={{ textAlign: "center" }}>
+        <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#000000", margin: "0 0 6px" }}>
+          {step === 1 ? "تسجيل جديد" : "إنشاء حساب"}
+        </h1>
+        <p style={{ color: "#737373", fontSize: "14px", margin: 0, lineHeight: 1.5 }}>
+          {step === 1 ? "أدخل مفتاح PopCorn للتحقق" : "اختر اسم مستخدم وكلمة مرور"}
+        </p>
+      </div>
       <form onSubmit={step === 1 ? verifyKey : createAccount} style={{
-        width: "100%", maxWidth: "340px", display: "flex", flexDirection: "column", gap: "12px",
+        width: "100%", maxWidth: "360px", display: "flex", flexDirection: "column", gap: "14px",
       }}>
         {step === 1 ? (
           <input
             type="text"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder="PopCorn API Key (ppcrn_...)"
+            placeholder="مفتاح PopCorn (ppcrn_...)"
             style={inputStyle}
           />
         ) : (
@@ -200,7 +165,7 @@ function RegisterScreen({ onBack, onRegistered }: { onBack: () => void; onRegist
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="اسم المستخدم (3-32 حرفاً)"
+              placeholder="اسم المستخدم"
               autoComplete="username"
               style={inputStyle}
             />
@@ -208,7 +173,7 @@ function RegisterScreen({ onBack, onRegistered }: { onBack: () => void; onRegist
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="كلمة المرور (8+ أحرف، حرف كبير ورقم)"
+              placeholder="كلمة المرور"
               autoComplete="new-password"
               style={inputStyle}
             />
@@ -216,17 +181,15 @@ function RegisterScreen({ onBack, onRegistered }: { onBack: () => void; onRegist
         )}
         {error && <p style={errorStyle}>{error}</p>}
         <button type="submit" disabled={loading} style={{ ...buttonStyle, opacity: loading ? 0.6 : 1 }}>
-          {loading ? "...جاري" : step === 1 ? "تحقق من المفتاح" : "إنشاء الحساب"}
+          {loading ? "…جاري" : step === 1 ? "تحقق من المفتاح" : "إنشاء الحساب"}
         </button>
       </form>
-      <div style={{ display: "flex", gap: "16px", justifyContent: "center" }}>
-        <button onClick={onBack} style={linkStyle}>عودة لتسجيل الدخول</button>
-      </div>
+      <button onClick={onBack} style={linkStyle}>← العودة لتسجيل الدخول</button>
     </div>
   );
 }
 
-// ── Forgot password screen (stays inside the Mini App) ────────────────────────
+// ── Forgot password screen ────────────────────────────────────────────────────
 function ForgotPasswordScreen({ onBack }: { onBack: () => void }) {
   const [apiKey, setApiKey] = useState("");
   const [username, setUsername] = useState("");
@@ -238,7 +201,7 @@ function ForgotPasswordScreen({ onBack }: { onBack: () => void }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!apiKey.trim() || !username.trim() || !newPassword) {
-      setError("أدخل جميع الحقول");
+      setError("أدخل جميع الحقول المطلوبة");
       return;
     }
     setLoading(true);
@@ -251,7 +214,7 @@ function ForgotPasswordScreen({ onBack }: { onBack: () => void }) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "فشلت الاستعادة");
+        setError(data.error || "فشلت العملية");
         setLoading(false);
         return;
       }
@@ -264,51 +227,31 @@ function ForgotPasswordScreen({ onBack }: { onBack: () => void }) {
 
   return (
     <div dir="rtl" style={screenStyle}>
-      <Logo />
-      <ScreenTitle
-        title="استعادة كلمة المرور"
-        subtitle={done ? "تم تحديث كلمة المرور بنجاح" : "أدخل المفتاح واسم المستخدم وكلمة مرور جديدة"}
-      />
+      <Logo size={72} variant="full" />
+      <div style={{ textAlign: "center" }}>
+        <h1 style={{ fontSize: "22px", fontWeight: 700, color: "#000000", margin: "0 0 6px" }}>
+          استعادة كلمة المرور
+        </h1>
+        <p style={{ color: "#737373", fontSize: "14px", margin: 0, lineHeight: 1.5 }}>
+          {done ? "تم التحديث بنجاح" : "أدخل المفتاح واسم المستخدم وكلمة المرور الجديدة"}
+        </p>
+      </div>
       {done ? (
         <button onClick={onBack} style={buttonStyle}>العودة لتسجيل الدخول</button>
       ) : (
         <form onSubmit={submit} style={{
-          width: "100%", maxWidth: "340px", display: "flex", flexDirection: "column", gap: "12px",
+          width: "100%", maxWidth: "360px", display: "flex", flexDirection: "column", gap: "14px",
         }}>
-          <input
-            type="text"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="PopCorn API Key (ppcrn_...)"
-            style={inputStyle}
-          />
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="اسم المستخدم"
-            autoComplete="username"
-            style={inputStyle}
-          />
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="كلمة المرور الجديدة"
-            autoComplete="new-password"
-            style={inputStyle}
-          />
+          <input type="text" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="مفتاح PopCorn (ppcrn_...)" style={inputStyle} />
+          <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="اسم المستخدم" autoComplete="username" style={inputStyle} />
+          <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="كلمة المرور الجديدة" autoComplete="new-password" style={inputStyle} />
           {error && <p style={errorStyle}>{error}</p>}
           <button type="submit" disabled={loading} style={{ ...buttonStyle, opacity: loading ? 0.6 : 1 }}>
-            {loading ? "...جاري" : "تحديث كلمة المرور"}
+            {loading ? "…جاري" : "تحديث كلمة المرور"}
           </button>
         </form>
       )}
-      {!done && (
-        <div style={{ display: "flex", gap: "16px", justifyContent: "center" }}>
-          <button onClick={onBack} style={linkStyle}>عودة لتسجيل الدخول</button>
-        </div>
-      )}
+      {!done && <button onClick={onBack} style={linkStyle}>← العودة لتسجيل الدخول</button>}
     </div>
   );
 }
@@ -325,68 +268,74 @@ function LoginScreen() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password) {
-      setError("Please enter username and password");
+      setError("أدخل اسم المستخدم وكلمة المرور");
       return;
     }
     setLoading(true);
     setError("");
     const result = await login(username.trim(), password);
     if (!result.success) {
-      setError(result.error || "Login failed");
+      setError(result.error || "فشل تسجيل الدخول");
     }
     setLoading(false);
   };
 
-  if (view === "register") {
-    return <RegisterScreen onBack={() => setView("login")} onRegistered={() => setView("login")} />;
-  }
-  if (view === "forgot") {
-    return <ForgotPasswordScreen onBack={() => setView("login")} />;
-  }
+  if (view === "register") return <RegisterScreen onBack={() => setView("login")} onRegistered={() => setView("login")} />;
+  if (view === "forgot") return <ForgotPasswordScreen onBack={() => setView("login")} />;
 
   return (
     <div dir="rtl" style={screenStyle}>
-      <Logo />
-      <ScreenTitle
-        title="PopCorn AI Studio"
-        subtitle="سجّل الدخول بحساب PopCorn الخاص بك"
-      />
+      <Logo size={80} variant="full" />
+      <div style={{ textAlign: "center", marginTop: "4px" }}>
+        <h1 style={{ fontSize: "24px", fontWeight: 800, color: "#000000", margin: "0 0 8px", letterSpacing: "-0.5px" }}>
+          بوب كورن ستوديو
+        </h1>
+        <p style={{ color: "#737373", fontSize: "14px", margin: 0, lineHeight: 1.5 }}>
+          سجّل الدخول بالحساب المُنشأ عبر البوت
+        </p>
+      </div>
       <form onSubmit={handleSubmit} style={{
-        width: "100%", maxWidth: "340px", display: "flex", flexDirection: "column", gap: "12px",
+        width: "100%", maxWidth: "360px", display: "flex", flexDirection: "column", gap: "14px",
       }}>
         <input
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder="Username"
+          placeholder="اسم المستخدم"
           autoComplete="username"
           style={inputStyle}
+          onFocus={(e) => { e.target.style.borderColor = "#000000"; e.target.style.boxShadow = "0 0 0 3px rgba(0,0,0,0.08)"; }}
+          onBlur={(e) => { e.target.style.borderColor = "#E5E5E5"; e.target.style.boxShadow = "none"; }}
         />
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
+          placeholder="كلمة المرور"
           autoComplete="current-password"
           style={inputStyle}
+          onFocus={(e) => { e.target.style.borderColor = "#000000"; e.target.style.boxShadow = "0 0 0 3px rgba(0,0,0,0.08)"; }}
+          onBlur={(e) => { e.target.style.borderColor = "#E5E5E5"; e.target.style.boxShadow = "none"; }}
         />
         {error && <p style={errorStyle}>{error}</p>}
         <button
           type="submit"
           disabled={loading}
           style={{ ...buttonStyle, opacity: loading ? 0.6 : 1 }}
+          onMouseEnter={(e) => { if (!loading) e.currentTarget.style.transform = "scale(0.98)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
         >
-          {loading ? "Signing in..." : "Sign In"}
+          {loading ? "…جاري الدخول" : "تسجيل الدخول"}
         </button>
       </form>
 
-      {/* كل شيء يتم داخل التطبيق المصغر — لا نوافذ منبقة خارجية */}
-      <div style={{ display: "flex", gap: "16px", justifyContent: "center", fontSize: "12px" }}>
-        <button onClick={() => setView("register")} style={linkStyle}>
-          تسجيل جديد
+      <div style={{ display: "flex", gap: "8px", justifyContent: "center", fontSize: "13px" }}>
+        <button onClick={() => setView("register")} style={linkStyle} onMouseEnter={(e) => { e.currentTarget.style.background = "#F3F4F6"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}>
+          إنشاء حساب جديد
         </button>
-        <button onClick={() => setView("forgot")} style={{ ...linkStyle, color: "hsl(240 5% 45%)" }}>
-          نسيت كلمة السر
+        <span style={{ color: "#E5E5E5" }}>|</span>
+        <button onClick={() => setView("forgot")} style={{ ...linkStyle, color: "#737373" }} onMouseEnter={(e) => { e.currentTarget.style.background = "#F3F4F6"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}>
+          نسيت كلمة المرور؟
         </button>
       </div>
     </div>

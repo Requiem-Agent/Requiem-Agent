@@ -9,18 +9,18 @@ import {
 import { cn } from "@/lib/utils";
 
 const TYPE_CONFIG: Record<MemoryType, { label: string; Icon: React.ElementType; color: string; bg: string; border: string }> = {
-  code:       { label: "Code",       Icon: Code2,       color: "text-cyan-400",    bg: "bg-cyan-400/8",    border: "border-cyan-400/20" },
-  fact:       { label: "Fact",       Icon: BookOpen,    color: "text-emerald-400", bg: "bg-emerald-400/8", border: "border-emerald-400/20" },
-  preference: { label: "Preference", Icon: Star,        color: "text-violet-400",  bg: "bg-violet-400/8",  border: "border-violet-400/20" },
-  context:    { label: "Context",    Icon: Layers,      color: "text-amber-400",   bg: "bg-amber-400/8",   border: "border-amber-400/20" },
-  error:      { label: "Error",      Icon: AlertCircle, color: "text-rose-400",    bg: "bg-rose-400/8",    border: "border-rose-400/20" },
+  code:       { label: "كود",       Icon: Code2,       color: "text-neutral-600",    bg: "bg-neutral-100",    border: "border-neutral-300" },
+  fact:       { label: "حقيقة",       Icon: BookOpen,    color: "text-neutral-700", bg: "bg-neutral-100", border: "border-neutral-300" },
+  preference: { label: "تفضيل", Icon: Star,        color: "text-neutral-700",  bg: "bg-neutral-100",  border: "border-neutral-300" },
+  context:    { label: "سياق",    Icon: Layers,      color: "text-neutral-500",   bg: "bg-neutral-100",   border: "border-neutral-300" },
+  error:      { label: "خطأ",      Icon: AlertCircle, color: "text-red-600",    bg: "bg-red-50",    border: "border-red-200" },
 };
 
 const PRIORITY_DOT: Record<string, string> = {
-  critical: "bg-rose-400",
-  high:     "bg-amber-400",
-  medium:   "bg-cyan-400",
-  low:      "bg-muted-foreground/40",
+  critical: "bg-red-600",
+  high:     "bg-neutral-500",
+  medium:   "bg-neutral-600",
+  low:      "bg-neutral-300",
 };
 
 function formatDate(iso: string) {
@@ -45,9 +45,9 @@ export default function MemoryPage() {
       setClearConfirm(false);
       refetchStats();
       refetchMems();
-      toast({ title: "Memory cleared" });
+      toast({ title: "تم مسح الذاكرة" });
     } catch {
-      toast({ title: "Failed", variant: "destructive" });
+      toast({ title: "فشل", variant: "destructive" });
     }
   }
 
@@ -57,7 +57,7 @@ export default function MemoryPage() {
       refetchStats();
       refetchMems();
     } catch {
-      toast({ title: "Failed to delete", variant: "destructive" });
+      toast({ title: "فشل الحذف", variant: "destructive" });
     }
   }
 
@@ -72,12 +72,12 @@ export default function MemoryPage() {
           {/* Header */}
           <div className="flex items-center justify-between animate-slide-up">
             <div className="flex items-center gap-2.5">
-              <div className="h-9 w-9 rounded-xl bg-violet-400/10 border border-violet-400/20 flex items-center justify-center">
-                <Brain className="h-4.5 w-4.5 text-violet-400" />
+              <div className="h-9 w-9 rounded-xl bg-neutral-100 border border-neutral-300 flex items-center justify-center">
+                <Brain className="h-4.5 w-4.5 text-neutral-700" />
               </div>
               <div>
-                <h1 className="text-base font-semibold">Memory</h1>
-                <p className="text-[10px] text-muted-foreground/50">RAG knowledge store</p>
+                <h1 className="text-base font-semibold">الذاكرة</h1>
+                <p className="text-[10px] text-muted-foreground/50">مخزن المعرفة</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -94,18 +94,18 @@ export default function MemoryPage() {
           {/* Stats cards */}
           {!statsLoading && stats && (
             <div className="grid grid-cols-2 gap-2.5 animate-slide-up" style={{ animationDelay: "40ms" }}>
-              <div className="rounded-xl border border-violet-400/20 bg-violet-400/5 p-3.5 flex items-center gap-3">
-                <Database className="h-5 w-5 text-violet-400 shrink-0" />
+              <div className="rounded-xl border border-neutral-300 bg-neutral-50 p-3.5 flex items-center gap-3">
+                <Database className="h-5 w-5 text-neutral-700 shrink-0" />
                 <div>
                   <p className="text-xl font-bold font-mono leading-none">{total}</p>
-                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">total entries</p>
+                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">إجمالي الإدخالات</p>
                 </div>
               </div>
-              <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-3.5 flex items-center gap-3">
-                <TrendingUp className="h-5 w-5 text-cyan-400 shrink-0" />
+              <div className="rounded-xl border border-neutral-300 bg-neutral-50 p-3.5 flex items-center gap-3">
+                <TrendingUp className="h-5 w-5 text-neutral-600 shrink-0" />
                 <div>
                   <p className="text-xl font-bold font-mono leading-none">{(stats as any).total_access_count ?? 0}</p>
-                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">total accesses</p>
+                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">إجمالي الوصولات</p>
                 </div>
               </div>
             </div>
@@ -142,39 +142,39 @@ export default function MemoryPage() {
                 <Filter className="h-3 w-3" />
                 {activeType !== "all" ? (
                   <span className="flex items-center gap-1">
-                    Filtering: {TYPE_CONFIG[activeType as MemoryType]?.label}
+                    الفلتر: {TYPE_CONFIG[activeType as MemoryType]?.label}
                     <button onClick={() => setActiveType("all")} className="text-muted-foreground/50 hover:text-foreground ml-0.5">
                       <X className="h-3 w-3" />
                     </button>
                   </span>
                 ) : (
-                  <span>All types</span>
+                  <span>جميع الأنواع</span>
                 )}
               </div>
 
               {!clearConfirm ? (
                 <button
                   onClick={() => setClearConfirm(true)}
-                  className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-rose-400 font-mono px-2 py-1 rounded-lg border border-border/40 hover:border-rose-400/30 transition-all"
+                  className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-red-600 font-mono px-2 py-1 rounded-lg border border-border/40 hover:border-red-200 transition-all"
                 >
-                  <Trash2 className="h-3 w-3" /> clear all
+                  <Trash2 className="h-3 w-3" /> مسح الكل
                 </button>
               ) : (
                 <div className="flex items-center gap-1.5">
-                  <AlertTriangle className="h-3 w-3 text-amber-400" />
-                  <span className="text-[10px] text-amber-400 font-mono">sure?</span>
+                  <AlertTriangle className="h-3 w-3 text-neutral-500" />
+                  <span className="text-[10px] text-neutral-500 font-mono">متأكد؟</span>
                   <button
                     onClick={handleClear}
                     disabled={clearMemory.isPending}
-                    className="text-[10px] text-rose-400 font-mono px-2 py-0.5 rounded border border-rose-400/40 hover:bg-rose-400/10"
+                    className="text-[10px] text-red-600 font-mono px-2 py-0.5 rounded border border-red-200 hover:bg-red-50"
                   >
-                    {clearMemory.isPending ? "..." : "yes"}
+                    {clearMemory.isPending ? "..." : "نعم"}
                   </button>
                   <button
                     onClick={() => setClearConfirm(false)}
                     className="text-[10px] text-muted-foreground font-mono px-2 py-0.5 rounded border border-border/50"
                   >
-                    no
+                    لا
                   </button>
                 </div>
               )}
@@ -188,13 +188,13 @@ export default function MemoryPage() {
             </div>
           ) : memList.length === 0 ? (
             <div className="flex flex-col items-center py-14 gap-4 text-center animate-fade-in">
-              <div className="h-14 w-14 rounded-2xl bg-violet-400/5 border border-violet-400/15 flex items-center justify-center animate-float">
-                <Brain className="h-7 w-7 text-violet-400/40" />
+              <div className="h-14 w-14 rounded-2xl bg-neutral-50 border border-neutral-300 flex items-center justify-center animate-float">
+                <Brain className="h-7 w-7 text-neutral-500" />
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">No memories yet</p>
+                <p className="text-sm font-medium text-muted-foreground">لا توجد ذاكرات بعد</p>
                 <p className="text-xs text-muted-foreground/50 max-w-52 leading-relaxed">
-                  The agent automatically stores useful context from your conversations.
+                  يخزن الوكيل تلقائياً السياق المفيد من محادثاتك.
                 </p>
               </div>
             </div>
@@ -220,7 +220,7 @@ export default function MemoryPage() {
                       </p>
                       <button
                         onClick={() => handleDelete(mem.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-rose-400 transition-all shrink-0"
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded text-muted-foreground hover:text-red-600 transition-all shrink-0"
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>

@@ -60,15 +60,15 @@ function RingChart({
 // ─── Agent Mode Card ──────────────────────────────────────────────────────────
 // NOTE: Model names are intentionally hidden — only "Requiem Agent 1" brand is shown
 const AGENT_MODES = [
-  { key: "orchestrator", Icon: Settings2, label: "Orchestrator", desc: "Main coordinator — distributes tasks across agents",  color: "text-primary   bg-primary/10   border-primary/20" },
-  { key: "coder",        Icon: Code2,     label: "Coder",        desc: "Fast code generation and multi-file edits",           color: "text-cyan-400  bg-cyan-400/10  border-cyan-400/20" },
-  { key: "planner",      Icon: Terminal,  label: "Planner",      desc: "Heavy reasoning and architectural planning",          color: "text-violet-400 bg-violet-400/10 border-violet-400/20" },
-  { key: "debugger",     Icon: Bug,       label: "Debugger",     desc: "Large-scale debugging and root-cause analysis",       color: "text-rose-400  bg-rose-400/10  border-rose-400/20" },
-  { key: "reviewer",     Icon: Cpu,       label: "Reviewer",     desc: "Dependency integrity and code quality",               color: "text-amber-400 bg-amber-400/10 border-amber-400/20" },
-  { key: "researcher",   Icon: Search,    label: "Researcher",   desc: "Deep research and information synthesis",             color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20" },
-  { key: "designer",     Icon: Palette,   label: "Designer",     desc: "UI/UX design and creative tasks",                    color: "text-pink-400  bg-pink-400/10  border-pink-400/20" },
-  { key: "explorer",     Icon: Map,       label: "Explorer",     desc: "Codebase navigation and dependency mapping",          color: "text-indigo-400 bg-indigo-400/10 border-indigo-400/20" },
-  { key: "security",     Icon: Shield,    label: "Security",     desc: "Vulnerability scanning and security analysis",        color: "text-orange-400 bg-orange-400/10 border-orange-400/20" },
+  { key: "orchestrator", Icon: Settings2, label: "منسّق", desc: "منسّق رئيسي —وزّع المهام على الوكلاء",  color: "text-black bg-neutral-200 border-neutral-300" },
+  { key: "coder",        Icon: Code2,     label: "مبرمج",        desc: "توليد سريع للكود وتعديل متعدد الملفات",           color: "text-neutral-600 bg-neutral-200 border-neutral-300" },
+  { key: "planner",      Icon: Terminal,  label: "مخطط",      desc: "تفكير مكثف وتخطيط هيكلي",          color: "text-neutral-600 bg-neutral-200 border-neutral-300" },
+  { key: "debugger",     Icon: Bug,       label: "مصحّح",     desc: "تصحيح واسع وتحليل الأسباب الجذرية",       color: "text-red-600 bg-neutral-200 border-neutral-300" },
+  { key: "reviewer",     Icon: Cpu,       label: "مراجع",     desc: "سلامة التبعيات وجودة الكود",               color: "text-neutral-500 bg-neutral-200 border-neutral-300" },
+  { key: "researcher",   Icon: Search,    label: "باحث",   desc: "بحث معمّق وتجميع المعلومات",             color: "text-neutral-700 bg-neutral-200 border-neutral-300" },
+  { key: "designer",     Icon: Palette,   label: "مصمم",     desc: "تصميم واجهات ومهام إبداعية",                    color: "text-neutral-600 bg-neutral-200 border-neutral-300" },
+  { key: "explorer",     Icon: Map,       label: "مستكشف",     desc: "استكشاف قاعدة الكود ورسم خريطة التبعيات",          color: "text-neutral-600 bg-neutral-200 border-neutral-300" },
+  { key: "security",     Icon: Shield,    label: "أمان",     desc: "فحص الثغرات والتحليل الأمني",        color: "text-neutral-600 bg-neutral-200 border-neutral-300" },
 ];
 
 // ─── Preferences Section ──────────────────────────────────────────────────────
@@ -96,7 +96,7 @@ function PreferencesSection() {
   if (isLoading) {
     return (
       <div className="flex justify-center py-6">
-        <Loader2 className="h-5 w-5 animate-spin text-primary/60" />
+        <Loader2 className="h-5 w-5 animate-spin text-black/60" />
       </div>
     );
   }
@@ -106,10 +106,10 @@ function PreferencesSection() {
   return (
     <section className="animate-slide-up space-y-2" style={{ animationDelay: "100ms" }}>
       <div className="flex items-center gap-2 px-1">
-        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Preferences</h2>
+        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">التفضيلات</h2>
         {saved && (
-          <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-mono ml-auto">
-            <CheckCircle2 className="h-2.5 w-2.5" /> Saved
+          <span className="flex items-center gap-1 text-[10px] text-neutral-700 font-mono ml-auto">
+            <CheckCircle2 className="h-2.5 w-2.5" /> تم الحفظ
           </span>
         )}
       </div>
@@ -119,12 +119,12 @@ function PreferencesSection() {
         <CardContent className="p-0">
           <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border/30 bg-muted/20">
             <Palette className="h-3 w-3 text-muted-foreground" />
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Appearance</span>
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">المظهر</span>
           </div>
 
           {/* Theme */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border/30">
-            <span className="text-xs text-foreground/80">Theme</span>
+            <span className="text-xs text-foreground/80">السمة</span>
             <div className="flex gap-1">
               {(["dark", "light", "system"] as const).map((t) => (
                 <button
@@ -133,7 +133,7 @@ function PreferencesSection() {
                   className={cn(
                     "text-[10px] font-mono px-2 py-0.5 rounded border transition-all",
                     prefs.theme === t
-                      ? "border-primary/60 bg-primary/10 text-primary"
+                      ? "border-neutral-400 bg-neutral-200 text-black"
                       : "border-border/40 text-muted-foreground hover:border-border"
                   )}
                 >
@@ -145,13 +145,13 @@ function PreferencesSection() {
 
           {/* Compact mode */}
           <ToggleRow
-            label="Compact mode"
+            label="الوضع المضغوط"
             value={prefs.compact_mode}
             onToggle={() => toggle("compact_mode")}
           />
           {/* Show timestamps */}
           <ToggleRow
-            label="Show timestamps"
+            label="إظهار التوقيت"
             value={prefs.show_timestamps}
             onToggle={() => toggle("show_timestamps")}
             last
@@ -164,12 +164,12 @@ function PreferencesSection() {
         <CardContent className="p-0">
           <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border/30 bg-muted/20">
             <SlidersHorizontal className="h-3 w-3 text-muted-foreground" />
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Agent</span>
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">الوكيل</span>
           </div>
 
           {/* Default mode */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border/30">
-            <span className="text-xs text-foreground/80">Default mode</span>
+            <span className="text-xs text-foreground/80">الوضع الافتراضي</span>
             <div className="flex gap-1">
               {(["chat", "orchestrator", "code"] as const).map((m) => (
                 <button
@@ -178,7 +178,7 @@ function PreferencesSection() {
                   className={cn(
                     "text-[10px] font-mono px-2 py-0.5 rounded border transition-all",
                     prefs.default_mode === m
-                      ? "border-primary/60 bg-primary/10 text-primary"
+                      ? "border-neutral-400 bg-neutral-200 text-black"
                       : "border-border/40 text-muted-foreground hover:border-border"
                   )}
                 >
@@ -192,7 +192,7 @@ function PreferencesSection() {
           <div className="flex items-center justify-between px-4 py-3 border-b border-border/30">
             <div className="flex items-center gap-1.5">
               <Thermometer className="h-3 w-3 text-muted-foreground" />
-              <span className="text-xs text-foreground/80">Temperature</span>
+              <span className="text-xs text-foreground/80">درجة الحرارة</span>
             </div>
             <div className="flex items-center gap-2">
               <input
@@ -200,7 +200,7 @@ function PreferencesSection() {
                 min={0} max={1} step={0.1}
                 value={prefs.temperature}
                 onChange={(e) => setField("temperature", parseFloat(e.target.value))}
-                className="w-20 accent-primary"
+                className="w-20 accent-black"
               />
               <span className="text-[10px] font-mono text-muted-foreground w-6 text-right">
                 {prefs.temperature.toFixed(1)}
@@ -210,13 +210,13 @@ function PreferencesSection() {
 
           {/* Stream responses */}
           <ToggleRow
-            label="Stream responses"
+            label="البث المباشر"
             value={prefs.stream_responses}
             onToggle={() => toggle("stream_responses")}
           />
           {/* Show thinking */}
           <ToggleRow
-            label="Show thinking"
+            label="إظهار التفكير"
             value={prefs.show_thinking}
             onToggle={() => toggle("show_thinking")}
             last
@@ -229,11 +229,11 @@ function PreferencesSection() {
         <CardContent className="p-0">
           <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border/30 bg-muted/20">
             <Bell className="h-3 w-3 text-muted-foreground" />
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Notifications</span>
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">الإشعارات</span>
           </div>
-          <ToggleRow label="On task complete" value={prefs.notify_on_complete} onToggle={() => toggle("notify_on_complete")} />
-          <ToggleRow label="On error" value={prefs.notify_on_error} onToggle={() => toggle("notify_on_error")} />
-          <ToggleRow label="On mention" value={prefs.notify_on_mention} onToggle={() => toggle("notify_on_mention")} last />
+          <ToggleRow label="عند اكتمال المهمة" value={prefs.notify_on_complete} onToggle={() => toggle("notify_on_complete")} />
+          <ToggleRow label="عند الخطأ" value={prefs.notify_on_error} onToggle={() => toggle("notify_on_error")} />
+          <ToggleRow label="عند الذكر" value={prefs.notify_on_mention} onToggle={() => toggle("notify_on_mention")} last />
         </CardContent>
       </Card>
 
@@ -242,10 +242,10 @@ function PreferencesSection() {
         <CardContent className="p-0">
           <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border/30 bg-muted/20">
             <Lock className="h-3 w-3 text-muted-foreground" />
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Privacy</span>
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">الخصوصية</span>
           </div>
-          <ToggleRow label="Save history" value={prefs.save_history} onToggle={() => toggle("save_history")} />
-          <ToggleRow label="Share analytics" value={prefs.share_analytics} onToggle={() => toggle("share_analytics")} last />
+          <ToggleRow label="حفظ السجل" value={prefs.save_history} onToggle={() => toggle("save_history")} />
+          <ToggleRow label="مشاركة التحليلات" value={prefs.share_analytics} onToggle={() => toggle("share_analytics")} last />
         </CardContent>
       </Card>
     </section>
@@ -270,7 +270,7 @@ function ToggleRow({
         className={cn(
           "relative h-5 w-9 rounded-full border transition-all duration-200",
           value
-            ? "bg-primary/80 border-primary/60"
+            ? "bg-black border-neutral-400"
             : "bg-muted border-border/50"
         )}
       >
@@ -288,11 +288,11 @@ function ToggleRow({
 // ─── API Keys Section ─────────────────────────────────────────────────────────
 
 const PROVIDERS = [
-  { id: "anthropic", label: "Anthropic", color: "text-orange-400" },
-  { id: "openai",    label: "OpenAI",    color: "text-emerald-400" },
-  { id: "gemini",    label: "Gemini",    color: "text-blue-400" },
-  { id: "mistral",   label: "Mistral",   color: "text-violet-400" },
-  { id: "groq",      label: "Groq",      color: "text-cyan-400" },
+  { id: "anthropic", label: "Anthropic", color: "text-neutral-600" },
+  { id: "openai",    label: "OpenAI",    color: "text-neutral-700" },
+  { id: "gemini",    label: "Gemini",    color: "text-neutral-600" },
+  { id: "mistral",   label: "Mistral",   color: "text-neutral-600" },
+  { id: "groq",      label: "Groq",      color: "text-neutral-600" },
 ];
 
 function ApiKeysSection() {
@@ -315,12 +315,12 @@ function ApiKeysSection() {
   return (
     <section className="animate-slide-up space-y-2" style={{ animationDelay: "140ms" }}>
       <div className="flex items-center gap-2 px-1">
-        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">API Keys</h2>
+        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">مفاتيح API</h2>
         <button
           onClick={() => setAdding(true)}
-          className="ml-auto flex items-center gap-1 text-[10px] text-primary/70 hover:text-primary font-mono px-2 py-0.5 rounded border border-primary/20 hover:border-primary/40 transition-all"
+          className="ml-auto flex items-center gap-1 text-[10px] text-black/70 hover:text-black font-mono px-2 py-0.5 rounded border border-neutral-300 hover:border-neutral-400 transition-all"
         >
-          <Key className="h-2.5 w-2.5" /> Add key
+          <Key className="h-2.5 w-2.5" /> إضافة مفتاح
         </button>
       </div>
 
@@ -328,7 +328,7 @@ function ApiKeysSection() {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="flex justify-center py-4">
-              <Loader2 className="h-4 w-4 animate-spin text-primary/60" />
+              <Loader2 className="h-4 w-4 animate-spin text-black/60" />
             </div>
           ) : keys && keys.length > 0 ? (
             keys.map((k, i) => {
@@ -373,7 +373,7 @@ function ApiKeysSection() {
           ) : (
             <div className="flex flex-col items-center gap-1.5 py-5 text-center">
               <Key className="h-5 w-5 text-muted-foreground/30" />
-              <p className="text-[10px] text-muted-foreground/50">No API keys saved yet</p>
+              <p className="text-[10px] text-muted-foreground/50">لا توجد مفاتيح محفوظة بعد</p>
             </div>
           )}
 
@@ -388,7 +388,7 @@ function ApiKeysSection() {
                     className={cn(
                       "text-[10px] font-mono px-2 py-0.5 rounded border transition-all",
                       provider === p.id
-                        ? "border-primary/60 bg-primary/10 text-primary"
+                        ? "border-neutral-400 bg-neutral-200 text-black"
                         : "border-border/40 text-muted-foreground hover:border-border"
                     )}
                   >
@@ -399,10 +399,10 @@ function ApiKeysSection() {
               <div className="relative">
                 <input
                   type={showKey ? "text" : "password"}
-                  placeholder={`${provider} API key`}
+                  placeholder={`مفتاح API ${provider}`}
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  className="w-full text-xs font-mono bg-background/50 border border-border/50 rounded-lg px-3 py-2 pr-8 focus:outline-none focus:border-primary/50 placeholder:text-muted-foreground/40"
+                  className="w-full text-xs font-mono bg-background/50 border border-border/50 rounded-lg px-3 py-2 pr-8 focus:outline-none focus:border-neutral-400 placeholder:text-muted-foreground/40"
                 />
                 <button
                   onClick={() => setShowKey((p) => !p)}
@@ -415,16 +415,16 @@ function ApiKeysSection() {
                 <button
                   onClick={handleSave}
                   disabled={!apiKey.trim() || saveKey.isPending}
-                  className="flex items-center gap-1.5 text-[10px] font-mono px-3 py-1.5 rounded-lg bg-primary/80 text-primary-foreground hover:bg-primary disabled:opacity-50 transition-all"
+                  className="flex items-center gap-1.5 text-[10px] font-mono px-3 py-1.5 rounded-lg bg-black text-white hover:bg-neutral-800 disabled:opacity-50 transition-all"
                 >
                   {saveKey.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                  Save encrypted
+                  حفظ مشفر
                 </button>
                 <button
                   onClick={() => { setAdding(false); setApiKey(""); }}
                   className="text-[10px] font-mono px-3 py-1.5 rounded-lg border border-border/50 text-muted-foreground hover:border-border transition-all"
                 >
-                  Cancel
+                  إلغاء
                 </button>
               </div>
               {saveKey.isError && (
@@ -453,40 +453,40 @@ export default function SettingsPage() {
 
           {/* ── Header ── */}
           <div className="flex items-center gap-3 animate-slide-up">
-            <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-              <Bot className="h-5 w-5 text-primary" />
+            <div className="h-10 w-10 rounded-xl bg-neutral-200 border border-neutral-300 flex items-center justify-center">
+              <Bot className="h-5 w-5 text-black" />
             </div>
             <div>
-              <h1 className="text-base font-semibold tracking-tight">Settings</h1>
-              <p className="text-xs text-muted-foreground">PopCorn AI Studio configuration</p>
+              <h1 className="text-base font-semibold tracking-tight">الإعدادات</h1>
+              <p className="text-xs text-muted-foreground">إعدادات بوب كورن ستوديو</p>
             </div>
           </div>
 
           {/* ── Account ── */}
           <section className="animate-slide-up space-y-2" style={{ animationDelay: "40ms" }}>
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Account</h2>
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">الحساب</h2>
             <Card className="border-border/50 bg-card/40 overflow-hidden">
               <CardContent className="p-0">
                 {/* User info */}
                 <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border/40">
-                  <div className="h-9 w-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                    <User className="h-4 w-4 text-primary" />
+                  <div className="h-9 w-9 rounded-full bg-neutral-200 border border-neutral-300 flex items-center justify-center shrink-0">
+                    <User className="h-4 w-4 text-black" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{user?.username || "User"}</p>
+                    <p className="text-sm font-medium truncate">{user?.username || "مستخدم"}</p>
                     <p className="text-xs text-muted-foreground">
-                      {user?.plan || "Premium"}
+                      {user?.plan || "مميز"}
                     </p>
                   </div>
-                  <Badge variant="outline" className="text-emerald-400 border-emerald-400/30 bg-emerald-400/5 text-[10px] font-mono shrink-0">
-                    active
+                  <Badge variant="outline" className="text-neutral-700 border-neutral-300 bg-neutral-100 text-[10px] font-mono shrink-0">
+                    نشط
                   </Badge>
                 </div>
 
                 {/* User ID */}
                 {user?.id ? (
                   <div className="flex items-center justify-between px-4 py-3 border-b border-border/40">
-                    <span className="text-xs text-muted-foreground">User ID</span>
+                    <span className="text-xs text-muted-foreground">معرّف المستخدم</span>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-mono text-foreground/70">
                         {showUserId ? user.id : "••••••••"}
@@ -501,9 +501,9 @@ export default function SettingsPage() {
                 {/* Member since */}
                 {user?.createdAt && (
                   <div className="flex items-center justify-between px-4 py-3 border-b border-border/40">
-                    <span className="text-xs text-muted-foreground">Member since</span>
+                    <span className="text-xs text-muted-foreground">عضو منذ</span>
                     <span className="text-xs font-mono text-foreground/70">
-                      {new Date(user.createdAt).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}
+                      {new Date(user.createdAt).toLocaleDateString("ar", { month: "short", day: "numeric", year: "numeric" })}
                     </span>
                   </div>
                 )}
@@ -514,7 +514,7 @@ export default function SettingsPage() {
                   className="flex items-center gap-2 w-full px-4 py-3 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-all"
                 >
                   <LogOut className="h-3.5 w-3.5" />
-                  Sign out
+                  تسجيل الخروج
                 </button>
               </CardContent>
             </Card>
@@ -528,32 +528,32 @@ export default function SettingsPage() {
 
           {/* ── Usage stats ── */}
           <section className="animate-slide-up space-y-2" style={{ animationDelay: "180ms" }}>
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Usage</h2>
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">الاستخدام</h2>
             <Card className="border-border/50 bg-card/40">
               <CardContent className="p-4">
                 {usageLoading ? (
                   <div className="flex justify-center py-6">
-                    <Loader2 className="h-5 w-5 animate-spin text-primary/60" />
+                    <Loader2 className="h-5 w-5 animate-spin text-black/60" />
                   </div>
                 ) : (
                   <div className="flex justify-around">
                     <RingChart
                       used={usage?.quotaReadUsed ?? 0}
                       total={usage?.readLimit ?? 500}
-                      label="Read quota"
+                      label="حصة القراءة"
                       color="hsl(var(--primary))"
                     />
                     <RingChart
                       used={usage?.quotaWriteUsed ?? 0}
                       total={usage?.writeLimit ?? 200}
-                      label="Write quota"
+                      label="حصة الكتابة"
                       color="hsl(var(--secondary))"
                     />
                   </div>
                 )}
                 {usage?.quotaResetAt && (
                   <p className="text-center text-[10px] text-muted-foreground/50 font-mono mt-3">
-                    Resets {new Date(usage.quotaResetAt).toLocaleDateString("en", { month: "short", day: "numeric" })}
+                    إعادة التعيين {new Date(usage.quotaResetAt).toLocaleDateString("ar", { month: "short", day: "numeric" })}
                   </p>
                 )}
               </CardContent>
@@ -563,19 +563,19 @@ export default function SettingsPage() {
           {/* ── Memory / RAG ── */}
           {ragStats && (
             <section className="animate-slide-up space-y-2" style={{ animationDelay: "220ms" }}>
-              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Memory</h2>
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">الذاكرة</h2>
               <Card className="border-border/50 bg-card/40">
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Brain className="h-4 w-4 text-violet-400" />
-                      <span className="text-sm font-medium">RAG Memory</span>
+                      <Brain className="h-4 w-4 text-neutral-600" />
+                      <span className="text-sm font-medium">ذاكرة RAG</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono text-muted-foreground">{ragStats.total} entries</span>
+                      <span className="text-xs font-mono text-muted-foreground">{ragStats.total} إدخالات</span>
                       {clearConfirm ? (
                         <div className="flex items-center gap-1.5">
-                          <AlertTriangle className="h-3 w-3 text-amber-400" />
+                          <AlertTriangle className="h-3 w-3 text-neutral-500" />
                           <button
                             onClick={() => { clearMemory.mutate(undefined); setClearConfirm(false); }}
                             disabled={clearMemory.isPending}
@@ -595,7 +595,7 @@ export default function SettingsPage() {
                           onClick={() => setClearConfirm(true)}
                           className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-destructive transition-colors font-mono px-2 py-0.5 rounded border border-border/50 hover:border-destructive/50"
                         >
-                          <Trash2 className="h-2.5 w-2.5" /> clear
+                          <Trash2 className="h-2.5 w-2.5" /> مسح
                         </button>
                       )}
                     </div>
@@ -604,10 +604,10 @@ export default function SettingsPage() {
                   {ragStats.total > 0 && (
                     <div className="grid grid-cols-4 gap-1.5">
                       {[
-                        { label: "code",    color: "text-cyan-400",    bg: "bg-cyan-400/8"    },
-                        { label: "fact",    color: "text-emerald-400", bg: "bg-emerald-400/8" },
-                        { label: "pref",    color: "text-violet-400",  bg: "bg-violet-400/8"  },
-                        { label: "context", color: "text-amber-400",   bg: "bg-amber-400/8"   },
+                        { label: "code",    color: "text-neutral-600", bg: "bg-neutral-100" },
+                        { label: "fact",    color: "text-neutral-700", bg: "bg-neutral-100" },
+                        { label: "pref",    color: "text-neutral-600", bg: "bg-neutral-100" },
+                        { label: "context", color: "text-neutral-500", bg: "bg-neutral-100" },
                       ].map(({ label, color, bg }) => (
                         <div key={label} className={cn("rounded-lg p-2.5 text-center border border-transparent", bg)}>
                           <p className={cn("text-base font-bold font-mono leading-none", color)}>
@@ -628,17 +628,17 @@ export default function SettingsPage() {
             <Card className="border-border/40 bg-card/20">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                    <Bot className="h-5 w-5 text-primary" />
+                  <div className="h-10 w-10 rounded-xl bg-neutral-200 border border-neutral-300 flex items-center justify-center shrink-0">
+                    <Bot className="h-5 w-5 text-black" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold gradient-text">PopCorn AI Studio</p>
-                    <p className="text-[10px] text-muted-foreground/50">Powered by PopCorn AI</p>
+                    <p className="text-sm font-semibold gradient-text">بوب كورن ستوديو</p>
+                    <p className="text-[10px] text-muted-foreground/50">بدعم من PopCorn AI</p>
                   </div>
                 </div>
                 <div className="mt-3 pt-3 border-t border-border/40 flex items-center gap-3 text-[10px] text-muted-foreground/40 font-mono">
-                  <span className="flex items-center gap-1"><CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" /> Multi-model orchestration</span>
-                  <span className="flex items-center gap-1"><CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" /> RAG Memory</span>
+                  <span className="flex items-center gap-1"><CheckCircle2 className="h-2.5 w-2.5 text-neutral-700" /> تنسيق متعدد النماذج</span>
+                  <span className="flex items-center gap-1"><CheckCircle2 className="h-2.5 w-2.5 text-neutral-700" /> ذاكرة RAG</span>
                 </div>
               </CardContent>
             </Card>

@@ -32,22 +32,22 @@ import {
 // ── Tool-Use Card ─────────────────────────────────────────────────────────────
 // Tool icon map
 const TOOL_COLORS: Record<string, string> = {
-  ws_read:   "text-cyan-400",   ws_write:  "text-emerald-400",
-  ws_edit:   "text-amber-400",  ws_delete: "text-rose-400",
-  ws_tree:   "text-violet-400", ws_glob:   "text-blue-400",
-  ws_grep:   "text-orange-400", ws_mkdir:  "text-teal-400",
-  ws_bash:   "text-pink-400",
+  ws_read:   "text-neutral-600",   ws_write:  "text-neutral-700",
+  ws_edit:   "text-neutral-500",  ws_delete: "text-red-600",
+  ws_tree:   "text-neutral-800", ws_glob:   "text-neutral-500",
+  ws_grep:   "text-neutral-600",  ws_mkdir:  "text-neutral-700",
+  ws_bash:   "text-neutral-500",
 };
 const TOOL_BORDER: Record<string, string> = {
-  ws_read:   "border-cyan-500/20 bg-cyan-500/5",
-  ws_write:  "border-emerald-500/20 bg-emerald-500/5",
-  ws_edit:   "border-amber-500/20 bg-amber-500/5",
-  ws_delete: "border-rose-500/20 bg-rose-500/5",
-  ws_tree:   "border-violet-500/20 bg-violet-500/5",
-  ws_glob:   "border-blue-500/20 bg-blue-500/5",
-  ws_grep:   "border-orange-500/20 bg-orange-500/5",
-  ws_mkdir:  "border-teal-500/20 bg-teal-500/5",
-  ws_bash:   "border-pink-500/20 bg-pink-500/5",
+  ws_read:   "border-neutral-300 bg-neutral-100",
+  ws_write:  "border-neutral-300 bg-neutral-100",
+  ws_edit:   "border-neutral-300 bg-neutral-100",
+  ws_delete: "border-red-200 bg-red-50",
+  ws_tree:   "border-neutral-300 bg-neutral-100",
+  ws_glob:   "border-neutral-300 bg-neutral-100",
+  ws_grep:   "border-neutral-300 bg-neutral-100",
+  ws_mkdir:  "border-neutral-300 bg-neutral-100",
+  ws_bash:   "border-neutral-300 bg-neutral-100",
 };
 
 function ToolUseCard({ event, isStreaming: streamActive = false }: { event: AgentChatEvent; isStreaming?: boolean }) {
@@ -69,7 +69,7 @@ function ToolUseCard({ event, isStreaming: streamActive = false }: { event: Agen
     // Truncate long thinking text at 80 chars
     const thinkingText = raw.length > 80 ? raw.slice(0, 80) + "…" : (raw || "processing…");
     return (
-      <div className="thinking-box flex items-center gap-2 py-1.5 px-3 rounded-xl bg-violet-500/8 border border-violet-500/20 text-xs font-mono text-violet-400 animate-fade-in">
+      <div className="thinking-box flex items-center gap-2 py-1.5 px-3 rounded-xl bg-neutral-100 border border-neutral-300 text-xs font-mono text-neutral-700 animate-fade-in">
         <BrainCircuit className="h-3 w-3 shrink-0 animate-pulse" />
         <span className="truncate">{thinkingText}</span>
       </div>
@@ -77,11 +77,11 @@ function ToolUseCard({ event, isStreaming: streamActive = false }: { event: Agen
   }
 
   if (event.type === "memory_hit") return (
-    <div className="flex items-center gap-2 py-1.5 px-3 rounded-xl bg-indigo-500/8 border border-indigo-500/20 text-xs font-mono text-indigo-400 animate-fade-in">
+    <div className="flex items-center gap-2 py-1.5 px-3 rounded-xl bg-neutral-100 border border-neutral-300 text-xs font-mono text-neutral-600 animate-fade-in">
       <BrainCircuit className="h-3 w-3 shrink-0" />
       <span className="font-semibold">Memory</span>
       <span className="text-muted-foreground/60">
-        {event.count} relevant memories injected
+        {event.count} ذاكرة ذات صلة مُدرجة
       </span>
     </div>
   );
@@ -89,14 +89,14 @@ function ToolUseCard({ event, isStreaming: streamActive = false }: { event: Agen
   if (event.type === "file_written") {
     const fw = event as any;
     const filePath = fw.path ?? fw.filename ?? "file";
-    const actionLabel = fw.action === "ws_write" ? "Created" : fw.action === "ws_edit" ? "Edited" : "Written";
+    const actionLabel = fw.action === "ws_write" ? "تم الإنشاء" : fw.action === "ws_edit" ? "تم التعديل" : "تم الكتابة";
     return (
-      <div className="flex items-center gap-2 py-1.5 px-3 rounded-xl bg-emerald-500/8 border border-emerald-500/20 text-xs font-mono text-emerald-400 animate-fade-in">
+      <div className="flex items-center gap-2 py-1.5 px-3 rounded-xl bg-neutral-100 border border-neutral-300 text-xs font-mono text-neutral-700 animate-fade-in">
         <CheckCircle2 className="h-3 w-3 shrink-0" />
         <span className="font-semibold">{actionLabel}</span>
-        <span className="text-emerald-400/70 truncate">{String(filePath)}</span>
+        <span className="text-neutral-500 truncate">{String(filePath)}</span>
         {fw.lines > 0 && (
-          <span className="ml-auto text-emerald-400/40 shrink-0">{fw.lines}L</span>
+          <span className="ml-auto text-neutral-400 shrink-0">{fw.lines}L</span>
         )}
       </div>
     );
@@ -104,8 +104,8 @@ function ToolUseCard({ event, isStreaming: streamActive = false }: { event: Agen
 
   if (event.type === "tool_use") {
     const tool = event.tool ?? "";
-    const colorCls  = TOOL_COLORS[tool]  ?? "text-cyan-400";
-    const borderCls = TOOL_BORDER[tool]  ?? "border-cyan-500/20 bg-cyan-500/5";
+    const colorCls  = TOOL_COLORS[tool]  ?? "text-neutral-600";
+    const borderCls = TOOL_BORDER[tool]  ?? "border-neutral-300 bg-neutral-100";
     const detail = event.input?.path ?? event.input?.command ?? event.input?.pattern ?? "";
     // Truncate detail preview
     const detailPreview = detail ? String(detail).slice(0, 45) + (String(detail).length > 45 ? "…" : "") : "";
@@ -138,8 +138,8 @@ function ToolUseCard({ event, isStreaming: streamActive = false }: { event: Agen
       <div className={cn(
         "flex items-start gap-2 px-3 py-2 rounded-xl border text-xs font-mono animate-fade-in",
         isError
-          ? "border-rose-500/20 bg-rose-500/5 text-rose-400"
-          : "border-emerald-500/20 bg-emerald-500/5 text-emerald-400"
+          ? "border-red-200 bg-red-50 text-red-600"
+          : "border-neutral-300 bg-neutral-100 text-neutral-700"
       )}>
         <CheckCircle2 className="h-3 w-3 shrink-0 mt-0.5" />
         <span className="text-muted-foreground/70 truncate leading-relaxed line-clamp-2">
@@ -159,8 +159,8 @@ function MiniTree({ nodes, depth = 0 }: { nodes: TreeNode[]; depth?: number }) {
         <div key={n.path} style={{ paddingLeft: `${depth * 12}px` }}>
           <div className="flex items-center gap-1.5 py-0.5 text-[10px] text-muted-foreground/70 font-mono">
             {n.type === "dir"
-              ? <FolderClosed className="h-3 w-3 text-amber-400/70 shrink-0" />
-              : <FileCode2  className="h-3 w-3 text-cyan-400/60 shrink-0" />}
+              ? <FolderClosed className="h-3 w-3 text-neutral-400 shrink-0" />
+              : <FileCode2  className="h-3 w-3 text-neutral-400 shrink-0" />}
             <span className="truncate">{n.name}</span>
           </div>
           {n.type === "dir" && n.children && (
@@ -178,21 +178,21 @@ function AgentEventStream({ events, isStreaming: streamActive = false }: { event
   // Default expanded (not collapsed) when there are more than 3 events
   const [collapsed, setCollapsed] = useState(events.length <= 3);
   return (
-    <div className="rounded-xl border border-violet-500/15 bg-violet-500/4 overflow-hidden animate-fade-in">
+    <div className="rounded-xl border border-neutral-200 bg-neutral-50 overflow-hidden animate-fade-in">
       <button
         onClick={() => setCollapsed(c => !c)}
         className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:bg-white/[0.02] transition-colors"
       >
-        <BrainCircuit className={cn("h-3 w-3 text-violet-400 shrink-0", streamActive && "animate-pulse")} />
-        <span className="text-violet-400 font-medium">Agent thinking</span>
+        <BrainCircuit className={cn("h-3 w-3 text-neutral-700 shrink-0", streamActive && "animate-pulse")} />
+        <span className="text-neutral-700 font-medium">الوكيل يفكّر</span>
         {toolCount > 0 && (
-          <span className="ml-1 px-1.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 text-[9px] font-mono">
+          <span className="ml-1 px-1.5 py-0.5 rounded-full bg-neutral-200 text-neutral-500 text-[9px] font-mono">
             {toolCount} tool{toolCount !== 1 ? "s" : ""}
           </span>
         )}
         {!streamActive && (
-          <span className="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[9px] font-mono">
-            done
+          <span className="ml-1 px-1.5 py-0.5 rounded-full bg-neutral-200 text-neutral-500 text-[9px] font-mono">
+            تم
           </span>
         )}
         <ChevronRight className={cn("h-3 w-3 text-muted-foreground/30 ml-auto transition-transform", !collapsed && "rotate-90")} />
@@ -233,12 +233,12 @@ function WorkspaceSelector({
         className={cn(
           "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs border transition-all",
           value
-            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+            ? "bg-neutral-200 border-neutral-300 text-neutral-700"
             : "bg-card/40 border-border/50 text-muted-foreground hover:text-foreground",
         )}
       >
         {value ? <FolderOpen className="h-3 w-3" /> : <FolderClosed className="h-3 w-3" />}
-        <span>{current?.name ?? "Workspace"}</span>
+        <span>{current?.name ?? "مساحة العمل"}</span>
         <ChevronDown className="h-2.5 w-2.5" />
       </button>
 
@@ -255,7 +255,7 @@ function WorkspaceSelector({
               )}
             >
               <FolderClosed className="h-3.5 w-3.5 shrink-0" />
-              <span>No workspace (basic chat)</span>
+              <span>بدون مساحة عمل (محادثة أساسية)</span>
             </button>
 
             {isLoading ? (
@@ -264,7 +264,7 @@ function WorkspaceSelector({
               </div>
             ) : workspaces.length === 0 ? (
               <p className="px-3 py-3 text-xs text-muted-foreground/50 text-center">
-                No workspaces — create one in Projects tab.
+                لا توجد مساحات عمل — أنشئ واحدة من تبويب المشاريع.
               </p>
             ) : (
               workspaces.map(w => (
@@ -276,11 +276,11 @@ function WorkspaceSelector({
                     value === w.id ? "bg-primary/8 text-primary" : "text-muted-foreground",
                   )}
                 >
-                  <FolderOpen className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-400" />
+                  <FolderOpen className="h-3.5 w-3.5 shrink-0 mt-0.5 text-neutral-500" />
                   <div className="min-w-0">
                     <div className="font-medium truncate">{w.name}</div>
                     <div className="text-[10px] text-muted-foreground/50 mt-0.5">
-                      {w.file_count} files
+                      {w.file_count} ملفات
                     </div>
                   </div>
                 </button>
@@ -302,21 +302,21 @@ function WorkspaceSelector({
 
 // ── Mode metadata ─────────────────────────────────────────────────────────────
 const MODE_META: Record<string, { Icon: React.ElementType; label: string; color: string; desc: string }> = {
-  orchestrator: { Icon: Settings2, label: "Orchestrator", color: "text-primary",      desc: "Coordinates all agents · Best for full-stack tasks" },
-  coder:        { Icon: Code2,     label: "Coder",        color: "text-cyan-400",     desc: "Code generation, refactoring & edits" },
-  planner:      { Icon: Command,   label: "Planner",      color: "text-violet-400",   desc: "Architecture, roadmaps & task breakdown" },
-  debugger:     { Icon: Bug,       label: "Debugger",     color: "text-rose-400",     desc: "Root-cause analysis & error tracing" },
-  designer:     { Icon: Palette,   label: "Designer",     color: "text-pink-400",     desc: "UI/UX, components & design systems" },
-  researcher:   { Icon: Search,    label: "Researcher",   color: "text-amber-400",    desc: "Deep research & concept explanation" },
-  explorer:     { Icon: Map,       label: "Explorer",     color: "text-emerald-400",  desc: "Codebase navigation & dependency mapping" },
-  security:     { Icon: Shield,    label: "Security",     color: "text-orange-400",   desc: "Vulnerability audits & auth review" },
+  orchestrator: { Icon: Settings2, label: "منسّق", color: "text-primary",      desc: "ينسّق بين جميع الوكلاء · الأفضل للمهام الشاملة" },
+  coder:        { Icon: Code2,     label: "مبرمج",        color: "text-neutral-600",     desc: "توليد الكود وإعادة الهيكلة والتعديلات" },
+  planner:      { Icon: Command,   label: "مخطط",      color: "text-neutral-700",   desc: "البنية والتخطيط وتفكيك المهام" },
+  debugger:     { Icon: Bug,       label: "مصحّح",     color: "text-red-600",     desc: "تحليل الأسباب الجذرية وتتبع الأخطاء" },
+  designer:     { Icon: Palette,   label: "مصمم",     color: "text-neutral-500",     desc: "واجهات المستخدم والمكونات وأنظمة التصميم" },
+  researcher:   { Icon: Search,    label: "باحث",   color: "text-neutral-500",    desc: "بحث معمّق وشرح المفاهيم" },
+  explorer:     { Icon: Map,       label: "مستكشف",     color: "text-neutral-700",  desc: "استكشاف قاعدة الكود ورسم خريطة التبعيات" },
+  security:     { Icon: Shield,    label: "أمان",     color: "text-neutral-600",   desc: "تدقيق الثغرات ومراجعة المصادقة" },
 };
 
 const EFFORT_META: Record<string, { label: string; color: string; steps: string; desc: string }> = {
-  lite:   { label: "Lite", color: "text-muted-foreground", steps: "3 steps",  desc: "Fast answer · Best for quick questions" },
-  medium: { label: "Med",  color: "text-cyan-400",         steps: "7 steps",  desc: "Balanced · Best for most tasks"         },
-  high:   { label: "High", color: "text-amber-400",        steps: "12 steps", desc: "Deep analysis · Best for complex code"  },
-  max:    { label: "Max",  color: "text-rose-400",         steps: "20 steps", desc: "Full depth · Best for architecture"     },
+  lite:   { label: "خفيف", color: "text-muted-foreground", steps: "3 خطوات",  desc: "إجابة سريعة · الأفضل للأسئلة البسيطة" },
+  medium: { label: "متوسط",  color: "text-neutral-600",         steps: "7 خطوات",  desc: "متوازن · الأفضل لمعظم المهام"         },
+  high:   { label: "عالي", color: "text-neutral-500",        steps: "12 خطوة", desc: "تحليل عميق · الأفضل للكود المعقد"  },
+  max:    { label: "أقصى",  color: "text-red-600",         steps: "20 خطوة", desc: "العمك الكامل · الأفضل للبنية"     },
 };
 
 // ── Live agent status (replaces ThinkingIndicator) ────────────────────────────
@@ -336,30 +336,30 @@ function LiveAgentStatus({
   const progress = progressEvent ? progressEvent.step / progressEvent.total : null;
 
   return (
-    <div className="space-y-2 animate-fade-in">
+      <div className="space-y-2 animate-fade-in">
       {/* Main status line */}
-      <div className="flex items-center gap-2.5 py-2 px-3 rounded-xl bg-violet-500/6 border border-violet-500/15">
+      <div className="flex items-center gap-2.5 py-2 px-3 rounded-xl bg-neutral-50 border border-neutral-200">
         <div className={cn(
           "h-6 w-6 rounded-lg flex items-center justify-center shrink-0",
-          "bg-violet-500/15"
+          "bg-neutral-200"
         )}>
           <BrainCircuit className={cn("h-3.5 w-3.5 animate-pulse", m.color)} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-xs text-foreground/80 font-medium truncate">
-              {lastThinking || `${m.label} working…`}
+              {lastThinking || `${m.label} يعمل…`}
             </span>
             <span className="flex gap-0.5 shrink-0">
               {[0, 1, 2].map(i => (
-                <span key={i} className="typing-dot h-1 w-1 rounded-full bg-violet-400/70" />
+                <span key={i} className="typing-dot h-1 w-1 rounded-full bg-neutral-400" />
               ))}
             </span>
           </div>
           {progress !== null && (
             <div className="mt-1.5 h-0.5 bg-border/40 rounded-full overflow-hidden">
               <div
-                className="h-full bg-violet-500/70 rounded-full transition-all duration-500"
+                className="h-full bg-neutral-400 rounded-full transition-all duration-500"
                 style={{ width: `${Math.round(progress * 100)}%` }}
               />
             </div>
@@ -374,11 +374,11 @@ function LiveAgentStatus({
             const tool = e.tool ?? "";
             const detail = e.input?.path ?? e.input?.command ?? e.input?.pattern ?? "";
             return (
-              <div key={i} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-cyan-500/8 border border-cyan-500/20 text-cyan-400">
+              <div key={i} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-neutral-100 border border-neutral-300 text-neutral-600">
                 <Wrench className="h-2.5 w-2.5 shrink-0" />
                 <span className="truncate max-w-[80px]">{tool}</span>
                 {detail && (
-                  <span className="text-cyan-400/50 truncate max-w-[60px]">{String(detail)}</span>
+                  <span className="text-neutral-500/50 truncate max-w-[60px]">{String(detail)}</span>
                 )}
               </div>
             );
@@ -398,8 +398,8 @@ function MessageBubble({ message, isNew }: {
     <div className={cn("flex justify-start", isNew && "animate-slide-up")}>
       <div className="bg-card/40 border border-border/40 rounded-xl px-3.5 py-2.5 max-w-[85%]">
         <div className="flex items-center gap-2 mb-1.5">
-          <BrainCircuit className="h-3 w-3 text-violet-400" />
-          <span className="text-[10px] font-mono text-violet-400 uppercase tracking-wider">thinking</span>
+          <BrainCircuit className="h-3 w-3 text-neutral-700" />
+          <span className="text-[10px] font-mono text-neutral-700 uppercase tracking-wider">thinking</span>
         </div>
         <p className="text-xs text-muted-foreground/70 italic leading-relaxed line-clamp-4">{message.content}</p>
       </div>
@@ -408,10 +408,10 @@ function MessageBubble({ message, isNew }: {
 
   if (message.role === "tool") return (
     <div className={cn("flex justify-start", isNew && "animate-slide-up")}>
-      <div className="bg-[#0a0c10] border border-cyan-500/20 rounded-lg px-3 py-2 flex items-center gap-3 text-xs max-w-[85%]">
-        <Wrench className="h-3 w-3 text-cyan-500 shrink-0" />
-        <span className="font-mono text-cyan-400 truncate">{message.content.substring(0, 80)}</span>
-        <CheckCircle2 className="h-3 w-3 text-emerald-500 ml-auto shrink-0" />
+      <div className="bg-neutral-950 border border-neutral-300 rounded-lg px-3 py-2 flex items-center gap-3 text-xs max-w-[85%]">
+        <Wrench className="h-3 w-3 text-neutral-600 shrink-0" />
+        <span className="font-mono text-neutral-600 truncate">{message.content.substring(0, 80)}</span>
+        <CheckCircle2 className="h-3 w-3 text-neutral-700 ml-auto shrink-0" />
       </div>
     </div>
   );
@@ -441,17 +441,17 @@ function MessageBubble({ message, isNew }: {
           <FormattedMessage content={displayContent} />
         </div>
         {message.codeChanges && (
-          <div className="mt-2 bg-[#0a0c10] border border-border rounded-xl overflow-hidden">
-            <div className="bg-[#0f1014] px-3 py-2 border-b border-border flex items-center text-xs font-mono gap-2">
+          <div className="mt-2 bg-neutral-950 border border-border rounded-xl overflow-hidden">
+            <div className="bg-neutral-900 px-3 py-2 border-b border-border flex items-center text-xs font-mono gap-2">
               <Code2 className="h-3 w-3 text-primary" />
-              <span className="text-muted-foreground">File Modifications</span>
+              <span className="text-muted-foreground">تعديلات الملفات</span>
             </div>
             <pre className="p-3 text-xs font-mono overflow-x-auto">
               <code>
                 {message.codeChanges.split("\n").map((line: string, i: number) => {
-                  if (line.startsWith("+")) return <div key={i} className="text-emerald-400 bg-emerald-400/10 px-1">{line}</div>;
-                  if (line.startsWith("-")) return <div key={i} className="text-rose-400 bg-rose-400/10 px-1">{line}</div>;
-                  if (line.startsWith("@@")) return <div key={i} className="text-cyan-400 my-1">{line}</div>;
+                  if (line.startsWith("+")) return <div key={i} className="text-neutral-700 bg-neutral-200 px-1">{line}</div>;
+                  if (line.startsWith("-")) return <div key={i} className="text-red-600 bg-red-100 px-1">{line}</div>;
+                  if (line.startsWith("@@")) return <div key={i} className="text-neutral-500 my-1">{line}</div>;
                   return <div key={i} className="text-muted-foreground px-1">{line}</div>;
                 })}
               </code>
@@ -465,14 +465,14 @@ function MessageBubble({ message, isNew }: {
 
 // ── Empty chat state ──────────────────────────────────────────────────────────
 const SUGGESTIONS: Record<string, string[]> = {
-  coder:        ["Write a REST API in TypeScript", "Create a React component", "Refactor this function"],
-  planner:      ["Plan microservices architecture", "Break down this project", "Design a database schema"],
-  debugger:     ["Debug this error trace", "Find memory leaks", "Trace this crash"],
-  researcher:   ["Explain this concept deeply", "Compare these approaches", "Research best practices"],
-  designer:     ["Design a landing page", "Create a UI component library", "Build a color system"],
-  explorer:     ["Explore the codebase", "Find all API endpoints", "Map all dependencies"],
-  security:     ["Scan for vulnerabilities", "Review auth flow", "Check for SQL injection"],
-  orchestrator: ["Build a full-stack app", "Coordinate a complex task", "Multi-model analysis"],
+  coder:        ["اكتب وحدات اختبار شاملة", "أعد هيكلة هذا الملف"],
+  planner:      ["خطط بنية Microservices", "صمم خطة تطوير لمدة أسبوع"],
+  debugger:     ["حلّل هذا الخطأ واقترح حلولاً", "تتبع مصدر تسريب الذاكرة"],
+  researcher:   ["اشرح كيف يعمل React Query", "قارن بين أنماط التصميم"],
+  designer:     ["صمم واجهة مستخدم حديثة", "أنشئ مكونات UI قابلة لإعادة الاستخدام"],
+  explorer:     ["رسم خريطة تبعيات المشروع", "استكشف بنية المجلدات"],
+  security:     ["فحص الثغرات الأمنية", "مراجعة تدفق المصادقة"],
+  orchestrator: ["أنشئ مشروع React كامل مع باك إند", "نمّط قاعدة كود موجودة"],
 };
 
 function EmptyChat({ mode, onPrompt }: { mode: string; onPrompt: (t: string) => void }) {
@@ -489,9 +489,9 @@ function EmptyChat({ mode, onPrompt }: { mode: string; onPrompt: (t: string) => 
         </div>
       </div>
       <div className="space-y-1.5">
-        <h2 className="text-base font-semibold tracking-tight">{m.label} <span className="gradient-text">Ready</span></h2>
+        <h2 className="text-base font-semibold tracking-tight">{m.label} <span className="gradient-text">جاهز</span></h2>
         <p className="text-xs text-muted-foreground/60 max-w-56 leading-relaxed">
-          PopCorn AI Studio is listening. Start a conversation or pick a suggestion.
+          بوب كورن ستوديو جاهز. ابدأ محادثة أو اختر اقتراح.
         </p>
       </div>
       <div className="flex flex-col gap-2 w-full max-w-xs">
@@ -587,14 +587,14 @@ export default function WorkspacePage() {
 
   async function handleCreateSession() {
     if (sessions.length >= 3) {
-      toast({ title: "Limit reached", description: "Max 3 sessions.", variant: "destructive" });
+      toast({ title: "تم الوصول للحد", description: "الحد الأقصى 3 جلسات.", variant: "destructive" });
       return;
     }
     try {
       const s = await create({ name: `Session ${sessions.length + 1}`, mode: SessionMode.coder, effort: SessionEffort.medium });
       setActiveSessionId(s.id);
     } catch {
-      toast({ title: "Error", description: "Failed to create session.", variant: "destructive" });
+      toast({ title: "خطأ", description: "فشل إنشاء الجلسة.", variant: "destructive" });
     }
   }
 
@@ -604,7 +604,7 @@ export default function WorkspacePage() {
       await remove(id);
       if (activeSessionId === id) setActiveSessionId(null);
     } catch {
-      toast({ title: "Error", description: "Failed to delete session.", variant: "destructive" });
+      toast({ title: "خطأ", description: "فشل حذف الجلسة.", variant: "destructive" });
     }
   }
 
@@ -642,7 +642,7 @@ export default function WorkspacePage() {
                   <button onClick={handleCreateSession} disabled={isCreating}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground border border-dashed border-border/50 hover:border-border transition-all shrink-0">
                     {isCreating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                    <span>New</span>
+                    <span>جديد</span>
                   </button>
                 )}
               </>
@@ -721,8 +721,8 @@ export default function WorkspacePage() {
             />
 
             <div className="ml-auto flex items-center gap-1.5 text-[10px] text-muted-foreground/40 font-mono">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/60" />
-              online
+              <span className="h-1.5 w-1.5 rounded-full bg-neutral-400" />
+              متصل
             </div>
           </div>
         )}
@@ -743,12 +743,12 @@ export default function WorkspacePage() {
             </div>
             <div className="space-y-1.5">
               <h1 className="text-lg font-semibold gradient-text">PopCorn AI Studio</h1>
-              <p className="text-xs text-muted-foreground/60 max-w-52">Create a session to start.</p>
+              <p className="text-xs text-muted-foreground/60 max-w-52">أنشئ جلسة للبدء.</p>
             </div>
             <button onClick={handleCreateSession} disabled={isCreating}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-all active:scale-95 shadow-lg shadow-primary/20">
               {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              New Session
+              جلسة جديدة
             </button>
           </div>
         )}
@@ -817,7 +817,7 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
 
     // Build display content for user message
     const userDisplayContent = hasImages
-      ? `${text || ""}${text ? "\n" : ""}[${imagesToSend.length} image${imagesToSend.length > 1 ? "s" : ""} attached]`
+      ? `${text || ""}${text ? "\n" : ""}[${imagesToSend.length} صورة${imagesToSend.length > 1 ? "ات" : ""} مرفقة]`
       : text;
 
     // ── OPTIMISTIC UPDATE: show user message IMMEDIATELY before any async work ──
@@ -847,7 +847,7 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
           .map((m: any) => ({ role: m.role, content: m.content }));
 
         for await (const event of streamAgentChat(
-          text || (hasImages ? "Analyze this image" : ""), workspaceId, sessionId, mode, effort, history, abortRef.current.signal,
+          text || (hasImages ? "حلّل هذه الصورة" : ""), workspaceId, sessionId, mode, effort, history, abortRef.current.signal,
           imagesToSend.map(img => ({ url: img.url }))
         )) {
           if (event.type === "thinking") {
@@ -875,7 +875,7 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
               setStreamContent(cleanFull);
             }
           } else if (event.type === "error") {
-            throw new Error(event.message ?? "Agent error");
+            throw new Error(event.message ?? "خطأ في الوكيل");
           }
         }
       }
@@ -936,8 +936,8 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
     } catch (err: any) {
       if (err.name !== "AbortError") {
         toast({
-          title: "Agent error",
-          description: err.message || "Failed to reach backend.",
+          title: "خطأ في الوكيل",
+          description: err.message || "فشل الاتصال بالخادم.",
           variant: "destructive",
         });
       }
@@ -1019,8 +1019,8 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
                         </div>
                         <span className="text-[10px] text-muted-foreground/50 font-mono">PopCorn AI Studio</span>
                         {workspaceId && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono ml-1">
-                            workspace
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-neutral-200 text-neutral-600 font-mono ml-1">
+                            مساحة عمل
                           </span>
                         )}
                       </div>
@@ -1076,11 +1076,11 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
         <div className={cn(
           "flex items-end gap-2 rounded-2xl border bg-card/60 px-3 py-2 transition-all duration-200",
           isStreaming ? "border-primary/30 bg-primary/[0.02]" : "border-border/60 focus-within:border-primary/40",
-          attachedImages.length > 0 && "border-violet-500/30"
+          attachedImages.length > 0 && "border-neutral-300"
         )}>
           {/* Image attach */}
-          <label className="flex items-center pb-0.5 shrink-0 cursor-pointer" title="Attach image for vision analysis">
-            <div className="h-6 w-6 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-violet-400 hover:bg-violet-500/10 transition-all">
+          <label className="flex items-center pb-0.5 shrink-0 cursor-pointer" title="إرفاق صورة للتحليل">
+            <div className="h-6 w-6 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-neutral-700 hover:bg-neutral-100 transition-all">
               <Palette className="h-3.5 w-3.5" />
             </div>
             <input type="file" accept="image/*" multiple className="hidden"
@@ -1105,9 +1105,9 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={
-              isStreaming ? "Agent is responding…" :
-              attachedImages.length > 0 ? "Ask about the image…" :
-              "Message PopCorn AI Studio…"
+              isStreaming ? "الوكيل يستجيب…" :
+              attachedImages.length > 0 ? "اسأل عن الصورة…" :
+              "اكتب رسالة…"
             }
             disabled={isStreaming}
             rows={1}
@@ -1116,8 +1116,8 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
           <div className="flex items-center pb-0.5 shrink-0">
             {isStreaming ? (
               <button onClick={handleAbort}
-                className="h-7 w-7 rounded-lg bg-rose-500/15 text-rose-400 flex items-center justify-center hover:bg-rose-500/25 transition-colors active:scale-90"
-                title="Stop generation">
+                className="h-7 w-7 rounded-lg bg-red-100 text-red-600 flex items-center justify-center hover:bg-red-200 transition-colors active:scale-90"
+                title="إيقاف التوليد">
                 <RotateCcw className="h-3.5 w-3.5" />
               </button>
             ) : (
@@ -1128,11 +1128,11 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
                   "h-7 w-7 rounded-lg flex items-center justify-center transition-all",
                   (input.trim() || attachedImages.length > 0)
                     ? attachedImages.length > 0
-                      ? "bg-violet-600 text-white hover:bg-violet-500 shadow-md shadow-violet-500/25 active:scale-90"
+                      ? "bg-black text-white hover:bg-neutral-800 shadow-md shadow-black/20 active:scale-90"
                       : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/25 active:scale-90"
                     : "bg-muted text-muted-foreground/40 cursor-not-allowed"
                 )}
-                title="Send (Enter)"
+                title="إرسال (Enter)"
               >
                 <ArrowUp className="h-3.5 w-3.5" />
               </button>
@@ -1141,11 +1141,11 @@ function ChatPanel({ sessionId, mode, effort, workspaceId }: {
         </div>
         <div className="flex items-center justify-between mt-1 px-1">
           <p className="text-[10px] text-muted-foreground/25 font-mono">
-            Enter · Shift+Enter newline
+            Enter · Shift+Enter سطر جديد
           </p>
           {attachedImages.length > 0 && (
-            <p className="text-[10px] text-violet-400/60 font-mono animate-fade-in">
-              {attachedImages.length} image{attachedImages.length > 1 ? "s" : ""} · vision
+            <p className="text-[10px] text-neutral-400 font-mono animate-fade-in">
+              {attachedImages.length} صورة{attachedImages.length > 1 ? "ات" : ""} · رؤية
             </p>
           )}
         </div>

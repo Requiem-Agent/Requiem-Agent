@@ -17,11 +17,11 @@ import { cn } from "@/lib/utils";
 function getFileIcon(name: string): { Icon: React.ElementType; color: string; ext: string } {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   if (["rs", "ts", "tsx", "js", "jsx", "py", "go", "cpp", "c", "java", "swift"].includes(ext))
-    return { Icon: FileCode,  color: "text-cyan-400",    ext };
+    return { Icon: FileCode,  color: "text-neutral-600",    ext };
   if (["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(ext))
-    return { Icon: FileImage, color: "text-emerald-400", ext };
+    return { Icon: FileImage, color: "text-neutral-500", ext };
   if (["md", "txt", "json", "yaml", "toml", "env"].includes(ext))
-    return { Icon: FileText,  color: "text-amber-400",   ext };
+    return { Icon: FileText,  color: "text-neutral-500",   ext };
   return { Icon: FileText, color: "text-muted-foreground", ext };
 }
 
@@ -53,8 +53,8 @@ function WsTreeNode({
         style={{ paddingLeft: `${4 + depth * 14}px` }}
       >
         {expanded
-          ? <FolderOpen className="h-3 w-3 text-amber-400 shrink-0" />
-          : <FolderClosed className="h-3 w-3 text-amber-400/70 shrink-0" />}
+          ? <FolderOpen className="h-3 w-3 text-neutral-500 shrink-0" />
+          : <FolderClosed className="h-3 w-3 text-neutral-500/70 shrink-0" />}
         <span className="truncate font-medium">{node.name}</span>
         <ChevronDown className={cn("h-2.5 w-2.5 ml-auto shrink-0 text-muted-foreground/40 transition-transform", !expanded && "-rotate-90")} />
       </button>
@@ -105,13 +105,13 @@ export default function FilesPage() {
 
   async function handleDelete(name: string, e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm(`Delete "${name}"?`)) return;
+    if (!confirm(`هل تريد حذف "${name}"؟`)) return;
     try {
       await deleteMutation.mutateAsync(name);
       if (selectedFile === name) setSelectedFile(null);
-      toast({ title: "File deleted" });
+      toast({ title: "تم حذف الملف" });
     } catch {
-      toast({ title: "Delete failed", variant: "destructive" });
+      toast({ title: "فشل الحذف", variant: "destructive" });
     }
   }
 
@@ -143,11 +143,11 @@ export default function FilesPage() {
         await uploadMutation.mutateAsync({ name: file.name, content: text });
         uploaded++;
       } catch {
-        toast({ title: `Failed: ${file.name}`, variant: "destructive" });
+        toast({ title: `فشل: ${file.name}`, variant: "destructive" });
       }
     }
     if (uploaded > 0) {
-      toast({ title: uploaded === 1 ? "File uploaded" : uploaded + " files uploaded" });
+      toast({ title: uploaded === 1 ? "تم رفع الملف" : uploaded + " ملفات تم رفعها" });
       refetch();
     }
     if (e.target) e.target.value = "";
@@ -168,7 +168,7 @@ export default function FilesPage() {
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
-          >Session Files</button>
+          >ملفات الجلسة</button>
           {workspaces.map(w => (
             <button
               key={w.id}
@@ -176,7 +176,7 @@ export default function FilesPage() {
               className={cn(
                 "px-3 py-1.5 text-xs font-medium rounded-t-lg border-b-2 transition-all truncate max-w-[100px]",
                 activeWsId === w.id
-                  ? "border-emerald-400 text-emerald-400"
+                  ? "border-neutral-500 text-neutral-500"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
@@ -192,7 +192,7 @@ export default function FilesPage() {
             {/* File tree panel */}
             <div className="w-44 shrink-0 border-r border-border/40 overflow-y-auto py-2 px-1">
               <div className="flex items-center justify-between px-2 mb-1">
-                <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider font-mono">Files</span>
+                <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider font-mono">الملفات</span>
                 <button
                   onClick={() => refetchTree()}
                   className="p-0.5 rounded text-muted-foreground/40 hover:text-muted-foreground transition-colors"
@@ -207,7 +207,7 @@ export default function FilesPage() {
                   <WsTreeNode key={node.path} node={node} wsId={activeWsId} onSelect={setWsSelectedPath} />
                 ))
               ) : (
-                <p className="text-[10px] text-muted-foreground/40 text-center py-4">Empty workspace</p>
+                <p className="text-[10px] text-muted-foreground/40 text-center py-4">مساحة عمل فارغة</p>
               )}
             </div>
             {/* File content panel */}
@@ -225,27 +225,27 @@ export default function FilesPage() {
                         onClick={async () => {
                           if (!wsFileData?.content) return;
                           await navigator.clipboard.writeText(wsFileData.content).catch(() => {});
-                          toast({ title: "Copied" });
+                          toast({ title: "تم النسخ" });
                         }}
                         className="px-2 py-1 rounded text-xs border border-border/40 text-muted-foreground hover:text-foreground transition-all"
-                      ><Check className="h-3 w-3 inline" /> Copy</button>
+                      ><Check className="h-3 w-3 inline" /> نسخ</button>
                       <button
                         onClick={() => {
                           if (!activeWsId || !wsSelectedPath) return;
                           // Use toast-based confirm instead of confirm() which is blocked in TG WebApp
                           deleteWsFile.mutate(
                             { wsId: activeWsId, path: wsSelectedPath },
-                            { onSuccess: () => { setWsSelectedPath(null); toast({ title: "File deleted" }); },
-                              onError:   () => toast({ title: "Delete failed", variant: "destructive" }) }
+                            { onSuccess: () => { setWsSelectedPath(null); toast({ title: "تم حذف الملف" }); },
+                              onError:   () => toast({ title: "فشل الحذف", variant: "destructive" }) }
                           );
                         }}
                         disabled={deleteWsFile.isPending}
-                        className="px-2 py-1 rounded text-xs border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 transition-all disabled:opacity-40"
+                        className="px-2 py-1 rounded text-xs border border-red-200 text-red-600 hover:bg-red-50 transition-all disabled:opacity-40"
                       >
                         {deleteWsFile.isPending
                           ? <RefreshCw className="h-3 w-3 inline animate-spin" />
                           : <Trash2 className="h-3 w-3 inline" />
-                        } Del
+                        } حذف
                       </button>
                     </div>
                   </div>
@@ -261,7 +261,7 @@ export default function FilesPage() {
                 </>
               ) : (
                 <div className="flex items-center justify-center h-full text-xs text-muted-foreground/40">
-                  Select a file to view
+                  اختر ملفاً لعرضه
                 </div>
               )}
             </div>
@@ -286,15 +286,15 @@ export default function FilesPage() {
                   onClick={handleCopy}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground border border-border/50 hover:border-border transition-all"
                 >
-                  {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                  {copied ? "Copied" : "Copy"}
+                  {copied ? <Check className="h-3 w-3 text-neutral-500" /> : <Copy className="h-3 w-3" />}
+                  {copied ? "تم النسخ" : "نسخ"}
                 </button>
                 <button
                   onClick={handleDownload}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground border border-border/50 hover:border-border transition-all"
                 >
                   <Download className="h-3 w-3" />
-                  Save
+                  حفظ
                 </button>
               </div>
             </div>
@@ -304,7 +304,7 @@ export default function FilesPage() {
               {contentLoading ? (
                 <div className="flex items-center justify-center h-32 gap-2 text-muted-foreground">
                   <RefreshCw className="h-4 w-4 animate-spin" />
-                  <span className="text-xs">Loading…</span>
+                   <span className="text-xs">جاري التحميل…</span>
                 </div>
               ) : (
                 <pre className="code-block text-[0.78rem] text-foreground/80 whitespace-pre-wrap break-words leading-relaxed">
@@ -323,7 +323,7 @@ export default function FilesPage() {
                 <div className="flex items-center gap-2">
                   <FolderOpen className="h-5 w-5 text-primary" />
                   <div>
-                    <h1 className="text-base font-semibold">Files</h1>
+                    <h1 className="text-base font-semibold">الملفات</h1>
                     <p className="text-[10px] text-muted-foreground/50">
                       {files.length} files · {formatSize(totalSize)}
                     </p>
@@ -342,7 +342,7 @@ export default function FilesPage() {
                       ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                       : <Upload className="h-3.5 w-3.5" />
                     }
-                    Upload
+                    رفع
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -368,10 +368,10 @@ export default function FilesPage() {
                     <Folder className="h-7 w-7 text-primary/40" />
                   </div>
                   <div className="space-y-1">
-                    <p className="text-sm font-medium text-muted-foreground">No files yet</p>
-                    <p className="text-xs text-muted-foreground/50 max-w-52">
-                      Files generated by the agent or uploaded by you appear here.
-                    </p>
+                    <p className="text-sm font-medium text-muted-foreground">لا توجد ملفات بعد</p>
+                      <p className="text-xs text-muted-foreground/50 max-w-52">
+                        الملفات المولّدة من الوكيل أو المرفوعة منك تظهر هنا.
+                      </p>
                   </div>
                 </div>
               ) : (
@@ -397,7 +397,7 @@ export default function FilesPage() {
                           <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
                           <button
                             onClick={e => handleDelete(file.name, e)}
-                            className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-rose-400 hover:bg-rose-400/10 transition-all"
+                            className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-all"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>

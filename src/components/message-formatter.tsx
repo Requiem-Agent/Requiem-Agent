@@ -27,8 +27,8 @@ function CopyButton({ text }: { text: string }) {
   }
   return (
     <button onClick={handleCopy} className="flex items-center gap-1 px-2 py-1 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-all">
-      {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-      {copied ? "copied" : "copy"}
+      {copied ? <Check className="h-3 w-3 text-neutral-700" /> : <Copy className="h-3 w-3" />}
+      {copied ? "تم النسخ" : "نسخ"}
     </button>
   );
 }
@@ -39,9 +39,9 @@ function SvgBlock({ code }: { code: string }) {
   return (
     <div className="rounded-xl border border-border/50 overflow-hidden my-3 bg-white/[0.02]">
       <div className="flex items-center justify-between px-3 py-1.5 bg-card border-b border-border/40">
-        <span className="text-[10px] font-mono text-emerald-400/70 uppercase tracking-wider">SVG Preview</span>
+        <span className="text-[10px] font-mono text-neutral-500 uppercase tracking-wider">معاينة SVG</span>
         <div className="flex gap-1">
-          <button onClick={() => setShowSource(s => !s)} className="text-[10px] text-muted-foreground px-2 py-1 rounded hover:bg-white/[0.06]">{showSource ? "Preview" : "Source"}</button>
+          <button onClick={() => setShowSource(s => !s)} className="text-[10px] text-muted-foreground px-2 py-1 rounded hover:bg-white/[0.06]">{showSource ? "معاينة" : "المصدر"}</button>
           <CopyButton text={code} />
         </div>
       </div>
@@ -63,14 +63,14 @@ function HtmlPreviewBlock({ code }: { code: string }) {
   return (
     <div className="rounded-xl border border-border/50 overflow-hidden my-3">
       <div className="flex items-center justify-between px-3 py-1.5 bg-card border-b border-border/40">
-        <span className="text-[10px] font-mono text-cyan-400/70 uppercase">HTML Preview</span>
+        <span className="text-[10px] font-mono text-neutral-500 uppercase">معاينة HTML</span>
         <div className="flex gap-1">
-          <button onClick={() => setShowPreview(p => !p)} className="text-[10px] text-muted-foreground px-2 py-1 rounded hover:bg-white/[0.06]">{showPreview ? "Source" : "Preview"}</button>
+          <button onClick={() => setShowPreview(p => !p)} className="text-[10px] text-muted-foreground px-2 py-1 rounded hover:bg-white/[0.06]">{showPreview ? "المصدر" : "معاينة"}</button>
           <CopyButton text={code} />
         </div>
       </div>
       {showPreview
-        ? <iframe src={blobUrl} className="w-full h-64 border-0 bg-white" sandbox="allow-scripts" title="HTML preview" />
+        ? <iframe src={blobUrl} className="w-full h-64 border-0 bg-white" sandbox="allow-scripts" title="معاينة HTML" />
         : <pre className="code-block text-[0.75rem] p-3 text-[#e2e8f0] overflow-x-auto max-h-64"><code>{code}</code></pre>
       }
     </div>
@@ -81,8 +81,8 @@ const CHART_COLORS = ["#6366f1","#22d3ee","#10b981","#f59e0b","#ef4444","#8b5cf6
 function ChartBlock({ code }: { code: string }) {
   const parsed = useMemo(() => { try { return JSON.parse(code); } catch { return null; } }, [code]);
   if (!parsed) return (
-    <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 my-3 flex items-center gap-2 text-xs text-rose-400">
-      <AlertCircle className="h-4 w-4 shrink-0" />Invalid chart JSON
+    <div className="rounded-xl border border-neutral-300 bg-neutral-50 p-3 my-3 flex items-center gap-2 text-xs text-neutral-500">
+      <AlertCircle className="h-4 w-4 shrink-0" />بيانات الرسم البياني غير صالحة
     </div>
   );
   const { type="bar", data=[], title, xKey="name", bars=[], lines=[], dataKey="value" } = parsed;
@@ -90,10 +90,10 @@ function ChartBlock({ code }: { code: string }) {
   return (
     <div className="rounded-xl border border-border/50 overflow-hidden my-3">
       <div className="flex items-center justify-between px-3 py-1.5 bg-card border-b border-border/40">
-        <span className="text-[10px] font-mono text-amber-400/70 uppercase">{type} chart{title ? ` · ${title}` : ""}</span>
+        <span className="text-[10px] font-mono text-neutral-500 uppercase">{type === "bar" ? "أعمدة" : type === "line" ? "خطي" : type === "pie" ? "دائري" : type} — رسم بياني{title ? ` · ${title}` : ""}</span>
         <CopyButton text={code} />
       </div>
-      <div className="p-3 bg-[#0a0b0e]">
+      <div className="p-3 bg-neutral-950">
         <ResponsiveContainer width="100%" height={220}>
           {type === "line" ? (
             <LineChart data={data}>
@@ -132,7 +132,7 @@ function MermaidBlock({ code }: { code: string }) {
   return (
     <div className="rounded-xl border border-primary/20 bg-primary/[0.03] overflow-hidden my-3">
       <div className="flex items-center justify-between px-3 py-1.5 bg-primary/5 border-b border-primary/15">
-        <span className="text-[10px] font-mono text-primary/60 uppercase tracking-wider">Diagram</span>
+        <span className="text-[10px] font-mono text-primary/60 uppercase tracking-wider">مخطط</span>
         <CopyButton text={code} />
       </div>
       <pre className="text-[0.78rem] p-3 text-foreground/70 whitespace-pre leading-relaxed font-mono overflow-x-auto">{code}</pre>
@@ -142,7 +142,7 @@ function MermaidBlock({ code }: { code: string }) {
 
 function ImageBlock({ src, alt }: { src: string; alt: string }) {
   const [error, setError] = useState(false);
-  if (error) return <span className="text-xs text-muted-foreground/50">[Image: {alt}]</span>;
+  if (error) return <span className="text-xs text-muted-foreground/50">[صورة: {alt}]</span>;
   return (
     <div className="my-3 rounded-xl overflow-hidden border border-border/50 inline-block max-w-full">
       <img src={src} alt={alt} className="max-w-full max-h-80 object-contain" onError={() => setError(true)} />
@@ -174,7 +174,7 @@ function TableBlock({ rows }: { rows: string[][] }) {
 }
 
 function InlineCode({ children }: { children: React.ReactNode }) {
-  return <code className="px-1.5 py-0.5 rounded bg-[#0f1014] border border-border/40 text-cyan-300 font-mono text-[0.8em]">{children}</code>;
+  return <code className="px-1.5 py-0.5 rounded bg-neutral-950 border border-border/40 text-neutral-700 font-mono text-[0.8em]">{children}</code>;
 }
 
 function renderInline(text: string): React.ReactNode {
@@ -234,38 +234,38 @@ function renderMarkdown(text: string): React.ReactNode[] {
 
 // Language → color accent for code block border
 const LANG_ACCENT: Record<string, string> = {
-  rust: "border-l-orange-500/60",
-  rs: "border-l-orange-500/60",
-  typescript: "border-l-blue-400/60",
-  tsx: "border-l-blue-400/60",
-  ts: "border-l-blue-400/60",
-  javascript: "border-l-yellow-400/60",
-  js: "border-l-yellow-400/60",
-  jsx: "border-l-yellow-400/60",
-  python: "border-l-yellow-300/60",
-  py: "border-l-yellow-300/60",
-  bash: "border-l-emerald-400/60",
-  sh: "border-l-emerald-400/60",
-  shell: "border-l-emerald-400/60",
-  json: "border-l-violet-400/60",
-  sql: "border-l-cyan-400/60",
-  toml: "border-l-amber-400/60",
-  yaml: "border-l-amber-400/60",
-  html: "border-l-orange-400/60",
-  css: "border-l-pink-400/60",
+  rust: "border-l-neutral-600",
+  rs: "border-l-neutral-600",
+  typescript: "border-l-neutral-500",
+  tsx: "border-l-neutral-500",
+  ts: "border-l-neutral-500",
+  javascript: "border-l-neutral-500",
+  js: "border-l-neutral-500",
+  jsx: "border-l-neutral-500",
+  python: "border-l-neutral-400",
+  py: "border-l-neutral-400",
+  bash: "border-l-neutral-500",
+  sh: "border-l-neutral-500",
+  shell: "border-l-neutral-500",
+  json: "border-l-neutral-500",
+  sql: "border-l-neutral-500",
+  toml: "border-l-neutral-500",
+  yaml: "border-l-neutral-500",
+  html: "border-l-neutral-500",
+  css: "border-l-neutral-400",
 };
 
 // Language → badge label color
 const LANG_COLOR: Record<string, string> = {
-  rust: "text-orange-400", rs: "text-orange-400",
-  typescript: "text-blue-400", tsx: "text-blue-400", ts: "text-blue-400",
-  javascript: "text-yellow-400", js: "text-yellow-400",
-  python: "text-yellow-300", py: "text-yellow-300",
-  bash: "text-emerald-400", sh: "text-emerald-400", shell: "text-emerald-400",
-  json: "text-violet-400",
-  sql: "text-cyan-400",
-  html: "text-orange-400",
-  css: "text-pink-400",
+  rust: "text-neutral-600", rs: "text-neutral-600",
+  typescript: "text-neutral-600", tsx: "text-neutral-600", ts: "text-neutral-600",
+  javascript: "text-neutral-600", js: "text-neutral-600",
+  python: "text-neutral-600", py: "text-neutral-600",
+  bash: "text-neutral-700", sh: "text-neutral-700", shell: "text-neutral-700",
+  json: "text-neutral-600",
+  sql: "text-neutral-600",
+  html: "text-neutral-600",
+  css: "text-neutral-500",
 };
 
 function CodeBlock({ language, code }: { language: string; code: string }) {
@@ -284,15 +284,15 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   const displayLang = language || "text";
 
   return (
-    <div className={cn("rounded-xl bg-[#0a0b0e] border border-border/50 border-l-2 overflow-hidden my-3 shadow-lg", accentClass)}>
+    <div className={cn("rounded-xl bg-neutral-950 border border-border/50 border-l-2 overflow-hidden my-3 shadow-lg", accentClass)}>
       {/* Header bar */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[#0f1014] border-b border-border/30">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-neutral-950 border-b border-border/30">
         <div className="flex items-center gap-2.5">
           {/* macOS traffic lights */}
           <div className="flex gap-1.5 shrink-0">
-            <span className="h-2.5 w-2.5 rounded-full bg-rose-500/70"/>
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-500/70"/>
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/70"/>
+            <span className="h-2.5 w-2.5 rounded-full bg-neutral-500"/>
+            <span className="h-2.5 w-2.5 rounded-full bg-neutral-500"/>
+            <span className="h-2.5 w-2.5 rounded-full bg-neutral-700"/>
           </div>
           <span className={cn("text-[10px] font-mono uppercase tracking-wider font-semibold", labelColor)}>
             {displayLang}
@@ -308,8 +308,8 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
               className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.06] transition-all border border-transparent hover:border-border/40"
             >
               {collapsed
-                ? <><ChevronDown className="h-3 w-3"/>expand</>
-                : <><ChevronUp className="h-3 w-3"/>collapse</>
+                ? <><ChevronDown className="h-3 w-3"/>توسيع</>
+                : <><ChevronUp className="h-3 w-3"/>طيّ</>
               }
             </button>
           )}
@@ -329,7 +329,7 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
           onClick={() => setCollapsed(false)}
           className="w-full px-4 py-2 text-xs text-muted-foreground/40 font-mono hover:text-muted-foreground/70 hover:bg-white/[0.02] transition-all text-left"
         >
-          ▸ {lines.length} lines hidden — click to expand
+          ▸ {lines.length} سطر مخفي — انقر للتوسيع
         </button>
       )}
     </div>
@@ -340,21 +340,21 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
 function ThinkBlock({ content }: { content: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="my-2 rounded-xl border border-violet-500/20 bg-violet-500/4 overflow-hidden">
+    <div className="my-2 rounded-xl border border-neutral-300 bg-neutral-50 overflow-hidden">
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/[0.02] transition-colors text-left"
       >
-        <span className="text-violet-400 text-[10px] font-mono">⟨think⟩</span>
-        <span className="text-violet-400/70 text-[10px]">
-          {open ? "hide chain-of-thought" : "show chain-of-thought"}
+        <span className="text-neutral-600 text-[10px] font-mono">⟨think⟩</span>
+        <span className="text-neutral-500 text-[10px]">
+          {open ? "إخفاء سلسلة التفكير" : "إظهار سلسلة التفكير"}
         </span>
         <span className="ml-auto text-muted-foreground/30">
           {open ? "▲" : "▼"}
         </span>
       </button>
       {open && (
-        <div className="px-3 pb-3 pt-1 text-[0.75rem] text-violet-300/60 leading-relaxed italic border-t border-violet-500/10 font-mono whitespace-pre-wrap">
+        <div className="px-3 pb-3 pt-1 text-[0.75rem] text-neutral-500 leading-relaxed italic border-t border-neutral-200 font-mono whitespace-pre-wrap">
           {content.trim()}
         </div>
       )}

@@ -22,9 +22,9 @@ function formatSize(b: number) {
 
 function getFileIcon(name: string) {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  if (["rs", "ts", "tsx", "js", "jsx", "py", "go"].includes(ext)) return { Icon: FileCode, color: "text-cyan-400" };
-  if (["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(ext)) return { Icon: FileImage, color: "text-emerald-400" };
-  if (["md", "txt"].includes(ext)) return { Icon: FileText, color: "text-amber-400" };
+  if (["rs", "ts", "tsx", "js", "jsx", "py", "go"].includes(ext)) return { Icon: FileCode, color: "text-neutral-600" };
+  if (["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(ext)) return { Icon: FileImage, color: "text-neutral-700" };
+  if (["md", "txt"].includes(ext)) return { Icon: FileText, color: "text-neutral-500" };
   return { Icon: FileText, color: "text-muted-foreground/60" };
 }
 
@@ -45,8 +45,8 @@ function TreeItem({
           style={{ paddingLeft: `${8 + depth * 16}px` }}
         >
           {expanded
-            ? <FolderOpen className="h-3 w-3 text-amber-400 shrink-0" />
-            : <FolderClosed className="h-3 w-3 text-amber-400/70 shrink-0" />}
+            ? <FolderOpen className="h-3 w-3 text-neutral-500 shrink-0" />
+            : <FolderClosed className="h-3 w-3 text-neutral-500/70 shrink-0" />}
           <span className="truncate font-medium">{node.name}</span>
           <ChevronDown className={cn("h-2.5 w-2.5 ml-auto text-muted-foreground/30 transition-transform shrink-0", !expanded && "-rotate-90")} />
         </button>
@@ -99,7 +99,7 @@ function FileViewer({ workspaceId, path, onClose }: { workspaceId: string; path:
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <button onClick={handleCopy} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.05] transition-all">
-            {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+            {copied ? <Check className="h-3 w-3 text-neutral-700" /> : <Copy className="h-3 w-3" />}
           </button>
           <button onClick={onClose} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.05] transition-all">
             <X className="h-3 w-3" />
@@ -111,7 +111,7 @@ function FileViewer({ workspaceId, path, onClose }: { workspaceId: string; path:
           <div className="flex justify-center py-8"><Loader2 className="h-4 w-4 animate-spin text-primary/60" /></div>
         ) : (
           <pre className="text-[0.7rem] font-mono p-3 text-foreground/70 leading-relaxed whitespace-pre-wrap break-words">
-            {content || <span className="text-muted-foreground/30 italic">Empty file</span>}
+            {content || <span className="text-muted-foreground/30 italic">ملف فارغ</span>}
           </pre>
         )}
       </div>
@@ -136,8 +136,8 @@ function WorkspaceExpanded({ ws, onClose }: { ws: WorkspaceMeta; onClose: () => 
           <button onClick={onClose} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.05] transition-all">
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <div className="h-8 w-8 rounded-xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center">
-            <FolderOpen className="h-4 w-4 text-amber-400" />
+          <div className="h-8 w-8 rounded-xl bg-neutral-100 border border-neutral-300 flex items-center justify-center">
+            <FolderOpen className="h-4 w-4 text-neutral-500" />
           </div>
           <div>
             <p className="text-sm font-semibold">{ws.name}</p>
@@ -147,7 +147,7 @@ function WorkspaceExpanded({ ws, onClose }: { ws: WorkspaceMeta; onClose: () => 
         <div className="flex items-center gap-2">
           <a href={`https://rayig-dev.hf.space`} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border/50 text-xs text-muted-foreground hover:text-foreground hover:border-border transition-all">
-            <Globe className="h-3 w-3" />Preview
+            <Globe className="h-3 w-3" />معاينة
           </a>
         </div>
       </div>
@@ -157,7 +157,7 @@ function WorkspaceExpanded({ ws, onClose }: { ws: WorkspaceMeta; onClose: () => 
         {/* File tree */}
         <div className={cn("overflow-y-auto bg-card/20 border-r border-border/40 transition-all", selectedFile ? "w-48 shrink-0" : "flex-1")}>
           <div className="px-3 py-2 flex items-center justify-between sticky top-0 bg-card/50 backdrop-blur-sm border-b border-border/30">
-            <span className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-wider">Files</span>
+            <span className="text-[10px] font-mono text-muted-foreground/50 uppercase tracking-wider">الملفات</span>
             <Layers className="h-3 w-3 text-muted-foreground/30" />
           </div>
           {treeLoading ? (
@@ -165,8 +165,8 @@ function WorkspaceExpanded({ ws, onClose }: { ws: WorkspaceMeta; onClose: () => 
           ) : nodes.length === 0 ? (
             <div className="p-6 text-center">
               <Code2 className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-              <p className="text-xs text-muted-foreground/50">No files yet</p>
-              <p className="text-[10px] text-muted-foreground/30 mt-1">Chat with the agent to build your project</p>
+              <p className="text-xs text-muted-foreground/50">لا توجد ملفات بعد</p>
+              <p className="text-[10px] text-muted-foreground/30 mt-1">تحدث مع الوكيل لبناء مشروعي</p>
             </div>
           ) : (
             <div className="p-2 space-y-0.5">
@@ -203,23 +203,23 @@ function CreateDialog({ onClose }: { onClose: () => void }) {
       const ws = await create.mutateAsync({ name: name.trim(), description: desc.trim() });
       if (mode === "clone" && url.trim()) {
         await clone.mutateAsync({ id: (ws as any).id ?? ws, url: url.trim() });
-        toast({ title: "Cloning…", description: "Files will appear once clone finishes." });
+        toast({ title: "جاري الاستنساخ…", description: "ستظهر الملفات بعد اكتمال الاستنساخ." });
       } else {
-        toast({ title: "Workspace created", description: name });
+        toast({ title: "تم إنشاء مساحة العمل", description: name });
       }
       onClose();
     } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
+      toast({ title: "خطأ", description: e.message, variant: "destructive" });
     }
   }
 
   const busy = create.isPending || clone.isPending;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-slide-up">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
-          <span className="text-sm font-semibold">New Workspace</span>
+          <span className="text-sm font-semibold">مساحة عمل جديدة</span>
           <button onClick={onClose} className="p-1 rounded-lg text-muted-foreground hover:text-foreground transition-colors">
             <X className="h-4 w-4" />
           </button>
@@ -230,13 +230,13 @@ function CreateDialog({ onClose }: { onClose: () => void }) {
               <button key={m} onClick={() => setMode(m)}
                 className={cn("flex-1 py-2 text-xs font-medium transition-all",
                   mode === m ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-white/[0.04]")}>
-                {m === "new" ? "📁 Empty Project" : "🔗 Clone Git Repo"}
+                {m === "new" ? "📁 مشروع فارغ" : "🔗 استنساخ مستودع Git"}
               </button>
             ))}
           </div>
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Project name"
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="اسم المشروع"
             className="w-full bg-input/40 border border-border/50 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/40" />
-          <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Description (optional)"
+          <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="الوصف (اختياري)"
             className="w-full bg-input/40 border border-border/50 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-primary/40 placeholder:text-muted-foreground/40" />
           {mode === "clone" && (
             <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://github.com/user/repo"
@@ -244,7 +244,7 @@ function CreateDialog({ onClose }: { onClose: () => void }) {
           )}
           <button onClick={handleSubmit} disabled={!name.trim() || busy}
             className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-40 hover:bg-primary/90 transition-all active:scale-[0.98] shadow-lg shadow-primary/20">
-            {busy ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : mode === "clone" ? "Create & Clone" : "Create Project"}
+            {busy ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : mode === "clone" ? "إنشاء واستنساخ" : "إنشاء مشروع"}
           </button>
         </div>
       </div>
@@ -261,19 +261,19 @@ function WorkspaceCard({ ws, onOpen }: { ws: WorkspaceMeta; onOpen: (ws: Workspa
     e.stopPropagation();
     try {
       await remove.mutateAsync(ws.id);
-      toast({ title: "Deleted", description: ws.name });
+      toast({ title: "تم الحذف", description: ws.name });
     } catch (e: any) {
-      toast({ title: "Delete failed", description: e.message, variant: "destructive" });
+      toast({ title: "فشل الحذف", description: e.message, variant: "destructive" });
     }
   }
 
   return (
     <div
       onClick={() => onOpen(ws)}
-      className="flex items-start gap-3 p-4 rounded-2xl border border-border/40 bg-card/30 group hover:bg-card/60 hover:border-amber-400/30 transition-all animate-slide-up cursor-pointer active:scale-[0.99]"
+      className="flex items-start gap-3 p-4 rounded-2xl border border-border/40 bg-card/30 group hover:bg-card/60 hover:border-neutral-400 transition-all animate-slide-up cursor-pointer active:scale-[0.99]"
     >
-      <div className="h-10 w-10 rounded-xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center shrink-0 group-hover:bg-amber-400/15 transition-all">
-        <FolderOpen className="h-5 w-5 text-amber-400" />
+      <div className="h-10 w-10 rounded-xl bg-neutral-100 border border-neutral-300 flex items-center justify-center shrink-0 group-hover:bg-neutral-100 transition-all">
+        <FolderOpen className="h-5 w-5 text-neutral-500" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -283,7 +283,7 @@ function WorkspaceCard({ ws, onOpen }: { ws: WorkspaceMeta; onOpen: (ws: Workspa
         {ws.description && <p className="text-xs text-muted-foreground/60 mt-0.5 truncate">{ws.description}</p>}
         <div className="flex items-center gap-3 mt-1.5">
           <span className="text-[10px] text-muted-foreground/50 font-mono flex items-center gap-1">
-            <FileCode2 className="h-3 w-3" />{ws.file_count ?? 0} files
+            <FileCode2 className="h-3 w-3" />{ws.file_count ?? 0} ملفات
           </span>
           <span className="text-[10px] text-muted-foreground/50 font-mono">{formatSize(ws.size_bytes ?? 0)}</span>
           {ws.git_url && (
@@ -296,7 +296,7 @@ function WorkspaceCard({ ws, onOpen }: { ws: WorkspaceMeta; onOpen: (ws: Workspa
       <button
         onClick={handleDelete}
         disabled={remove.isPending}
-        className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-rose-400 hover:bg-rose-400/10 transition-all shrink-0 z-10"
+        className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-all shrink-0 z-10"
       >
         {remove.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
       </button>
@@ -323,9 +323,9 @@ export default function WorkspacesPage() {
             <div className="flex items-center gap-2">
               <FolderClosed className="h-5 w-5 text-primary" />
               <div>
-                <h1 className="text-base font-semibold">Projects</h1>
+                <h1 className="text-base font-semibold">المشاريع</h1>
                 <p className="text-[10px] text-muted-foreground/50">
-                  {workspaces.length} workspace{workspaces.length !== 1 ? "s" : ""} · tap to browse files
+                  {workspaces.length} {workspaces.length === 1 ? "مساحة عمل" : "مساحات عمل"} · اضغط لتصفح الملفات
                 </p>
               </div>
             </div>
@@ -336,7 +336,7 @@ export default function WorkspacesPage() {
               </button>
               <button onClick={() => setShowCreate(true)}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-all active:scale-95 shadow-md shadow-primary/20">
-                <Plus className="h-3.5 w-3.5" />New
+                <Plus className="h-3.5 w-3.5" />جديد
               </button>
             </div>
           </div>
@@ -349,12 +349,12 @@ export default function WorkspacesPage() {
                 <FolderClosed className="h-7 w-7 text-primary/40" />
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">No projects yet</p>
-                <p className="text-xs text-muted-foreground/50 max-w-56">Create a project and let the agent build it for you.</p>
+                <p className="text-sm font-medium text-muted-foreground">لا توجد مشاريع بعد</p>
+                <p className="text-xs text-muted-foreground/50 max-w-56">أنشئ مشروع ودع الوكيل يبنيه لك.</p>
               </div>
               <button onClick={() => setShowCreate(true)}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl border border-primary/30 text-primary text-xs hover:bg-primary/5 transition-all">
-                <Plus className="h-3.5 w-3.5" />Create First Project
+                <Plus className="h-3.5 w-3.5" />إنشاء أول مشروع
               </button>
             </div>
           ) : (

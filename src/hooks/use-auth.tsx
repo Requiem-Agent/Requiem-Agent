@@ -55,7 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setToken(storedToken);
           setUser({
             id: data.user_id,
-            username: data.username || (storedUser ? JSON.parse(storedUser).username : undefined),
+            username: data.username || safeUserField(storedUser, 'username'),
             plan: data.plan || 'free',
           });
           setIsLoading(false);
@@ -71,32 +71,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
   }, []);
 
+/** Safe parse of a stored user JSON field (never throws JSON.parse errors). */
+const safeUserField = (raw: string | null, field: 'username' | 'plan'): string | undefined => {
+  if (!raw) return undefined;
+  try { return JSON.parse(raw)?.[field] as string | undefined; } catch { return undefined; }
+};
+
   const login = async (username: string, password: string) => {
-    try {
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiBase}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) return { success: false, error: data.error || 'Invalid credentials' };
+    const apiBase = import.meta.env.VITE_API_URL || '';
+    // Small helper: parse JSON safely — a proxy/replica may return an empty
+    // body or non-JSON payload; never crash with "JSON.parse:" errors.
+    const tryJson = async (res: Response) => {
+      const text = await res.text();
+      if (!text) return {};
+      try { return JSON.parse(text); } catch { return { raw: text }; }
+    };
 
-      const authUser: AuthUser = {
-        id: data.user_id,
-        username: data.username || username,
-        plan: data.plan || 'free',
-      };
-
-      setToken(data.token);
-      setUser(authUser);
-      sessionStorage.setItem('rq_tok', data.token);
-      sessionStorage.setItem('rq_user', JSON.stringify(authUser));
-
-      return { success: true };
-    } catch (e: any) {
-      return { success: false, error: e.message || 'Connection error' };
+    // One retry on empty/opaque responses (cold replica wake-up etc.)
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(`${apiBase}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await tryJson(res);
+        if (res.ok) {
+          if (!data.token) {
+            if (attempt === 0) { await new Promise(r => setTimeout(r, 1200)); continue; }
+            return { success: false, error: 'استجابة فارغة من الخادم — حاول مجدداً' };
+          }
+          const authUser: AuthUser = {
+            id: data.user_id,
+            username: data.username || username,
+            plan: data.plan || 'free',
+          };
+          setToken(data.token);
+          setUser(authUser);
+          sessionStorage.setItem('rq_tok', data.token);
+          sessionStorage.setItem('rq_user', JSON.stringify(authUser));
+          return { success: true };
+        }
+        return { success: false, error: data.error || data.raw || `فشل تسجيل الدخول (${res.status})` };
+      } catch (e: any) {
+        if (attempt === 0) { await new Promise(r => setTimeout(r, 1200)); continue; }
+        return { success: false, error: e?.message?.includes('JSON.parse') ? 'استجابة غير صالحة من الخادم — حاول مجدداً' : (e?.message || 'Connection error') };
+      }
     }
+    return { success: false, error: 'Connection error' };
   };
 
   const logout = () => {

@@ -12,7 +12,7 @@ const LANGUAGES: { id: SandboxLanguage; label: string; color: string; placeholde
   {
     id: "python",
     label: "Python",
-    color: "text-yellow-400",
+    color: "text-neutral-600",
     placeholder: `# Python sandbox
 print("Hello from PopCorn AI Studio!")
 
@@ -26,7 +26,7 @@ print(f"Sum 1-100: {result}")`,
   {
     id: "javascript",
     label: "JavaScript",
-    color: "text-cyan-400",
+    color: "text-neutral-600",
     placeholder: `// JavaScript / Node.js sandbox
 console.log("Hello from PopCorn AI Studio!");
 
@@ -44,7 +44,7 @@ fetchData().then(console.log);`,
   {
     id: "typescript",
     label: "TypeScript",
-    color: "text-blue-400",
+    color: "text-neutral-600",
     placeholder: `// TypeScript sandbox
 interface Agent {
   name: string;
@@ -64,17 +64,17 @@ agent.capabilities.forEach(cap => console.log(\` - \${cap}\`));`,
   {
     id: "bash",
     label: "Bash",
-    color: "text-emerald-400",
+    color: "text-neutral-700",
     placeholder: `#!/bin/bash
-echo "Hello from PopCorn AI Studio!"
+echo "مرحباً من PopCorn AI Studio!"
 echo ""
-echo "System info:"
+echo "معلومات النظام:"
 uname -a
 echo ""
-echo "Current directory:"
+echo "المجلد الحالي:"
 pwd
 echo ""
-echo "Files:"
+echo "الملفات:"
 ls -la /tmp 2>/dev/null | head -10`,
   },
 ];
@@ -104,20 +104,20 @@ export default function SandboxPage() {
   async function handleRun() {
     const src = code.trim();
     if (!src) {
-      toast({ title: "No code to run", variant: "destructive" });
+      toast({ title: "لا يوجد كود للتشغيل", variant: "destructive" });
       return;
     }
     try {
       const res = await exec.mutateAsync({ code: src, language, timeout_secs: 30 });
       setResult(res);
     } catch (err: any) {
-      toast({ title: "Execution failed", description: err.message, variant: "destructive" });
+      toast({ title: "فشل التنفيذ", description: err.message, variant: "destructive" });
     }
   }
 
   function handleCopy(text: string) {
     navigator.clipboard.writeText(text).then(() => {
-      toast({ title: "Copied!" });
+      toast({ title: "تم النسخ!" });
     });
   }
 
@@ -137,12 +137,12 @@ export default function SandboxPage() {
           {/* Header */}
           <div className="flex items-center justify-between animate-slide-up">
             <div className="flex items-center gap-2.5">
-              <div className="h-9 w-9 rounded-xl bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center">
-                <Terminal className="h-4.5 w-4.5 text-emerald-400" />
+              <div className="h-9 w-9 rounded-xl bg-neutral-700/10 border border-neutral-700/20 flex items-center justify-center">
+                <Terminal className="h-4.5 w-4.5 text-neutral-700" />
               </div>
               <div>
-                <h1 className="text-base font-semibold">Sandbox</h1>
-                <p className="text-[10px] text-muted-foreground/50">Execute code securely</p>
+                <h1 className="text-base font-semibold">بيئة التنفيذ</h1>
+                <p className="text-[10px] text-muted-foreground/50">تنفيذ الكود بشكل آمن</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -181,7 +181,7 @@ export default function SandboxPage() {
                   >
                     <Code2 className={cn("h-3.5 w-3.5", l.color)} />
                     <span className="text-sm">{l.label}</span>
-                    {l.id === language && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 ml-auto" />}
+                    {l.id === language && <CheckCircle2 className="h-3.5 w-3.5 text-neutral-700 ml-auto" />}
                   </button>
                 ))}
               </div>
@@ -202,7 +202,7 @@ export default function SandboxPage() {
               onChange={e => setCode(e.target.value)}
               placeholder={activeLang.placeholder}
               spellCheck={false}
-              className="w-full h-48 px-3.5 py-3 rounded-b-xl border border-border/50 bg-[#0a0c12] text-sm font-mono resize-none focus:outline-none focus:ring-1 focus:ring-emerald-400/30 text-emerald-50/90 placeholder:text-muted-foreground/30 leading-relaxed"
+              className="w-full h-48 px-3.5 py-3 rounded-b-xl border border-border/50 bg-neutral-950 text-sm font-mono resize-none focus:outline-none focus:ring-1 focus:ring-black/30 text-neutral-50/90 placeholder:text-muted-foreground/30 leading-relaxed"
               onKeyDown={e => {
                 if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
                   e.preventDefault();
@@ -225,13 +225,13 @@ export default function SandboxPage() {
           <button
             onClick={handleRun}
             disabled={exec.isPending || !code.trim()}
-            className="w-full flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition-all animate-slide-up"
+            className="w-full flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl bg-black hover:bg-neutral-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition-all animate-slide-up"
             style={{ animationDelay: "150ms" }}
           >
             {exec.isPending ? (
-              <><Loader2 className="h-4 w-4 animate-spin" /><span>Running...</span></>
+              <><Loader2 className="h-4 w-4 animate-spin" /><span>جاري التنفيذ...</span></>
             ) : (
-              <><Play className="h-4 w-4" /><span>Run Code</span><span className="text-emerald-200/50 text-xs ml-auto font-mono">⌘↵</span></>
+              <><Play className="h-4 w-4" /><span>تشغيل الكود</span><span className="text-neutral-200/50 text-xs ml-auto font-mono">⌘↵</span></>
             )}
           </button>
 
@@ -241,9 +241,9 @@ export default function SandboxPage() {
               {/* Status bar */}
               <div className="flex items-center gap-2.5">
                 {result.success ? (
-                  <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /><span className="text-xs text-emerald-400 font-medium">Executed successfully</span></>
+                  <><CheckCircle2 className="h-3.5 w-3.5 text-neutral-700" /><span className="text-xs text-neutral-700 font-medium">تم التنفيذ بنجاح</span></>
                 ) : (
-                  <><AlertCircle className="h-3.5 w-3.5 text-rose-400" /><span className="text-xs text-rose-400 font-medium">Exit {result.exit_code}</span></>
+                  <><AlertCircle className="h-3.5 w-3.5 text-red-600" /><span className="text-xs text-red-600 font-medium">خروج {result.exit_code}</span></>
                 )}
                 <div className="flex items-center gap-1 ml-auto text-muted-foreground/40">
                   <Clock className="h-3 w-3" />
@@ -261,12 +261,12 @@ export default function SandboxPage() {
               {result.stdout && (
                 <div className="space-y-0">
                   <div className="flex items-center justify-between px-3 py-1.5 rounded-t-xl bg-card/60 border border-b-0 border-border/50">
-                    <span className="text-[10px] font-mono text-muted-foreground/50">stdout</span>
+                    <span className="text-[10px] font-mono text-muted-foreground/50">المخرجات</span>
                     <button onClick={() => handleCopy(result.stdout)} className="p-1 text-muted-foreground/40 hover:text-muted-foreground transition-colors">
                       <Copy className="h-3 w-3" />
                     </button>
                   </div>
-                  <pre className="rounded-b-xl border border-border/50 bg-[#0a0c12] px-3.5 py-3 text-xs font-mono text-emerald-300/90 overflow-x-auto max-h-64 whitespace-pre-wrap leading-relaxed">
+                  <pre className="rounded-b-xl border border-border/50 bg-neutral-950 px-3.5 py-3 text-xs font-mono text-neutral-700 overflow-x-auto max-h-64 whitespace-pre-wrap leading-relaxed">
                     {result.stdout}
                   </pre>
                 </div>
@@ -275,12 +275,12 @@ export default function SandboxPage() {
               {/* stderr / compilation error */}
               {(result.stderr || result.compilation_error) && (
                 <div className="space-y-0">
-                  <div className="flex items-center justify-between px-3 py-1.5 rounded-t-xl bg-rose-900/20 border border-b-0 border-rose-500/20">
-                    <span className="text-[10px] font-mono text-rose-400/70">
-                      {result.compilation_error ? "compilation error" : "stderr"}
+                  <div className="flex items-center justify-between px-3 py-1.5 rounded-t-xl bg-red-100 border border-b-0 border-red-200">
+                    <span className="text-[10px] font-mono text-red-600/70">
+                      {result.compilation_error ? "خطأ ترجمة" : "الأخطاء"}
                     </span>
                   </div>
-                  <pre className="rounded-b-xl border border-rose-500/20 bg-[#120a0a] px-3.5 py-3 text-xs font-mono text-rose-300/80 overflow-x-auto max-h-40 whitespace-pre-wrap leading-relaxed">
+                  <pre className="rounded-b-xl border border-red-200 bg-red-950 px-3.5 py-3 text-xs font-mono text-red-600/80 overflow-x-auto max-h-40 whitespace-pre-wrap leading-relaxed">
                     {result.compilation_error || result.stderr}
                   </pre>
                 </div>
@@ -288,9 +288,9 @@ export default function SandboxPage() {
 
               {/* Timed out */}
               {result.timed_out && (
-                <div className="px-3.5 py-2.5 rounded-xl border border-amber-500/20 bg-amber-500/5 text-xs text-amber-400 flex items-center gap-2">
+                <div className="px-3.5 py-2.5 rounded-xl border border-neutral-300 bg-neutral-100 text-xs text-neutral-500 flex items-center gap-2">
                   <Clock className="h-3.5 w-3.5 shrink-0" />
-                  Execution timed out (30s limit)
+                  انتهت مهلة التنفيذ (حد 30 ثانية)
                 </div>
               )}
             </div>
@@ -299,11 +299,11 @@ export default function SandboxPage() {
           {/* Empty state */}
           {!hasOutput && !exec.isPending && (
             <div className="flex flex-col items-center py-10 gap-3 text-center animate-fade-in">
-              <div className="h-12 w-12 rounded-2xl bg-emerald-400/5 border border-emerald-400/15 flex items-center justify-center">
-                <Terminal className="h-6 w-6 text-emerald-400/40" />
+              <div className="h-12 w-12 rounded-2xl bg-neutral-700/5 border border-neutral-700/15 flex items-center justify-center">
+                <Terminal className="h-6 w-6 text-neutral-700/40" />
               </div>
               <p className="text-xs text-muted-foreground/40 max-w-48 leading-relaxed">
-                Write code above and hit <span className="font-mono text-emerald-400/60">Run</span> — output appears here.
+                اكتب الكود أعلاه واضغط <span className="font-mono text-neutral-700/60">تشغيل</span> — تظهر المخرجات هنا.
               </p>
             </div>
           )}

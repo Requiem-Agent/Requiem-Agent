@@ -39,11 +39,11 @@ interface Task {
 }
 
 const STATUS_CFG: Record<TaskStatus, { label: string; Icon: React.ElementType; color: string; bg: string; border: string }> = {
-  pending:     { label: "Pending",  Icon: Circle,       color: "text-muted-foreground", bg: "bg-muted/15",         border: "border-border/30" },
-  in_progress: { label: "Running",  Icon: Loader2,      color: "text-cyan-400",         bg: "bg-cyan-400/8",       border: "border-cyan-400/20" },
-  completed:   { label: "Done",     Icon: CheckCircle2, color: "text-emerald-400",       bg: "bg-emerald-400/8",    border: "border-emerald-400/20" },
-  failed:      { label: "Failed",   Icon: AlertCircle,  color: "text-rose-400",          bg: "bg-rose-400/8",       border: "border-rose-400/20" },
-  blocked:     { label: "Blocked",  Icon: Pause,        color: "text-amber-400",         bg: "bg-amber-400/8",      border: "border-amber-400/20" },
+  pending:     { label: "معلّق",     Icon: Circle,       color: "text-muted-foreground", bg: "bg-muted/15",         border: "border-border/30" },
+  in_progress: { label: "قيد التنفيذ", Icon: Loader2,      color: "text-neutral-600",       bg: "bg-neutral-100",      border: "border-neutral-300" },
+  completed:   { label: "منجز",      Icon: CheckCircle2, color: "text-neutral-700",       bg: "bg-neutral-100",      border: "border-neutral-300" },
+  failed:      { label: "فشل",       Icon: AlertCircle,  color: "text-red-600",           bg: "bg-red-50",           border: "border-red-200" },
+  blocked:     { label: "محجوب",     Icon: Pause,        color: "text-neutral-500",       bg: "bg-neutral-100",      border: "border-neutral-300" },
 };
 
 function TaskItem({ task, depth = 0 }: { task: Task; depth?: number }) {
@@ -147,8 +147,8 @@ export default function TasksPage() {
               <input
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                placeholder="Describe a complex task to decompose…"
-                className="w-full bg-card/60 border border-border/60 rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-all"
+                placeholder="صف مهمة معقدة لتفكيكها…"
+                className="w-full bg-card/60 border border-border/60 rounded-xl px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-neutral-300 focus:ring-1 focus:ring-neutral-200 transition-all"
               />
             </div>
             <button
@@ -176,8 +176,8 @@ export default function TasksPage() {
             <div className="flex items-center gap-3 px-4 py-4 rounded-xl border border-primary/20 bg-primary/5 animate-fade-in">
               <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
               <div>
-                <p className="text-sm font-medium text-primary">Decomposing task…</p>
-                <p className="text-xs text-muted-foreground/60">Breaking down into parallel subtasks</p>
+                <p className="text-sm font-medium text-primary">جاري تفكيك المهمة…</p>
+                <p className="text-xs text-muted-foreground/60">تفكيك إلى مهام فرعية متوازية</p>
               </div>
             </div>
           )}
@@ -213,18 +213,18 @@ export default function TasksPage() {
               <div className="space-y-1.5">
                 <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-primary rounded-full transition-all duration-700 ease-out"
+                    className="h-full bg-black rounded-full transition-all duration-700 ease-out"
                     style={{ width: `${pct}%` }}
                   />
                 </div>
                 <div className="flex items-center gap-3 text-[10px] font-mono">
-                  <span className="text-emerald-400">{progress.completed} done</span>
-                  <span className="text-cyan-400">{progress.in_progress} running</span>
+                  <span className="text-neutral-700">{progress.completed} منجزة</span>
+                  <span className="text-neutral-600">{progress.in_progress} جارية</span>
                   <span className="text-muted-foreground/50">
-                    {progress.total - progress.completed - progress.in_progress} pending
+                    {progress.total - progress.completed - progress.in_progress} معلّقة
                   </span>
                   {progress.failed > 0 && (
-                    <span className="text-rose-400">{progress.failed} failed</span>
+                    <span className="text-red-600">{progress.failed} فاشلة</span>
                   )}
                 </div>
               </div>
@@ -245,16 +245,16 @@ export default function TasksPage() {
                 <Network className="h-7 w-7 text-primary/40" />
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">No active tasks</p>
+                <p className="text-sm font-medium text-muted-foreground">لا توجد مهام نشطة</p>
                 <p className="text-xs text-muted-foreground/50 max-w-56 leading-relaxed">
-                  Enter a complex request above — the agent will break it into parallel subtasks with dependencies.
+                  أدخل طلباً معقداً أعلاه — سيقوم الوكيل بتفكيكه إلى مهام فرعية متوازية مع تبعيات.
                 </p>
               </div>
               <div className="grid grid-cols-1 gap-2 w-full max-w-xs">
                 {[
-                  "Build a full-stack React + Rust app",
-                  "Implement authentication system",
-                  "Create REST API with tests",
+                  "بناء تطبيق React + Rust كامل",
+                  "تنفيذ نظام مصادقة",
+                  "إنشاء REST API مع اختبارات",
                 ].map(tip => (
                   <button
                     key={tip}
